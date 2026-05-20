@@ -98,6 +98,12 @@ export function App() {
           activeNav={activeNav} 
           setActiveNav={setActiveNav}
           onNavigate={(page: string) => setCurrentPage(page)}
+          onCloseSidebar={() => {
+            // Only close sidebar on mobile (below md breakpoint of 768px)
+            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+              setIsSidebarOpen(false);
+            }
+          }}
         />
 
         <main className="flex-1 ml-0 md:ml-64">
@@ -146,17 +152,29 @@ export function App() {
     <ThemeProvider attribute="class" defaultTheme="dark">
       <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
         {hasEntered && (
-          <button
-            onClick={() => setIsSidebarOpen((current) => !current)}
-            className={`fixed top-4 z-[80] inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold backdrop-blur-md transition-all ${
-              isLightMode
-                ? 'border-black/10 bg-white/85 text-[#241b10] hover:bg-white'
-                : 'border-white/10 bg-[#141419]/90 text-white hover:bg-[#1b1b22]'
-            } ${isSidebarOpen ? 'left-4 md:left-[17.5rem]' : 'left-4'}`}
-            aria-label={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-          >
-            {isSidebarOpen ? <PanelLeftClose size={18} /> : <Menu size={18} />}
-          </button>
+          <>
+            {/* Mobile Backdrop Overlay */}
+            {isSidebarOpen && (
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="fixed inset-0 z-[45] bg-black/50 md:hidden"
+                aria-label="Close sidebar"
+              />
+            )}
+            
+            {/* Hamburger Button */}
+            <button
+              onClick={() => setIsSidebarOpen((current) => !current)}
+              className={`fixed top-4 z-[80] inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold backdrop-blur-md transition-all ${
+                isLightMode
+                  ? 'border-black/10 bg-white/85 text-[#241b10] hover:bg-white'
+                  : 'border-white/10 bg-[#141419]/90 text-white hover:bg-[#1b1b22]'
+              } ${isSidebarOpen ? 'left-4 md:left-[17.5rem]' : 'left-4'}`}
+              aria-label={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            >
+              {isSidebarOpen ? <PanelLeftClose size={18} /> : <Menu size={18} />}
+            </button>
+          </>
         )}
         {content}
       </div>

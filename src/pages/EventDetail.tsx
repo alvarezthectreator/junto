@@ -69,50 +69,50 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, onNavigate = 
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <Sidebar activeNav="" setActiveNav={() => {}} onNavigate={onNavigate} />
       
-      <main className="mobile-page-main flex-1 ml-64 overflow-x-hidden">
-        <div className="bg-black text-white pb-20">
+      <main className="mobile-page-main flex-1 ml-0 md:ml-64 overflow-x-hidden pb-40 sm:pb-36 md:pb-24">
+        <div className="bg-black text-white pb-10 sm:pb-20 w-full max-w-full">
       {/* Hero Image */}
-      <div className="relative h-64 bg-gradient-to-b from-gray-800 to-black overflow-hidden">
+      <div className="relative h-40 sm:h-48 md:h-64 bg-gradient-to-b from-gray-800 to-black overflow-hidden w-full">
         <img
           src={event.media.venue[0]}
           alt={event.title}
           className="w-full h-full object-cover opacity-60"
         />
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 flex gap-2">
           <button
             onClick={() => setIsSaved(!isSaved)}
-            className="bg-black bg-opacity-60 p-2 rounded-full hover:bg-opacity-80"
+            className="bg-black bg-opacity-60 p-2 sm:p-2.5 rounded-full hover:bg-opacity-80"
           >
             <Heart
-              size={24}
-              className={isSaved ? 'fill-red-500 text-red-500' : 'text-white'}
+              size={20}
+              className={`sm:w-6 sm:h-6 ${isSaved ? 'fill-red-500 text-red-500' : 'text-white'}`}
             />
           </button>
-          <button className="bg-black bg-opacity-60 p-2 rounded-full hover:bg-opacity-80">
-            <Share2 size={24} />
+          <button className="bg-black bg-opacity-60 p-2 sm:p-2.5 rounded-full hover:bg-opacity-80">
+            <Share2 size={20} className="sm:w-6 sm:h-6" />
           </button>
         </div>
       </div>
 
       {/* Sticky Header */}
-      <div className="sticky top-0 bg-black bg-opacity-90 backdrop-blur p-4 border-b border-gray-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-purple-600 rounded-full flex items-center justify-center">
+      <div className="sticky top-0 bg-black bg-opacity-90 backdrop-blur p-3 sm:p-4 border-b border-gray-800 flex flex-col gap-2 xs:gap-3 sm:gap-0 sm:flex-row sm:items-center sm:justify-between z-40">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-red-500 to-purple-600 rounded-full flex items-center justify-center text-sm sm:text-base flex-shrink-0">
             {event.host.avatar}
           </div>
-          <div>
-            <p className="text-sm font-semibold">{event.host.name}</p>
-            <p className="text-xs text-gray-400">{event.location}</p>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm font-semibold truncate">{event.host.name}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 truncate">{event.location}</p>
           </div>
         </div>
-        <button className="self-end text-gray-400 sm:self-auto">⋯</button>
+        <button className="text-gray-400 text-lg hover:text-white self-end xs:self-auto">⋯</button>
       </div>
 
       {/* Media Tabs */}
-      <div className="px-4 py-3 border-b border-gray-800 flex flex-wrap gap-2">
+      <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-800 flex flex-wrap gap-2">
         <button
           onClick={() => setActiveTab('venue')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
             activeTab === 'venue'
               ? 'bg-gray-700 text-white'
               : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
@@ -122,7 +122,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, onNavigate = 
         </button>
         <button
           onClick={() => setActiveTab('host')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium ${
             activeTab === 'host'
               ? 'bg-gray-700 text-white'
               : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
@@ -133,18 +133,18 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, onNavigate = 
       </div>
 
       {/* Content */}
-      <div className="px-4 py-6 space-y-6">
+      <div className="px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Event Title & Details */}
-        <div className="space-y-3">
-          <h1 className="text-2xl font-bold">{event.title}</h1>
+        <div className="space-y-2 sm:space-y-3">
+          <h1 className="text-lg sm:text-2xl font-bold break-words">{event.title}</h1>
           <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 bg-red-500 bg-opacity-20 text-red-400 text-xs rounded-full font-medium">
+            <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-red-500 bg-opacity-20 text-red-400 text-[10px] sm:text-xs rounded-full font-medium">
               {event.category}
             </span>
-            <span className="px-3 py-1 bg-blue-500 bg-opacity-20 text-blue-400 text-xs rounded-full font-medium">
+            <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-blue-500 bg-opacity-20 text-blue-400 text-[10px] sm:text-xs rounded-full font-medium">
               {event.genderFilter}
             </span>
-            <span className={`px-3 py-1 ${billingInfo[event.billingTier as keyof typeof billingInfo]?.color} bg-opacity-20 text-xs rounded-full font-medium`}>
+            <span className={`px-2.5 sm:px-3 py-1 sm:py-1.5 ${billingInfo[event.billingTier as keyof typeof billingInfo]?.color} bg-opacity-20 text-[10px] sm:text-xs rounded-full font-medium`}>
               {billingInfo[event.billingTier as keyof typeof billingInfo]?.badge}
             </span>
           </div>
@@ -229,31 +229,31 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, onNavigate = 
         </div>
       </div>
 
-      {/* Action Buttons - Sticky */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-95 backdrop-blur border-t border-gray-800 p-4 space-y-2">
+      {/* Action Buttons - Fixed on Mobile, Bottom on Desktop */}
+      <div className="fixed bottom-0 left-0 right-0 md:absolute md:bottom-auto md:sticky md:top-full bg-black bg-opacity-95 backdrop-blur border-t border-gray-800 p-3 sm:p-4 space-y-2 sm:space-y-3 ml-0 md:ml-0 z-50">
         {!isJoined ? (
           <>
             <button
               onClick={() => setIsJoined(true)}
-              className="w-full bg-gradient-to-r from-red-500 to-purple-600 hover:opacity-90 text-white font-bold py-3 rounded-lg transition"
+              className="w-full bg-gradient-to-r from-red-500 to-purple-600 hover:opacity-90 text-white font-bold py-2.5 sm:py-3 rounded-lg transition text-sm sm:text-base"
             >
               I'm Interested →
             </button>
             <div className="flex gap-2">
-              <button className="flex-1 border border-gray-700 hover:bg-gray-900 text-white font-semibold py-2 rounded-lg transition flex items-center justify-center gap-2">
-                <MessageCircle size={18} /> Message
+              <button className="flex-1 border border-gray-700 hover:bg-gray-900 text-white font-semibold py-1.5 sm:py-2 rounded-lg transition flex items-center justify-center gap-2 text-xs sm:text-sm">
+                <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" /> Message
               </button>
-              <button className="flex-1 border border-gray-700 hover:bg-gray-900 text-white font-semibold py-2 rounded-lg transition">
+              <button className="flex-1 border border-gray-700 hover:bg-gray-900 text-white font-semibold py-1.5 sm:py-2 rounded-lg transition text-xs sm:text-sm">
                 Share
               </button>
             </div>
           </>
         ) : (
           <>
-            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2">
-              <Check size={20} /> Check In — I've Arrived!
+            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 sm:py-3 rounded-lg transition flex items-center justify-center gap-2 text-sm sm:text-base">
+              <Check size={18} className="sm:w-5 sm:h-5" /> Check In — I've Arrived!
             </button>
-            <button className="w-full border border-gray-700 hover:bg-gray-900 text-white font-semibold py-2 rounded-lg transition">
+            <button className="w-full border border-gray-700 hover:bg-gray-900 text-white font-semibold py-1.5 sm:py-2 rounded-lg transition text-xs sm:text-sm">
               Cancel Application
             </button>
           </>

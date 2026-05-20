@@ -18,7 +18,7 @@ export function Safety({ onNavigate = () => {} }: { onNavigate?: (page: string) 
         <Sidebar activeNav="Safety" setActiveNav={() => {}} onNavigate={onNavigate} />
       </div>
       
-      <main className="mobile-page-main flex-1 ml-64">
+      <main className="mobile-page-main flex-1 ml-0 md:ml-64 w-full overflow-x-hidden">
         <motion.div
           initial={{
             opacity: 0,
@@ -31,22 +31,22 @@ export function Safety({ onNavigate = () => {} }: { onNavigate?: (page: string) 
       transition={{
         duration: 0.3
       }}
-      className="pb-20">
+      className="pb-12 sm:pb-20 px-4 sm:px-6 md:px-8">
       
       {/* Header */}
-      <div className="mb-10 border-b border-yellow-500/30 pb-8">
-        <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 tracking-tight text-yellow-400">
+      <div className="mb-8 sm:mb-10 md:mb-12 border-b border-yellow-500/30 pb-6 sm:pb-8">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif font-bold mb-2 sm:mb-4 tracking-tight text-yellow-400">
           Stay <span className="italic text-yellow-300 font-normal">safe</span>{' '}
           out there.
         </h2>
-        <p className="text-gray-300 text-lg max-w-xl">
+        <p className="text-gray-300 text-xs sm:text-sm md:text-base lg:text-lg max-w-xl break-words">
           Your wellbeing is the vibe. Tools and tips to hang out with
           confidence.
         </p>
       </div>
 
       {/* Alerts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
         <div className="bg-gradient-to-br from-yellow-900/20 to-black border border-yellow-500/40 rounded-3xl p-6 relative overflow-hidden group hover:border-yellow-500/60 transition-colors">
           <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
           <div className="flex items-start gap-4 relative z-10">

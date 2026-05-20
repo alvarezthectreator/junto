@@ -9,6 +9,48 @@
 
 /* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
 
+/* Global Responsive Foundation */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  @apply bg-[#0F0F13] text-white font-sans antialiased;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Responsive Media Elements */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Typography Scaling */
 @layer utilities {
   .font-serif {
     font-family: 'Playfair Display', serif;
@@ -19,7 +61,47 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-[#F59E0B] to-[#FB923C];
   }
+  
+  /* Responsive Typography */
+  .text-responsive-2xl {
+    @apply text-2xl md:text-3xl lg:text-4xl;
+  }
+  
+  .text-responsive-3xl {
+    @apply text-3xl md:text-4xl lg:text-5xl;
+  }
+  
+  .text-responsive-4xl {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+  
+  /* Responsive Spacing */
+  .px-responsive {
+    @apply px-4 sm:px-6 md:px-8 lg:px-10;
+  }
+  
+  .py-responsive {
+    @apply py-4 sm:py-6 md:py-8 lg:py-10;
+  }
+  
+  /* Responsive Padding */
+  .p-responsive {
+    @apply p-4 sm:p-5 md:p-6 lg:p-8;
+  }
+  
+  /* Container Fixes */
+  .container-safe {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  
+  /* No Horizontal Scroll */
+  .overflow-x-hidden {
+    overflow-x: hidden !important;
+  }
 }
+
 body {
   @apply bg-[#0F0F13] text-white font-sans antialiased;
 }
@@ -144,9 +226,82 @@ body.theme-light-body {
   color: #9b886c;
 }
 
+/* Mobile Menu & Sidebar Responsive */
+.sidebar-shell {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  z-index: 50;
+  transition: transform 0.3s ease-in-out;
+  will-change: transform;
+}
+
 .sidebar-collapsed .sidebar-shell {
   transform: translateX(-100%);
 }
+
+/* Mobile Page Main */
+.mobile-page-main {
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive Container */
+@media (max-width: 767px) {
+  body {
+    font-size: 14px;
+  }
+  
+  .mobile-page-main {
+    margin-left: 0 !important;
+  }
+  
+  main {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .px-4 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .px-8 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .max-w-5xl {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+}
+
+/* Tablet & Above */
+@media (min-width: 768px) {
+  .mobile-page-main {
+    margin-left: 16rem;
+  }
+}
+
+/* Extra Large Screens */
+@media (min-width: 1280px) {
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+}
+
 
 .sidebar-collapsed .ml-64 {
   margin-left: 0 !important;

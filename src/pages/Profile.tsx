@@ -147,19 +147,19 @@ export const Profile: React.FC<ProfileProps> = ({
             </div>
           </section>
 
-          <section className="grid gap-6 px-6 py-8 md:px-10 xl:grid-cols-[1.45fr_0.8fr]">
-            <div className="space-y-6">
-              <div className={`overflow-hidden rounded-[2rem] border transition-colors duration-300 ${heroCardClass}`}>
-                <div className={`relative h-44 overflow-hidden ${heroTopClass}`}>
+          <section className="grid gap-4 sm:gap-6 px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8 md:py-10 xl:grid-cols-[1.45fr_0.8fr] grid-cols-1">
+            <div className="space-y-4 sm:space-y-6 w-full min-w-0">
+              <div className={`overflow-hidden rounded-2xl sm:rounded-3xl border transition-colors duration-300 ${heroCardClass}`}>
+                <div className={`relative h-36 sm:h-40 md:h-44 overflow-hidden ${heroTopClass}`}>
                   <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,transparent,rgba(255,255,255,0.05),transparent)]" />
                 </div>
 
-                <div className="relative px-6 pb-6">
-                  <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-                    <div className="-mt-14 flex flex-1 flex-col items-start">
+                <div className="relative px-4 sm:px-6 pb-4 sm:pb-6">
+                  <div className="flex flex-col gap-6 sm:gap-8 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="-mt-12 sm:-mt-14 flex flex-1 flex-col items-start min-w-0">
                       <div className="relative">
                         <div
-                          className={`h-28 w-28 overflow-hidden rounded-[1.75rem] border-4 shadow-xl ${isLightMode ? 'border-[#f7f3ea] bg-white shadow-amber-900/10' : 'border-[#0F0F13] bg-[#1b1b22] shadow-black/30'}`}
+                          className={`h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-2xl sm:rounded-[1.75rem] border-4 shadow-xl ${isLightMode ? 'border-[#f7f3ea] bg-white shadow-amber-900/10' : 'border-[#0F0F13] bg-[#1b1b22] shadow-black/30'}`}
                         >
                           <img
                             src={profile.photos[0]}
@@ -169,58 +169,58 @@ export const Profile: React.FC<ProfileProps> = ({
                         </div>
                         {isEditing && (
                           <button
-                            className={`absolute bottom-1 right-1 rounded-full p-2 transition ${isLightMode ? 'bg-white text-amber-700 hover:bg-amber-50' : 'bg-black/75 text-yellow-300 hover:bg-black'}`}
+                            className={`absolute bottom-0 right-0 sm:bottom-1 sm:right-1 rounded-full p-1.5 sm:p-2 transition ${isLightMode ? 'bg-white text-amber-700 hover:bg-amber-50' : 'bg-black/75 text-yellow-300 hover:bg-black'}`}
                           >
-                            <Camera size={16} />
+                            <Camera size={14} className="sm:w-4 sm:h-4" />
                           </button>
                         )}
                       </div>
 
-                      <div className="mt-4">
+                      <div className="mt-3 sm:mt-4 w-full min-w-0">
                         {isEditing ? (
-                          <div className="space-y-3">
+                          <div className="space-y-2 sm:space-y-3">
                             <input
                               type="text"
                               value={profile.name}
                               onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                              className={`w-full rounded-2xl border px-4 py-3 text-2xl font-bold outline-none transition ${inputClass}`}
+                              className={`w-full rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 text-lg sm:text-2xl font-bold outline-none transition ${inputClass}`}
                             />
-                            <div className="flex flex-col gap-3 sm:flex-row">
+                            <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row">
                               <input
                                 type="number"
                                 value={profile.age}
                                 onChange={(e) =>
                                   setProfile({ ...profile, age: Number.parseInt(e.target.value || '0', 10) })
                                 }
-                                className={`w-24 rounded-2xl border px-4 py-3 outline-none transition ${inputClass}`}
+                                className={`w-20 sm:w-24 rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 outline-none transition ${inputClass}`}
                                 max="99"
                               />
                               <input
                                 type="text"
                                 value={profile.location}
                                 onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                                className={`flex-1 rounded-2xl border px-4 py-3 outline-none transition ${inputClass}`}
+                                className={`flex-1 rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 outline-none transition ${inputClass}`}
                               />
                             </div>
                           </div>
                         ) : (
                           <>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <h2 className={`text-3xl font-bold tracking-tight ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                              <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight break-words ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>
                                 {profile.name}, {profile.age}
                               </h2>
                               {profile.isVerified && (
-                                <span className="inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-green-300">
-                                  <ShieldCheck size={14} />
+                                <span className="inline-flex items-center gap-1 sm:gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.15em] text-green-300 flex-shrink-0">
+                                  <ShieldCheck size={12} className="sm:w-[14px] sm:h-[14px]" />
                                   Verified
                                 </span>
                               )}
                             </div>
-                            <p className={`mt-2 flex items-center gap-2 text-sm ${bodyTextClass}`}>
-                              <MapPin size={16} className={isLightMode ? 'text-amber-700' : 'text-amber-300'} />
+                            <p className={`mt-2 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm ${bodyTextClass} break-words`}>
+                              <MapPin size={14} className={`sm:w-4 sm:h-4 flex-shrink-0 ${isLightMode ? 'text-amber-700' : 'text-amber-300'}`} />
                               {profile.location}
                             </p>
-                            <p className={`mt-4 max-w-xl text-sm leading-7 ${bodyTextClass}`}>
+                            <p className={`mt-2 sm:mt-4 max-w-xl text-xs sm:text-sm leading-6 sm:leading-7 ${bodyTextClass}`}>
                               {profile.bio}
                             </p>
                           </>
@@ -228,7 +228,7 @@ export const Profile: React.FC<ProfileProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 xl:w-[320px]">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:w-[320px] w-full sm:w-auto">
                       <MiniStat value={stats.outings} label="Outings" accent="text-yellow-600" lightMode={isLightMode} />
                       <MiniStat value={stats.hosted} label="Hosted" accent="text-amber-600" lightMode={isLightMode} />
                       <MiniStat value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} accent="text-yellow-700" lightMode={isLightMode} />
@@ -236,16 +236,16 @@ export const Profile: React.FC<ProfileProps> = ({
                     </div>
                   </div>
 
-                  <div className={`mt-6 grid gap-4 border-t pt-6 lg:grid-cols-[1.2fr_0.8fr] ${isLightMode ? 'border-black/8' : 'border-white/8'}`}>
+                  <div className={`mt-4 sm:mt-6 grid gap-3 sm:gap-4 border-t pt-4 sm:pt-6 lg:grid-cols-[1.2fr_0.8fr] ${isLightMode ? 'border-black/8' : 'border-white/8'}`}>
                     <div className="flex flex-wrap gap-2">
                       {quickTraits.map((trait) => (
-                        <span key={trait} className={`rounded-full border px-3 py-1.5 text-xs font-medium ${pillClass}`}>
+                        <span key={trait} className={`rounded-full border px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium ${pillClass}`}>
                           {trait}
                         </span>
                       ))}
                     </div>
-                    <div className={`rounded-[1.4rem] border p-4 ${strengthCardClass}`}>
-                      <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${isLightMode ? 'text-amber-700/80' : 'text-yellow-300/80'}`}>
+                    <div className={`rounded-2xl sm:rounded-[1.4rem] border p-3 sm:p-4 ${strengthCardClass}`}>
+                      <p className={`text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] ${isLightMode ? 'text-amber-700/80' : 'text-yellow-300/80'}`}>
                         Profile strength
                       </p>
                       <div className={`mt-3 h-2 overflow-hidden rounded-full ${isLightMode ? 'bg-black/8' : 'bg-white/10'}`}>

@@ -121,8 +121,8 @@ export function Discover() {
       }}>
       
       {/* Hero Section & Stats */}
-      <div className="flex flex-col md:flex-row gap-8 mb-8 items-center">
-        <section className="flex-1">
+      <div className="flex flex-col gap-6 sm:gap-8 md:gap-0 md:flex-row mb-6 sm:mb-8 items-start md:items-center">
+        <section className="flex-1 w-full md:w-auto">
           <motion.h2
             initial={{
               opacity: 0,
@@ -136,7 +136,7 @@ export function Discover() {
               duration: 0.6,
               ease: 'easeOut'
             }}
-            className="text-5xl md:text-6xl font-serif font-bold mb-4 tracking-tight leading-tight">
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
             
             Find someone to go{' '}
             <span className="italic text-gradient font-normal">out with.</span>
@@ -155,7 +155,7 @@ export function Discover() {
               delay: 0.1,
               ease: 'easeOut'
             }}
-            className="text-gray-400 text-lg max-w-md">
+            className="text-gray-400 text-sm sm:text-base lg:text-lg max-w-md">
             
             Post where you're going. Find company. Zero obligations.
           </motion.p>
@@ -174,27 +174,25 @@ export function Discover() {
             duration: 0.5,
             delay: 0.2
           }}
-          className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-3xl p-6 shadow-lg">
+          className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-lg">
           
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
+            <h3 className="text-xs sm:text-sm font-semibold text-white uppercase tracking-wider">
               Live Vibes
             </h3>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#F59E0B]"></div>
-              <p className="text-sm text-gray-300">
-                <span className="text-white font-medium">127</span> people out
-                tonight
+              <div className="w-2 h-2 rounded-full bg-[#F59E0B] flex-shrink-0"></div>
+              <p className="text-xs sm:text-sm text-gray-300 break-words">
+                <span className="text-white font-medium">127</span> people out tonight
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#4ECDC4]"></div>
-              <p className="text-sm text-gray-300">
-                <span className="text-white font-medium">24</span> new posts in
-                Lagos
+              <div className="w-2 h-2 rounded-full bg-[#4ECDC4] flex-shrink-0"></div>
+              <p className="text-xs sm:text-sm text-gray-300 break-words">
+                <span className="text-white font-medium">24</span> new posts in Lagos
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -209,28 +207,28 @@ export function Discover() {
       </div>
 
       {/* Travel Mode Toggle */}
-      <div className="group relative mb-10">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-purple-500/0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur"></div>
-        <div className="relative bg-[#1A1A21] border border-white/5 rounded-2xl p-5 flex items-center justify-between transition-colors hover:border-white/10">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-              <Plane className="text-blue-400" size={20} />
+      <div className="group relative mb-8 sm:mb-10">
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-purple-500/0 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur"></div>
+        <div className="relative bg-[#1A1A21] border border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between transition-colors hover:border-white/10 gap-3 sm:gap-4">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+              <Plane className="text-blue-400 w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h3 className="font-semibold text-white">Travel Mode</h3>
-              <p className="text-sm text-gray-400">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-white text-sm sm:text-base">Travel Mode</h3>
+              <p className="text-xs sm:text-sm text-gray-400">
                 Browse events anywhere in the world
               </p>
             </div>
           </div>
-          <button className="w-12 h-6 rounded-full bg-white/20 relative transition-colors hover:bg-white/30">
+          <button className="w-12 h-6 rounded-full bg-white/20 relative transition-colors hover:bg-white/30 flex-shrink-0">
             <div className="w-5 h-5 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
           </button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
         <div className="flex items-center gap-2 min-w-max">
           {filters.map((filter) => {
             const isActive = activeFilter === filter;
@@ -238,7 +236,7 @@ export function Discover() {
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
+                className={`relative px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
                 
                 {isActive &&
                 <motion.div
@@ -252,7 +250,7 @@ export function Discover() {
                   }} />
 
                 }
-                <span className="relative z-10">{filter}</span>
+                <span className="relative z-10 whitespace-nowrap">{filter}</span>
               </button>);
 
           })}
@@ -260,29 +258,28 @@ export function Discover() {
       </div>
 
       {/* Trending Banner */}
-      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-4 py-2">
-        <Flame size={16} className="text-[#F59E0B]" />
-        <p className="text-sm text-gray-300">
-          <span className="font-medium text-white">Trending:</span> Movie nights
-          in Lagos · 47 people interested this week
+      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm overflow-x-auto max-w-full">
+        <Flame size={14} className="sm:w-4 sm:h-4 text-[#F59E0B] flex-shrink-0" />
+        <p className="text-gray-300 whitespace-nowrap sm:whitespace-normal">
+          <span className="font-medium text-white">Trending:</span> <span className="hidden sm:inline">Movie nights in Lagos · 47 people interested this week</span><span className="sm:hidden">Movie nights</span>
         </p>
       </div>
 
       {/* Map Section */}
-      <div className="mb-10">
-        <div className="flex items-end justify-between mb-4">
-          <div>
-            <h3 className="text-2xl font-serif font-bold text-white">
+      <div className="mb-8 sm:mb-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-4 gap-3">
+          <div className="min-w-0">
+            <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
               Vibes{' '}
               <span className="italic text-gradient font-normal">
                 on the map.
               </span>
             </h3>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">
               See what's happening around you in real time.
             </p>
           </div>
-          <button className="text-sm text-[#F59E0B] hover:text-[#FB923C] font-medium transition-colors">
+          <button className="text-xs sm:text-sm text-[#F59E0B] hover:text-[#FB923C] font-medium transition-colors flex-shrink-0">
             Expand →
           </button>
         </div>
@@ -290,7 +287,7 @@ export function Discover() {
       </div>
 
       {/* Feed Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
         {events.map((event, index) =>
         <EventCard
           key={index}

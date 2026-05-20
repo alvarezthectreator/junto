@@ -17,16 +17,17 @@ interface SidebarProps {
   activeNav: string;
   setActiveNav: (nav: string) => void;
   onNavigate?: (page: string) => void;
+  onCloseSidebar?: () => void;
 }
-export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
+export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }: SidebarProps) {
   return (
-    <div className="sidebar-shell w-64 h-screen fixed left-0 top-0 border-r border-white/5 bg-[#0F0F13] flex flex-col pt-8 pb-6 px-4 z-50 overflow-y-auto overflow-x-hidden transition-transform duration-300">
+    <div className="sidebar-shell flex md:flex w-64 h-screen fixed left-0 top-0 border-r border-white/5 bg-[#0F0F13] flex-col pt-6 sm:pt-8 pb-4 sm:pb-6 px-3 sm:px-4 z-50 overflow-y-auto overflow-x-hidden transition-transform duration-300">
       {/* Logo Area */}
-      <div className="sidebar-logo mb-12 px-2">
-        <h1 className="text-2xl font-serif font-bold tracking-tight">
+      <div className="sidebar-logo mb-8 sm:mb-12 px-2 shrink-0">
+        <h1 className="text-xl sm:text-2xl font-serif font-bold tracking-tight">
           Jun<span className="text-gradient">to</span>
         </h1>
-        <p className="sidebar-eyebrow text-[10px] font-semibold tracking-widest text-gray-500 mt-1 uppercase">
+        <p className="sidebar-eyebrow text-[9px] sm:text-[10px] font-semibold tracking-widest text-gray-500 mt-1 uppercase line-clamp-2">
           Together. No strings.
         </p>
       </div>
@@ -45,6 +46,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               onClick={() => {
                 setActiveNav('Discover');
                 onNavigate?.('main');
+                onCloseSidebar?.();
               }} />
             
             <NavItem
@@ -53,6 +55,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'Nearby'}
               onClick={() => {
                 onNavigate?.('nearby');
+                onCloseSidebar?.();
               }} />
             
             <NavItem
@@ -62,6 +65,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               onClick={() => {
                 setActiveNav('My Requests');
                 onNavigate?.('main');
+                onCloseSidebar?.();
               }} />
             
           </div>
@@ -79,6 +83,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               onClick={() => {
                 setActiveNav('Messages');
                 onNavigate?.('main');
+                onCloseSidebar?.();
               }} />
             
             <NavItem
@@ -88,6 +93,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'Safety'}
               onClick={() => {
                 onNavigate?.('safety');
+                onCloseSidebar?.();
               }} />
             
             <NavItem
@@ -96,6 +102,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'Premium'}
               onClick={() => {
                 onNavigate?.('premium');
+                onCloseSidebar?.();
               }} />
             
           </div>
@@ -112,6 +119,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'My Host Studio'}
               onClick={() => {
                 onNavigate?.('myhost');
+                onCloseSidebar?.();
               }} />
             
           </div>
@@ -128,6 +136,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'Travel Mode'}
               onClick={() => {
                 onNavigate?.('travel');
+                onCloseSidebar?.();
               }} />
             
             <NavItem
@@ -136,6 +145,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
               isActive={activeNav === 'Help'}
               onClick={() => {
                 onNavigate?.('help');
+                onCloseSidebar?.();
               }} />
             
           </div>
@@ -145,7 +155,10 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate }: SidebarProps) {
       {/* User Profile Chip */}
       <div className="sidebar-profile mt-auto pt-4 border-t border-white/5">
         <button 
-          onClick={() => onNavigate?.('profile')}
+          onClick={() => {
+            onNavigate?.('profile');
+            onCloseSidebar?.();
+          }}
           className="sidebar-profile-button flex items-center gap-3 w-full p-2 rounded-xl hover:bg-white/5 transition-colors text-left group">
           <div className="relative">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] flex items-center justify-center text-white font-medium shadow-sm">

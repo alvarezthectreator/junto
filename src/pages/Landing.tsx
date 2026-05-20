@@ -165,25 +165,24 @@ export function Landing({ onEnter }: LandingProps) {
       </nav>
 
       {/* B. HERO */}
-      <section className="relative h-screen min-h-[85vh] w-full flex items-center justify-center overflow-hidden">
+      <section className="relative w-full min-h-screen md:min-h-[85vh] flex items-center justify-center overflow-hidden">
         {/* Tilted Mosaic Background */}
-        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none overflow-hidden">
           <div
-            className="grid grid-cols-5 gap-4 md:gap-6 opacity-60"
+            className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-4 md:gap-6 opacity-40 md:opacity-60 w-full h-full"
             style={{
               transform:
-              'perspective(1000px) rotateX(20deg) rotateZ(-15deg) scale(1.35)',
-              width: '150vw',
-              height: '150vh'
+              'perspective(1000px) rotateX(15deg) rotateZ(-10deg) scale(1.25)',
+              willChange: 'transform'
             }}>
             
             {MOSAIC_IMAGES.map((img, i) =>
             <div
               key={i}
-              className="w-[110px] h-[220px] sm:w-[130px] sm:h-[260px] md:w-[160px] md:h-[320px] rounded-[2rem] bg-gray-800 relative overflow-hidden border-4 border-gray-900 shadow-2xl mx-auto">
+              className="w-20 h-40 xs:w-24 xs:h-48 sm:w-28 sm:h-56 md:w-40 md:h-80 rounded-2xl sm:rounded-3xl md:rounded-[2rem] bg-gray-800 relative overflow-hidden border-2 sm:border-3 md:border-4 border-gray-900 shadow-lg md:shadow-2xl">
               
                 {/* Fake Notch */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-5 bg-gray-900 rounded-b-xl z-10"></div>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 sm:w-12 md:w-16 h-3 sm:h-4 md:h-5 bg-gray-900 rounded-b-lg md:rounded-b-xl z-10"></div>
 
                 <img
                 src={img.url}
@@ -195,11 +194,9 @@ export function Landing({ onEnter }: LandingProps) {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
 
                 {/* Name Label */}
-                <div className="absolute bottom-16 left-4 text-white font-semibold text-sm flex items-center gap-1">
-                  {img.name}{' '}
-                  <span className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center text-[8px]">
-                    ✓
-                  </span>
+                <div className="absolute bottom-8 sm:bottom-10 md:bottom-16 left-2 sm:left-3 md:left-4 text-white font-semibold text-xs md:text-sm flex items-center gap-1">
+                  <span className="truncate">{img.name}</span>
+                  <span className="w-2 h-2 md:w-3 md:h-3 bg-blue-500 rounded-full flex items-center justify-center text-[6px] md:text-[8px] shrink-0">✓</span>
                 </div>
 
                 {/* Fake Swipe Buttons */}
@@ -221,7 +218,7 @@ export function Landing({ onEnter }: LandingProps) {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-20 text-center px-4 mt-12">
+        <div className="relative z-20 text-center px-4 sm:px-6 md:px-8 mt-6 sm:mt-12 w-full max-w-screen-xl mx-auto">
           <motion.h1
             initial={{
               opacity: 0,
@@ -237,10 +234,10 @@ export function Landing({ onEnter }: LandingProps) {
               duration: 0.8,
               ease: 'easeOut'
             }}
-            className="text-[4.5rem] md:text-[8rem] lg:text-[10rem] leading-none font-serif font-bold tracking-tight text-white mb-8 drop-shadow-2xl">
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl leading-tight sm:leading-none font-serif font-bold tracking-tight text-white mb-4 sm:mb-6 md:mb-8 drop-shadow-2xl px-2">
             
             Find your <span className="italic text-gradient">people.</span>
-            <sup className="text-3xl md:text-5xl lg:text-6xl top-[-0.5em] relative font-sans font-normal text-white/50">
+            <sup className="text-lg sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl top-[-0.5em] relative font-sans font-normal text-white/50 ml-1">
               ™
             </sup>
           </motion.h1>
@@ -281,43 +278,43 @@ export function Landing({ onEnter }: LandingProps) {
             <p className="text-gray-400">Stories from the Junto community.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6">
             {STORIES.map((story, idx) =>
             <div
               key={idx}
-              className="bg-[#1A1A21] rounded-2xl overflow-hidden flex flex-row h-72 group cursor-pointer hover:-translate-y-1 transition-transform duration-300">
+              className="bg-[#1A1A21] rounded-2xl overflow-hidden flex flex-col sm:flex-row h-auto sm:h-64 md:h-72 group cursor-pointer hover:-translate-y-1 transition-transform duration-300">
               
-                <div className="flex-1 p-5 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-semibold text-white mb-3 text-lg">
+                <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-white mb-2 sm:mb-3 text-base sm:text-lg line-clamp-2">
                       {story.title}
                     </h3>
-                    <p className="text-sm text-gray-400 leading-relaxed line-clamp-5">
+                    <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-3 sm:line-clamp-4">
                       "{story.excerpt}"
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 text-[#F59E0B] text-sm font-medium group-hover:text-[#FB923C] transition-colors">
-                    Continue reading <ArrowUpRight size={16} />
+                  <div className="flex items-center gap-1 text-[#F59E0B] text-xs sm:text-sm font-medium group-hover:text-[#FB923C] transition-colors mt-3 sm:mt-0">
+                    Continue reading <ArrowUpRight size={14} className="sm:w-4 sm:h-4" />
                   </div>
                 </div>
-                <div className="w-[45%] relative overflow-hidden">
+                <div className="w-full sm:w-[45%] h-32 sm:h-auto relative overflow-hidden flex-shrink-0">
                   <img
                   src={story.image}
                   alt={story.title}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 
                 </div>
               </div>
             )}
 
             {/* 5th Card - Share Story */}
-            <div className="bg-[#1A1A21] rounded-2xl overflow-hidden relative group cursor-pointer hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-center p-8">
+            <div className="bg-[#1A1A21] rounded-2xl overflow-hidden relative group cursor-pointer hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-center p-6 sm:p-8 min-h-48 sm:min-h-auto">
               <div className="absolute inset-0 bg-gradient-to-br from-[#F59E0B]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <h3 className="font-serif text-2xl font-bold text-white mb-6 relative z-10">
+              <h3 className="font-serif text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 relative z-10">
                 Share your story or read more
               </h3>
-              <div className="flex items-center gap-2 text-[#F59E0B] font-medium relative z-10">
-                Junto Stories <ArrowUpRight size={18} />
+              <div className="flex items-center gap-2 text-[#F59E0B] font-medium relative z-10 text-sm sm:text-base">
+                Junto Stories <ArrowUpRight size={16} className="sm:w-[18px] sm:h-[18px]" />
               </div>
             </div>
           </div>
@@ -325,27 +322,27 @@ export function Landing({ onEnter }: LandingProps) {
       </section>
 
       {/* D. FOOTER */}
-      <footer className="bg-[#0A0A0E] pt-20 pb-8 px-8 border-t border-white/5">
+      <footer className="bg-[#0A0A0E] pt-12 sm:pt-20 pb-6 sm:pb-8 px-4 sm:px-6 md:px-8 border-t border-white/5 overflow-x-hidden w-full">
         <div className="max-w-[1400px] mx-auto">
           {/* Top Links Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
-            <div>
-              <h4 className="text-xs font-bold tracking-widest text-gray-500 uppercase mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-12 mb-12 sm:mb-16">
+            <div className="min-w-0">
+              <h4 className="text-[8px] sm:text-xs font-bold tracking-widest text-gray-500 uppercase mb-4 sm:mb-6">
                 Legal
               </h4>
-              <ul className="space-y-4 text-sm text-gray-400">
+              <ul className="space-y-3 sm:space-y-4 text-xs sm:text-sm text-gray-400">
                 <li>
-                  <a href="#" className="hover:text-white transition-colors">
+                  <a href="#" className="hover:text-white transition-colors truncate block">
                     Privacy
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white transition-colors">
+                  <a href="#" className="hover:text-white transition-colors truncate block">
                     Terms
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-white transition-colors">
+                  <a href="#" className="hover:text-white transition-colors truncate block">
                     Cookie Policy
                   </a>
                 </li>
