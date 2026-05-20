@@ -48,8 +48,8 @@ export function EventCard({
         y: 0
       }}
       transition={{
-        duration: 0.4,
-        delay: index * 0.1,
+        duration: 0.8,
+        delay: index * 0.15,
         ease: 'easeOut'
       }}
       whileHover={{

@@ -3,6 +3,7 @@ import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
+import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
 export function Discover() {
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const filters = [
@@ -117,7 +118,7 @@ export function Discover() {
         y: 0
       }}
       transition={{
-        duration: 0.3
+        duration: 0.8
       }}>
       
       {/* Hero Section & Stats */}
@@ -133,7 +134,7 @@ export function Discover() {
               y: 0
             }}
             transition={{
-              duration: 0.6,
+              duration: 1.2,
               ease: 'easeOut'
             }}
             className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
@@ -151,8 +152,8 @@ export function Discover() {
               y: 0
             }}
             transition={{
-              duration: 0.6,
-              delay: 0.1,
+              duration: 1.2,
+              delay: 0.2,
               ease: 'easeOut'
             }}
             className="text-gray-400 text-sm sm:text-base lg:text-lg max-w-md">
@@ -171,8 +172,8 @@ export function Discover() {
             scale: 1
           }}
           transition={{
-            duration: 0.5,
-            delay: 0.2
+            duration: 1.0,
+            delay: 0.4
           }}
           className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-lg">
           

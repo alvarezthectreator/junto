@@ -411,3 +411,387 @@ body.theme-light-body {
 .theme-light .sidebar-shell .border-\[\#0F0F13\] {
   border-color: #fffaf2 !important;
 }
+
+/* ============================================================
+   SMOOTH ANIMATIONS & TRANSITIONS
+   ============================================================ */
+
+/* Respect User's Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   INTERSECTION OBSERVER ANIMATIONS
+   ============================================================ */
+
+/* Elements that fade in on scroll */
+.fade-in-observe {
+  opacity: 0;
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.slide-up-observe {
+  opacity: 0;
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+.scale-in-observe {
+  opacity: 0;
+  animation: scaleIn 0.5s ease-out forwards;
+}
+
+/* Stagger delays for multiple elements */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* ============================================================
+   HOVER & INTERACTIVE ANIMATIONS
+   ============================================================ */
+
+/* Hover lift effect for cards and buttons */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px rgba(245, 158, 11, 0.2);
+}
+
+/* Smooth hover scale */
+.hover-scale {
+  transition: transform 0.3s ease-out;
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Hover glow effect */
+.hover-glow {
+  transition: all 0.3s ease-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+/* ============================================================
+   BUTTON & CLICK ANIMATIONS
+   ============================================================ */
+
+/* Button click ripple effect */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.btn-ripple:active::after {
+  animation: rippleClick 0.6s ease-out;
+}
+
+/* Smooth button transitions */
+.btn-transition {
+  @apply transition-all duration-300 ease-out;
+}
+
+/* ============================================================
+   DROPDOWN & MENU ANIMATIONS
+   ============================================================ */
+
+/* Dropdown menu appear/disappear */
+.dropdown-open {
+  animation: slideInDown 0.3s ease-out;
+}
+
+.dropdown-close {
+  animation: fadeOut 0.2s ease-in forwards;
+}
+
+/* Smooth menu items */
+.menu-item {
+  @apply transition-all duration-200 ease-out;
+}
+
+.menu-item:hover {
+  @apply translate-x-1;
+}
+
+/* ============================================================
+   MODAL & DIALOG ANIMATIONS
+   ============================================================ */
+
+/* Modal backdrop fade */
+.modal-backdrop {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Modal content scale & fade */
+.modal-content {
+  animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Modal close animation */
+.modal-exit {
+  animation: fadeOut 0.2s ease-in forwards;
+}
+
+/* ============================================================
+   LOADING SKELETON ANIMATIONS
+   ============================================================ */
+
+/* Skeleton loader shimmer effect */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmerEffect 2s infinite;
+}
+
+/* Pulse for loading state */
+.pulse-load {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ============================================================
+   ACCORDION ANIMATIONS
+   ============================================================ */
+
+/* Accordion item expand */
+.accordion-expand {
+  animation: expandAccordion 0.3s ease-out forwards;
+}
+
+/* Accordion item collapse */
+.accordion-collapse {
+  animation: collapseAccordion 0.3s ease-out forwards;
+}
+
+/* Accordion content smooth transition */
+.accordion-content {
+  @apply transition-all duration-300 ease-out;
+}
+
+/* ============================================================
+   NOTIFICATION & TOAST ANIMATIONS
+   ============================================================ */
+
+/* Toast slide in from right */
+.toast-enter {
+  animation: slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Toast slide out to right */
+.toast-exit {
+  animation: slideOut 0.3s ease-in;
+}
+
+/* Toast stacked position animation */
+.toast {
+  @apply transition-all duration-300 ease-out;
+}
+
+/* ============================================================
+   PROGRESS BAR ANIMATIONS
+   ============================================================ */
+
+/* Animated progress bar fill */
+.progress-fill {
+  animation: progressFill 1.5s ease-out forwards;
+}
+
+/* Indeterminate progress animation */
+.progress-indeterminate {
+  background: linear-gradient(
+    90deg,
+    rgba(245, 158, 11, 0.2) 0%,
+    rgba(245, 158, 11, 0.6) 50%,
+    rgba(245, 158, 11, 0.2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerEffect 1.5s infinite;
+}
+
+/* ============================================================
+   IMAGE & MEDIA ANIMATIONS
+   ============================================================ */
+
+/* Image zoom on hover */
+.img-zoom {
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.img-zoom:hover {
+  transform: scale(1.08);
+}
+
+/* Image fade in */
+.img-fade {
+  animation: fadeIn 0.8s ease-out;
+}
+
+/* ============================================================
+   PAGE TRANSITION ANIMATIONS
+   ============================================================ */
+
+/* Page content fade in */
+.page-enter {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Page content fade out */
+.page-exit {
+  animation: fadeOut 0.3s ease-in;
+}
+
+/* ============================================================
+   TEXT & CONTENT ANIMATIONS
+   ============================================================ */
+
+/* Text shimmer effect (loading state) */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmerEffect 2s infinite;
+}
+
+/* Floating text animation */
+.float {
+  animation: bounce 3s ease-in-out infinite;
+}
+
+/* ============================================================
+   SPINNER & LOADER ANIMATIONS
+   ============================================================ */
+
+/* Spinning loader */
+.spinner {
+  animation: spinLoader 1s linear infinite;
+}
+
+/* Multiple spinner styles */
+.spinner-sm {
+  width: 24px;
+  height: 24px;
+  animation: spinLoader 0.8s linear infinite;
+}
+
+.spinner-md {
+  width: 36px;
+  height: 36px;
+  animation: spinLoader 1s linear infinite;
+}
+
+.spinner-lg {
+  width: 48px;
+  height: 48px;
+  animation: spinLoader 1.2s linear infinite;
+}
+
+/* ============================================================
+   SMOOTH TRANSITIONS
+   ============================================================ */
+
+/* Smooth color transition */
+.transition-color {
+  @apply transition-colors duration-300 ease-out;
+}
+
+/* Smooth opacity transition */
+.transition-opacity {
+  transition-property: opacity;
+  transition-duration: 300ms;
+  transition-timing-function: ease-out;
+}
+
+/* Smooth transform transition */
+.transition-transform {
+  transition-property: transform;
+  transition-duration: 300ms;
+  transition-timing-function: ease-out;
+}
+
+/* Smooth all properties */
+.transition-smooth {
+  @apply transition-all duration-300;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   UTILITY CLASSES FOR COMMON PATTERNS
+   ============================================================ */
+
+/* Smooth navbar appearance on scroll */
+.navbar-appear {
+  animation: slideInDown 0.4s ease-out;
+}
+
+/* Content card entrance */
+.card-enter {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Button press effect */
+.btn-press {
+  transition: all 0.15s ease-out;
+}
+
+.btn-press:active {
+  transform: scale(0.98);
+}
+
+/* Link hover underline */
+.link-hover {
+  position: relative;
+  @apply transition-colors duration-300;
+}
+
+.link-hover::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #F59E0B, #FB923C);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.link-hover:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
