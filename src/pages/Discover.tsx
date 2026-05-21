@@ -4,8 +4,17 @@ import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
-export function Discover() {
+
+interface DiscoverProps {
+  onNavigate?: (page: string) => void;
+}
+
+export function Discover({ onNavigate = () => {} }: DiscoverProps) {
   const [activeFilter, setActiveFilter] = useState('All vibes');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [joinedEvents, setJoinedEvents] = useState<Set<number>>(new Set());
+  const [travelMode, setTravelMode] = useState(false);
+  
   const filters = [
   'All vibes',
   'Tonight',
@@ -107,6 +116,36 @@ export function Discover() {
     coords: [6.425, 3.4197] as [number, number]
   }];
 
+  // Filter events based on active filter and search
+  const filteredEvents = events.filter((event) => {
+    const matchesFilter = activeFilter === 'All vibes' || 
+      (activeFilter === 'Tonight' && event.date.includes('Sunday')) ||
+      (activeFilter === 'This week' && true) ||
+      (activeFilter === 'Open to all' && event.audience === 'Open to all') ||
+      (activeFilter === 'Females only' && event.audience === 'Females only') ||
+      (activeFilter === 'Males only' && event.audience === 'Males only') ||
+      (activeFilter === 'Trending 🔥' && event.interestedCount >= 7);
+    
+    const matchesSearch = searchTerm === '' || 
+      event.actionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.userName.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesFilter && matchesSearch;
+  });
+
+  const handleJoinEvent = (index: number) => {
+    const newJoined = new Set(joinedEvents);
+    if (newJoined.has(index)) {
+      newJoined.delete(index);
+    } else {
+      newJoined.add(index);
+      // Navigate to event detail page
+      onNavigate?.(`event`);
+    }
+    setJoinedEvents(newJoined);
+  };
+
   return (
     <motion.div
       initial={{
@@ -207,6 +246,22 @@ export function Discover() {
         </motion.div>
       </div>
 
+      {/* Search Bar */}
+      <div className="mb-6 sm:mb-8">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by activity, location, or person..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#1A1A21] border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
+          />
+          <svg className="absolute right-4 sm:right-5 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      </div>
+
       {/* Travel Mode Toggle */}
       <div className="group relative mb-8 sm:mb-10">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-purple-500/0 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur"></div>
@@ -222,8 +277,16 @@ export function Discover() {
               </p>
             </div>
           </div>
-          <button className="w-12 h-6 rounded-full bg-white/20 relative transition-colors hover:bg-white/30 flex-shrink-0">
-            <div className="w-5 h-5 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
+          <button 
+            onClick={() => setTravelMode(!travelMode)}
+            className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${
+              travelMode ? 'bg-[#F59E0B]' : 'bg-white/20 hover:bg-white/30'
+            }`}>
+            <motion.div 
+              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm`}
+              animate={{ left: travelMode ? '26px' : '2px' }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            ></motion.div>
           </button>
         </div>
       </div>
@@ -287,24 +350,53 @@ export function Discover() {
         <EventsMap events={events} />
       </div>
 
-      {/* Feed Grid */}
+      {/* Feed Grid with Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
-        {events.map((event, index) =>
-        <EventCard
-          key={index}
-          index={index}
-          userInitial={event.userInitial}
-          userName={event.userName}
-          actionText={event.actionText}
-          emoji={event.emoji}
-          description={event.description}
-          date={event.date}
-          audience={event.audience}
-          interestedCount={event.interestedCount}
-          accentColor={event.accentColor}
-          audienceColor={event.audienceColor}
-          coverImage={event.coverImage} />
-
+        {filteredEvents.length > 0 ? (
+          filteredEvents.map((event, index) => {
+            const actualIndex = events.indexOf(event);
+            const isJoined = joinedEvents.has(actualIndex);
+            return (
+              <div key={index} className="relative group">
+                <EventCard
+                  index={index}
+                  userInitial={event.userInitial}
+                  userName={event.userName}
+                  actionText={event.actionText}
+                  emoji={event.emoji}
+                  description={event.description}
+                  date={event.date}
+                  audience={event.audience}
+                  interestedCount={event.interestedCount}
+                  accentColor={event.accentColor}
+                  audienceColor={event.audienceColor}
+                  coverImage={event.coverImage}
+                />
+                <motion.button
+                  onClick={() => handleJoinEvent(actualIndex)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`absolute bottom-4 right-4 px-4 sm:px-5 py-2 sm:py-3 rounded-full font-semibold text-sm sm:text-base transition-all opacity-0 group-hover:opacity-100 ${
+                    isJoined
+                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'bg-[#F59E0B] text-black hover:bg-[#ffd700] shadow-lg shadow-[#F59E0B]/30'
+                  }`}
+                >
+                  {isJoined ? '✓ Joined' : 'I\'m interested'}
+                </motion.button>
+              </div>
+            );
+          })
+        ) : (
+          <div className="col-span-1 md:col-span-2 text-center py-12">
+            <p className="text-gray-400 text-lg">No vibes found matching your search or filter.</p>
+            <button
+              onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); }}
+              className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"
+            >
+              Clear filters →
+            </button>
+          </div>
         )}
       </div>
 

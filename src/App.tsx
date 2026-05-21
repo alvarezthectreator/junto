@@ -138,7 +138,7 @@ export function App() {
             </header>
 
             {/* Page Content */}
-            {activeNav === 'Discover' && <Discover />}
+            {activeNav === 'Discover' && <Discover onNavigate={setCurrentPage} />}
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
