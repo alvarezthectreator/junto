@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Globe,
@@ -10,10 +10,16 @@ import {
   Apple,
   Play,
   X,
-  Heart } from
+  Heart,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff } from
 'lucide-react';
+
 interface LandingProps {
   onEnter: () => void;
+  onLogin?: (email: string, password: string) => void;
 }
 const MOSAIC_IMAGES = [
 {
@@ -123,7 +129,42 @@ const STORIES = [
   image: 'https://images.unsplash.com/photo-1521119989659-a83eee488004?w=600'
 }];
 
-export function Landing({ onEnter }: LandingProps) {
+export function Landing({ onEnter, onLogin }: LandingProps) {
+  const [showLogin, setShowLogin] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+    if (isSignUp) {
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
+      // SignUp successful - start onboarding
+      onEnter();
+      setShowLogin(false);
+    } else {
+      // Login verification (demo mode - any email/password works)
+      if (email && password) {
+        onLogin?.(email, password);
+        setShowLogin(false);
+        setEmail('');
+        setPassword('');
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0F0F13] text-white font-sans selection:bg-[#F59E0B]/30 overflow-x-hidden">
       {/* A. TOP NAV */}
@@ -156,7 +197,7 @@ export function Landing({ onEnter }: LandingProps) {
             Language
           </button>
           <button
-            onClick={onEnter}
+            onClick={() => setShowLogin(true)}
             className="bg-white text-gray-900 px-6 py-2.5 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors">
             
             Log in
@@ -501,6 +542,132 @@ export function Landing({ onEnter }: LandingProps) {
           </div>
         </div>
       </footer>
-    </div>);
 
+      {/* LOGIN MODAL */}
+      {showLogin && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-xl flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="bg-[#111318] border border-white/10 rounded-3xl p-8 w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-serif font-bold text-white">
+                  {isSignUp ? 'Create Account' : 'Welcome Back'}
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  {isSignUp ? 'Join Junto to find your people' : 'Sign in to your account'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowLogin(false);
+                  setError('');
+                  setEmail('');
+                  setPassword('');
+                }}
+                className="text-gray-400 hover:text-white transition-colors">
+                ✕
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-bold tracking-widest text-gray-500 uppercase mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="your@email.com"
+                    className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B] transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-bold tracking-widest text-gray-500 uppercase mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError('');
+                    }}
+                    placeholder={isSignUp ? 'Min 6 characters' : 'Enter password'}
+                    className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#F59E0B] focus:ring-1 focus:ring-[#F59E0B] transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors">
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+                  <span className="text-red-400 text-sm">{error}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] hover:from-[#F59E0B]/90 hover:to-[#FB923C]/90 text-white font-bold py-3 rounded-xl transition-all mt-6 shadow-lg hover:shadow-xl">
+                {isSignUp ? 'Create Account' : 'Sign In'}
+              </button>
+
+              {/* Toggle Auth Mode */}
+              <div className="text-center pt-4 border-t border-white/10">
+                <p className="text-sm text-gray-400">
+                  {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSignUp(!isSignUp);
+                      setError('');
+                      setEmail('');
+                      setPassword('');
+                    }}
+                    className="text-[#F59E0B] hover:text-[#FB923C] font-semibold transition-colors">
+                    {isSignUp ? 'Sign In' : 'Sign Up'}
+                  </button>
+                </p>
+              </div>
+            </form>
+
+            {/* Demo Credentials */}
+            <div className="mt-8 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <p className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Demo Credentials</p>
+              <div className="space-y-1 text-xs text-gray-300">
+                <p>📧 <span className="font-mono text-blue-300">demo@junto.app</span></p>
+                <p>🔑 <span className="font-mono text-blue-300">password123</span></p>
+                <p className="text-gray-500 mt-2">Or create a new account with any email & password</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
 }

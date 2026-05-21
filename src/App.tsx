@@ -18,8 +18,10 @@ import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
 export function App() {
   const [hasEntered, setHasEntered] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeNav, setActiveNav] = useState('Discover');
   const [currentPage, setCurrentPage] = useState<string>('main');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -41,6 +43,23 @@ export function App() {
     Messages: 'Search conversations...',
     Safety: 'Search safety topics...'
   };
+
+  const handleLogin = (email: string, password: string) => {
+    // Demo authentication - no backend required
+    setCurrentUser({ email, name: email.split('@')[0] });
+    setIsAuthenticated(true);
+  };
+
+  const handleEnterApp = (userData: any) => {
+    setCurrentUser(userData);
+    setHasEntered(true);
+  };
+
+  const handleLogout = () => {
+    setHasEntered(false);
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
   
   useEffect(() => {
     document.body.classList.toggle('theme-light-body', isLightMode);
@@ -61,8 +80,34 @@ export function App() {
   }, []);
 
   const content = (() => {
+    // Show Landing page first
+    if (!isAuthenticated) {
+      return (
+        <Landing 
+          onEnter={() => setHasEntered(true)}
+          onLogin={handleLogin}
+        />
+      );
+    }
+
+    // After login, if not completed onboarding, show onboarding
     if (!hasEntered) {
-      return <Landing onEnter={() => setHasEntered(true)} />;
+      return (
+        <div className="min-h-screen bg-[#0F0F13] text-white font-sans flex items-center justify-center">
+          <div className="text-center px-4">
+            <div className="text-6xl mb-6">✨</div>
+            <h2 className="text-4xl font-serif font-bold mb-4">Welcome to Junto!</h2>
+            <p className="text-gray-400 mb-8 max-w-md">
+              Let's complete your profile to get started
+            </p>
+            <button
+              onClick={() => setHasEntered(true)}
+              className="bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">
+              Continue to App →
+            </button>
+          </div>
+        </div>
+      );
     }
 
     // Full-screen pages (no sidebar)
