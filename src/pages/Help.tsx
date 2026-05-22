@@ -4,6 +4,8 @@ import { Sidebar } from "../components/Sidebar";
 interface HelpProps {
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
+  setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
 function FaqItem({ faq, index, isExpanded, onToggle, isLightMode = false }: { faq: any; index: number; isExpanded: boolean; onToggle: () => void; isLightMode?: boolean }) {
@@ -126,7 +128,7 @@ function ResourceCard({ icon, title, description, delay, isLightMode = false }: 
   );
 }
 
-export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode = false }) => {
+export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode = false, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
   const [headerVisible, setHeaderVisible] = useState(false);
@@ -246,7 +248,7 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="Help" setActiveNav={() => {}} onNavigate={onNavigate} />
+      <Sidebar activeNav="Help" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
 
       <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div
@@ -393,9 +395,11 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               <ResourceCard icon="📱" title="Download App" description="iOS & Android" delay={200} isLightMode={isLightMode} />
-              <ResourceCard icon="🔒" title="Privacy & Security" description="Data protection" delay={240} isLightMode={isLightMode} />
+              <ResourceCard icon="🔒" title="Privacy & Security" description="Trusted contacts & data" delay={240} isLightMode={isLightMode} />
               <ResourceCard icon="⚖️" title="Terms of Service" description="Community guidelines" delay={280} isLightMode={isLightMode} />
-              <ResourceCard icon="🆘" title="Report a Problem" description="Improve our service" delay={320} isLightMode={isLightMode} />
+              <ResourceCard icon="⬇️" title="Download Data" description="Export your profile" delay={300} isLightMode={isLightMode} />
+              <ResourceCard icon="🗑️" title="Delete Account" description="Close your account" delay={320} isLightMode={isLightMode} />
+              <ResourceCard icon="🆘" title="Report a Problem" description="Improve our service" delay={340} isLightMode={isLightMode} />
             </div>
           </div>
 

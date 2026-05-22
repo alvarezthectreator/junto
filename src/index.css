@@ -231,10 +231,13 @@ body.theme-light-body {
   position: fixed;
   left: 0;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   z-index: 50;
   transition: transform 0.3s ease-in-out;
   will-change: transform;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .sidebar-collapsed .sidebar-shell {
@@ -257,6 +260,11 @@ body.theme-light-body {
   
   .mobile-page-main {
     margin-left: 0 !important;
+  }
+
+  .sidebar-shell {
+    height: 100dvh;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   }
   
   main {
@@ -310,6 +318,8 @@ body.theme-light-body {
 @media (max-width: 768px) {
   .sidebar-shell {
     width: min(86vw, 18rem);
+    height: 100dvh;
+    max-height: 100dvh;
   }
 
   .sidebar-collapsed .sidebar-shell {

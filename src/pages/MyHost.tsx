@@ -312,6 +312,8 @@ function PastEventCard({ event, index, isLightMode = false }: { event: any; inde
 interface MyHostProps {
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
+  setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
 function CreateEventModal({
@@ -916,19 +918,10 @@ function CreateEventModal({
   );
 }
 
-export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMode = false }) => {
+export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMode = false, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
   const [activeTab, setActiveTab] = useState("active");
   const [headerVisible, setHeaderVisible] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    date: "",
-    time: "",
-    location: "",
-    capacity: "",
-    image: null as File | null,
-  });
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [events, setEvents] = useState([
     {
       id: "1",
@@ -1006,7 +999,7 @@ export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMo
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="My Host Studio" setActiveNav={() => {}} onNavigate={onNavigate} />
+      <Sidebar activeNav="My Host Studio" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
 
       <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div style={{

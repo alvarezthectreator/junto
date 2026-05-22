@@ -10,7 +10,9 @@ import {
   HelpCircle,
   User,
   Heart,
-  Layers
+  Layers,
+  Bell,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 interface SidebarProps {
@@ -20,8 +22,14 @@ interface SidebarProps {
   onCloseSidebar?: () => void;
 }
 export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }: SidebarProps) {
+  const navigate = (nav: string, page: string) => {
+    setActiveNav(nav);
+    onNavigate?.(page);
+    onCloseSidebar?.();
+  };
+
   return (
-    <div className="sidebar-shell flex md:flex w-64 h-screen fixed left-0 top-0 border-r border-white/5 bg-[#0F0F13] flex-col pt-6 sm:pt-8 pb-4 sm:pb-6 px-3 sm:px-4 z-50 overflow-y-auto overflow-x-hidden transition-transform duration-300">
+    <div className="sidebar-shell flex md:flex w-64 h-[100dvh] fixed left-0 top-0 border-r border-white/5 bg-[#0F0F13] flex-col pt-6 sm:pt-8 pb-6 sm:pb-8 px-3 sm:px-4 z-50 overflow-y-auto overflow-x-hidden transition-transform duration-300">
       {/* Logo Area */}
       <div className="sidebar-logo mb-8 sm:mb-12 px-2 shrink-0">
         <h1 className="text-xl sm:text-2xl font-serif font-bold tracking-tight">
@@ -44,9 +52,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Discover"
               isActive={activeNav === 'Discover'}
               onClick={() => {
-                setActiveNav('Discover');
-                onNavigate?.('main');
-                onCloseSidebar?.();
+                navigate('Discover', 'main');
               }} />
             
             <NavItem
@@ -54,8 +60,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Nearby"
               isActive={activeNav === 'Nearby'}
               onClick={() => {
-                onNavigate?.('nearby');
-                onCloseSidebar?.();
+                navigate('Nearby', 'nearby');
               }} />
             
             <NavItem
@@ -63,9 +68,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="My Requests"
               isActive={activeNav === 'My Requests'}
               onClick={() => {
-                setActiveNav('My Requests');
-                onNavigate?.('main');
-                onCloseSidebar?.();
+                navigate('My Requests', 'main');
               }} />
             
           </div>
@@ -81,9 +84,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Messages"
               isActive={activeNav === 'Messages'}
               onClick={() => {
-                setActiveNav('Messages');
-                onNavigate?.('main');
-                onCloseSidebar?.();
+                navigate('Messages', 'main');
               }} />
             
             <NavItem
@@ -92,8 +93,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               badge="2"
               isActive={activeNav === 'Safety'}
               onClick={() => {
-                onNavigate?.('safety');
-                onCloseSidebar?.();
+                navigate('Safety', 'safety');
               }} />
             
             <NavItem
@@ -101,8 +101,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Premium"
               isActive={activeNav === 'Premium'}
               onClick={() => {
-                onNavigate?.('premium');
-                onCloseSidebar?.();
+                navigate('Premium', 'premium');
               }} />
             
           </div>
@@ -118,8 +117,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="My Host Studio"
               isActive={activeNav === 'My Host Studio'}
               onClick={() => {
-                onNavigate?.('myhost');
-                onCloseSidebar?.();
+                navigate('My Host Studio', 'myhost');
               }} />
             
           </div>
@@ -135,8 +133,15 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Travel Mode"
               isActive={activeNav === 'Travel Mode'}
               onClick={() => {
-                onNavigate?.('travel');
-                onCloseSidebar?.();
+                navigate('Travel Mode', 'travel');
+              }} />
+            
+            <NavItem
+              icon={<Bell size={20} />}
+              label="Notifications"
+              isActive={activeNav === 'Notifications'}
+              onClick={() => {
+                navigate('Notifications', 'notifications');
               }} />
             
             <NavItem
@@ -144,8 +149,15 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
               label="Help & Support"
               isActive={activeNav === 'Help'}
               onClick={() => {
-                onNavigate?.('help');
-                onCloseSidebar?.();
+                navigate('Help', 'help');
+              }} />
+            
+            <NavItem
+              icon={<SettingsIcon size={20} />}
+              label="Settings"
+              isActive={activeNav === 'Settings'}
+              onClick={() => {
+                navigate('Settings', 'settings');
               }} />
             
           </div>
@@ -153,11 +165,10 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
       </nav>
 
       {/* User Profile Chip */}
-      <div className="sidebar-profile mt-auto pt-4 border-t border-white/5">
+      <div className="sidebar-profile mt-auto pt-4 pb-6 border-t border-white/5">
         <button 
           onClick={() => {
-            onNavigate?.('profile');
-            onCloseSidebar?.();
+            navigate('Profile', 'profile');
           }}
           className="sidebar-profile-button flex items-center gap-3 w-full p-2 rounded-xl hover:bg-white/5 transition-colors text-left group">
           <div className="relative">

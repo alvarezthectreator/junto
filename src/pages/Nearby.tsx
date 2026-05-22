@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Compass, Flame, MapPin, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Compass, Flame, MapPin, X, Heart } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import {
   InteractiveMap,
@@ -14,6 +15,7 @@ import {
 interface NearbyProps {
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
   isLightMode?: boolean;
 }
 
@@ -149,11 +151,16 @@ const getFilteredVibes = (activeFilter: string) => {
 export const Nearby: React.FC<NearbyProps> = ({
   onNavigate = () => {},
   setActiveNav = () => {},
+  onCloseSidebar = () => {},
   isLightMode = false,
 }) => {
   const [activeFilter, setActiveFilter] = useState("All vibes");
   const [selectedVibeId, setSelectedVibeId] = useState(vibes[0].id);
   const [hiddenCardIds, setHiddenCardIds] = useState<string[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [likedVibes, setLikedVibes] = useState<string[]>([]);
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchedVibe, setMatchedVibe] = useState<NearbyVibe | null>(null);
 
   const filteredVibes = useMemo(() => getFilteredVibes(activeFilter), [activeFilter]);
   const visibleCards = useMemo(
@@ -166,6 +173,13 @@ export const Nearby: React.FC<NearbyProps> = ({
       setSelectedVibeId(filteredVibes[0]?.id ?? vibes[0].id);
     }
   }, [filteredVibes, selectedVibeId]);
+
+  useEffect(() => {
+    const updateMobile = () => setIsMobile(window.innerWidth < 768);
+    updateMobile();
+    window.addEventListener("resize", updateMobile);
+    return () => window.removeEventListener("resize", updateMobile);
+  }, []);
 
   const selectedVibe =
     filteredVibes.find((vibe) => vibe.id === selectedVibeId) ?? filteredVibes[0] ?? vibes[0];
@@ -180,6 +194,24 @@ export const Nearby: React.FC<NearbyProps> = ({
 
   const hideAllCards = () => {
     setHiddenCardIds(vibes.map((vibe) => vibe.id));
+  };
+
+  const handleLikeVibe = (vibeId: string) => {
+    if (!likedVibes.includes(vibeId)) {
+      setLikedVibes([...likedVibes, vibeId]);
+      // Simulate mutual match (50% chance for demo)
+      if (Math.random() > 0.5) {
+        const vibe = vibes.find(v => v.id === vibeId);
+        if (vibe) {
+          setMatchedVibe(vibe);
+          setShowMatchModal(true);
+        }
+      }
+    }
+  };
+
+  const handlePassVibe = (vibeId: string) => {
+    hideCard(vibeId);
   };
 
   const pageBackground = isLightMode ? "#f8f3e8" : "#050505";
@@ -212,15 +244,15 @@ export const Nearby: React.FC<NearbyProps> = ({
         fontFamily: "'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      <Sidebar activeNav="Nearby" setActiveNav={setActiveNav} onNavigate={onNavigate} />
+      <Sidebar activeNav="Nearby" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
 
       <main
         className="mobile-page-main"
         style={{
           flex: 1,
           marginLeft: 256,
-          height: "100vh",
-          overflow: "hidden",
+          minHeight: "100dvh",
+          overflowY: isMobile ? "auto" : "hidden",
           position: "relative",
           background:
             isLightMode
@@ -228,7 +260,13 @@ export const Nearby: React.FC<NearbyProps> = ({
               : "radial-gradient(circle at top, rgba(245,158,11,0.12), transparent 34%), #050505",
         }}
       >
-        <div style={{ position: "absolute", inset: 0 }}>
+        <div
+          style={
+            isMobile
+              ? { position: "relative", height: "42vh", minHeight: 320 }
+              : { position: "absolute", inset: 0 }
+          }
+        >
           <InteractiveMap
             center={[3.4219, 6.4281]}
             zoom={12.6}
@@ -306,12 +344,304 @@ export const Nearby: React.FC<NearbyProps> = ({
           </InteractiveMap>
         </div>
 
+        {isMobile && (
+          <div style={{ padding: "14px 14px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: 999,
+                  border: chipBorder,
+                  background: chipBackground,
+                  padding: "8px 12px",
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Flame size={16} color="#F59E0B" />
+                <span style={{ fontSize: 13, color: subTextColor }}>
+                  <span style={{ color: pageText, fontWeight: 600 }}>Trending nearby:</span> Lagos
+                  plans
+                </span>
+              </div>
+              <button
+                onClick={() => onNavigate("main")}
+                style={{
+                  border: "none",
+                  borderRadius: 999,
+                  background: "#F59E0B",
+                  color: "#111",
+                  padding: "10px 14px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Back
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: isLightMode ? "rgba(255,250,242,0.88)" : "rgba(12,12,15,0.72)",
+                border: `1px solid ${borderColor}`,
+                borderRadius: 28,
+                padding: "18px 16px",
+                backdropFilter: "blur(18px)",
+                boxShadow: heroShadow,
+              }}
+            >
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(2rem, 8vw, 3rem)",
+                  lineHeight: 1,
+                  letterSpacing: -1.2,
+                  fontWeight: 800,
+                }}
+              >
+                Nearby vibes
+                <span style={{ color: "#F59E0B", fontStyle: "italic", fontWeight: 500 }}>
+                  {" "}
+                  on the map.
+                </span>
+              </h1>
+              <p style={{ margin: "12px 0 0", fontSize: 14, lineHeight: 1.6, color: mutedTextColor }}>
+                Scroll down to see cards, or tap a pin to preview the selected vibe.
+              </p>
+              <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={showAllCards}
+                  style={{
+                    borderRadius: 999,
+                    border: `1px solid ${borderColor}`,
+                    background: "transparent",
+                    color: pageText,
+                    padding: "10px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Reset cards
+                </button>
+                <button
+                  onClick={hideAllCards}
+                  style={{
+                    borderRadius: 999,
+                    border: `1px solid ${borderColor}`,
+                    background: "transparent",
+                    color: pageText,
+                    padding: "10px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Hide cards
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: cardBackground,
+                border: `1px solid ${borderColor}`,
+                borderRadius: 28,
+                padding: 16,
+                backdropFilter: "blur(18px)",
+                boxShadow: panelShadow,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Compass size={16} color="#F59E0B" />
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: pageText }}>
+                    Close To You
+                  </p>
+                </div>
+                <button
+                  onClick={showAllCards}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: mutedTextColor,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                {visibleCards.map((vibe) => {
+                  const active = vibe.id === selectedVibe.id;
+                  return (
+                    <div key={vibe.id} style={{ display: "flex", alignItems: "stretch", gap: 10 }}>
+                      <button
+                        onClick={() => setSelectedVibeId(vibe.id)}
+                        style={{
+                          flex: 1,
+                          textAlign: "left",
+                          borderRadius: 20,
+                          border: active
+                            ? "1px solid rgba(245,158,11,0.45)"
+                            : `1px solid ${isLightMode ? "rgba(36,27,16,0.08)" : "rgba(255,255,255,0.06)"}`,
+                          background: active ? "rgba(245,158,11,0.12)" : softCardBackground,
+                          padding: 12,
+                          cursor: "pointer",
+                          color: pageText,
+                        }}
+                      >
+                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                          <img
+                            src={vibe.coverImage}
+                            alt={vibe.actionText}
+                            style={{
+                              width: 56,
+                              height: 56,
+                              objectFit: "cover",
+                              borderRadius: 16,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: pageText }}>
+                              {vibe.userName} wants to {vibe.actionText} {vibe.emoji}
+                            </p>
+                            <p
+                              style={{
+                                margin: "4px 0 0",
+                                fontSize: 12,
+                                color: mutedTextColor,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {vibe.description}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => hideCard(vibe.id)}
+                        style={{
+                          width: 42,
+                          borderRadius: 16,
+                          border: `1px solid ${isLightMode ? "rgba(36,27,16,0.08)" : "rgba(255,255,255,0.06)"}`,
+                          background: softCardBackground,
+                          color: mutedTextColor,
+                          display: "grid",
+                          placeItems: "center",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        }}
+                        aria-label={`Remove ${vibe.userName}'s card`}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedVibe && (
+              <div
+                style={{
+                  background: isLightMode ? "rgba(255,250,242,0.9)" : "rgba(12,12,15,0.78)",
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: 28,
+                  overflow: "hidden",
+                  boxShadow: panelShadow,
+                }}
+              >
+                <div style={{ position: "relative", height: 190 }}>
+                  <img
+                    src={selectedVibe.coverImage}
+                    alt={selectedVibe.actionText}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                  <div style={{ position: "absolute", inset: 0, background: overlayGradient }} />
+                  <div style={{ position: "absolute", left: 20, right: 20, bottom: 18 }}>
+                    <p style={{ margin: 0, fontSize: 12, color: subTextColor }}>
+                      {selectedVibe.date} · {selectedVibe.audience}
+                    </p>
+                    <h2 style={{ margin: "6px 0 0", fontSize: 24, lineHeight: 1.1 }}>
+                      {selectedVibe.userName} wants to {selectedVibe.actionText} {selectedVibe.emoji}
+                    </h2>
+                  </div>
+                </div>
+                <div style={{ padding: 18 }}>
+                  <p style={{ margin: 0, color: mutedTextColor, fontSize: 14, lineHeight: 1.6 }}>
+                    {selectedVibe.description}
+                  </p>
+                  <div
+                    style={{
+                      marginTop: 16,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        color: subTextColor,
+                        fontSize: 13,
+                      }}
+                    >
+                      <MapPin size={14} color="#F59E0B" />
+                      <span>{selectedVibe.interestedCount} people already interested nearby</span>
+                    </div>
+                    <button
+                      onClick={() => handleLikeVibe(selectedVibe.id)}
+                      style={{
+                        border: "none",
+                        borderRadius: 999,
+                        background: likedVibes.includes(selectedVibe.id) ? "#FB7185" : "#F59E0B",
+                        color: "#111",
+                        padding: "10px 16px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Heart size={16} fill={likedVibes.includes(selectedVibe.id) ? "#FB7185" : "none"} />
+                      {likedVibes.includes(selectedVibe.id) ? "Liked!" : "Like"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           style={{
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
-            display: "flex",
+            display: isMobile ? "none" : "flex",
             flexDirection: "column",
             justifyContent: "space-between",
             alignItems: "center",
@@ -563,20 +893,45 @@ export const Nearby: React.FC<NearbyProps> = ({
                         <MapPin size={14} color="#F59E0B" />
                         <span>{selectedVibe.interestedCount} people already interested nearby</span>
                       </div>
-                      <button
-                        style={{
-                          border: "none",
-                          borderRadius: 999,
-                          background: "#F59E0B",
-                          color: "#111",
-                          padding: "10px 16px",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Join vibe
-                      </button>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          onClick={() => handlePassVibe(selectedVibe.id)}
+                          style={{
+                            flex: 1,
+                            border: `1px solid ${borderColor}`,
+                            borderRadius: 999,
+                            background: "transparent",
+                            color: pageText,
+                            padding: "10px 16px",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Pass
+                        </button>
+                        <button
+                          onClick={() => handleLikeVibe(selectedVibe.id)}
+                          style={{
+                            flex: 1,
+                            border: "none",
+                            borderRadius: 999,
+                            background: likedVibes.includes(selectedVibe.id) ? "#FB7185" : "#F59E0B",
+                            color: "#111",
+                            padding: "10px 16px",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Heart size={16} fill={likedVibes.includes(selectedVibe.id) ? "#FB7185" : "none"} />
+                          {likedVibes.includes(selectedVibe.id) ? "Liked!" : "Like"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -772,6 +1127,77 @@ export const Nearby: React.FC<NearbyProps> = ({
           </div>
         </div>
       </main>
+
+      {/* Match Modal */}
+      {showMatchModal && matchedVibe && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="bg-[#1A1A21] border border-white/10 rounded-3xl max-w-md w-full overflow-hidden"
+          >
+            <div className="relative h-64 overflow-hidden">
+              <img
+                src={matchedVibe.coverImage}
+                alt={matchedVibe.actionText}
+                className="w-full h-full object-cover"
+              />
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent to-black/70"
+              >
+                <div className="text-center">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 0.6 }}
+                    className="text-6xl mb-3"
+                  >
+                    ✨
+                  </motion.div>
+                  <h3 className="text-2xl font-bold text-white">It's a Match!</h3>
+                  <p className="text-gray-300 mt-2">{matchedVibe.userName} likes you too!</p>
+                </div>
+              </motion.div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-sm text-gray-400 mb-2">You matched on:</p>
+                <p className="text-lg font-semibold text-white">
+                  {matchedVibe.userName} wants to {matchedVibe.actionText} {matchedVibe.emoji}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">{matchedVibe.description}</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowMatchModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 text-white font-medium transition-colors hover:bg-white/5"
+                >
+                  Maybe later
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMatchModal(false);
+                    onNavigate("messages");
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-[#F59E0B] text-black font-semibold transition-opacity hover:opacity-90"
+                >
+                  Message
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

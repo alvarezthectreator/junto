@@ -3,17 +3,22 @@ import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
+import { type EventDetailData } from './EventDetail';
+import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
 
 interface DiscoverProps {
   onNavigate?: (page: string) => void;
+  onOpenEvent?: (event: EventDetailData) => void;
 }
 
-export function Discover({ onNavigate = () => {} }: DiscoverProps) {
+export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) {
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
-  const [joinedEvents, setJoinedEvents] = useState<Set<number>>(new Set());
   const [travelMode, setTravelMode] = useState(false);
+  const [sortBy, setSortBy] = useState<'recent' | 'trending' | 'nearest'>('recent');
+  const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
   
   const filters = [
   'All vibes',
@@ -24,100 +29,10 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
   'Males only',
   'Trending 🔥'];
 
-  const events = [
-  {
-    userInitial: 'A',
-    userName: 'Ada',
-    actionText: 'watch a movie',
-    emoji: '🎬',
-    description: 'Silverbird Cinema, VI. Catching the new Marvel drop!',
-    date: 'Sunday, 6pm',
-    audience: 'Open to all',
-    interestedCount: 3,
-    accentColor: 'bg-[#FF6B6B]',
-    audienceColor: 'bg-emerald-500/10 text-emerald-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=800',
-    coords: [6.4281, 3.4219] as [number, number]
-  },
-  {
-    userInitial: 'O',
-    userName: 'Oge',
-    actionText: 'go to the beach',
-    emoji: '🌊',
-    description: 'Bar Beach, Lagos. Vibes only, no drama.',
-    date: 'Monday, 3pm',
-    audience: 'Males only',
-    interestedCount: 7,
-    accentColor: 'bg-[#4ECDC4] text-gray-900',
-    audienceColor: 'bg-blue-500/10 text-blue-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-    coords: [6.4131, 3.4214] as [number, number]
-  },
-  {
-    userInitial: 'K',
-    userName: 'Kemi',
-    actionText: 'grab brunch',
-    emoji: '☕',
-    description: 'Hard Rock Cafe, Lekki. Sunday vibes!',
-    date: 'Sat, 11am',
-    audience: 'Females only',
-    interestedCount: 5,
-    accentColor: 'bg-[#F59E0B]',
-    audienceColor: 'bg-pink-500/10 text-pink-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1533777324565-a040eb52facd?w=800',
-    coords: [6.4474, 3.4736] as [number, number]
-  },
-  {
-    userInitial: 'T',
-    userName: 'Tunde',
-    actionText: 'hit the gym',
-    emoji: '💪',
-    description: 'Smart Fitness, Ikoyi. Push day energy.',
-    date: 'Tue, 7am',
-    audience: 'Open to all',
-    interestedCount: 2,
-    accentColor: 'bg-[#38BDF8] text-gray-900',
-    audienceColor: 'bg-emerald-500/10 text-emerald-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800',
-    coords: [6.45, 3.4333] as [number, number]
-  },
-  {
-    userInitial: 'Z',
-    userName: 'Zara',
-    actionText: 'try sushi',
-    emoji: '🍣',
-    description: 'Izanagi, VI. New rolls on the menu!',
-    date: 'Fri, 8pm',
-    audience: 'Open to all',
-    interestedCount: 12,
-    accentColor: 'bg-[#FB7185]',
-    audienceColor: 'bg-emerald-500/10 text-emerald-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800',
-    coords: [6.4281, 3.4106] as [number, number]
-  },
-  {
-    userInitial: 'C',
-    userName: 'Chidi',
-    actionText: 'go clubbing',
-    emoji: '🪩',
-    description: 'Quilox, VI. Saturday night turn up.',
-    date: 'Sat, 11pm',
-    audience: 'Males only',
-    interestedCount: 9,
-    accentColor: 'bg-[#FF8E72]',
-    audienceColor: 'bg-blue-500/10 text-blue-400',
-    coverImage:
-    'https://images.unsplash.com/photo-1571266028243-d220bc1c8d1f?w=800',
-    coords: [6.425, 3.4197] as [number, number]
-  }];
+  const events = discoverEvents;
 
   // Filter events based on active filter and search
-  const filteredEvents = events.filter((event) => {
+  let filteredEvents = events.filter((event) => {
     const matchesFilter = activeFilter === 'All vibes' || 
       (activeFilter === 'Tonight' && event.date.includes('Sunday')) ||
       (activeFilter === 'This week' && true) ||
@@ -131,19 +46,33 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
       event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.userName.toLowerCase().includes(searchTerm.toLowerCase());
     
-    return matchesFilter && matchesSearch;
+    const matchesSaved = !showSavedOnly || savedEventIds.includes(event.id);
+    
+    return matchesFilter && matchesSearch && matchesSaved;
   });
 
-  const handleJoinEvent = (index: number) => {
-    const newJoined = new Set(joinedEvents);
-    if (newJoined.has(index)) {
-      newJoined.delete(index);
-    } else {
-      newJoined.add(index);
-      // Navigate to event detail page
-      onNavigate?.(`event`);
-    }
-    setJoinedEvents(newJoined);
+  // Sort events
+  if (sortBy === 'trending') {
+    filteredEvents = [...filteredEvents].sort((a, b) => b.interestedCount - a.interestedCount);
+  } else if (sortBy === 'nearest') {
+    // This would use actual location data in production
+    filteredEvents = [...filteredEvents].sort((a, b) => (a.userName.charCodeAt(0) - b.userName.charCodeAt(0)));
+  }
+  // 'recent' is default array order
+
+  const toggleSaveEvent = (eventId: string) => {
+    setSavedEventIds(current =>
+      current.includes(eventId)
+        ? current.filter(id => id !== eventId)
+        : [...current, eventId]
+    );
+  };
+
+  const openEventDetail = (event: typeof events[number], index: number) => {
+    const detailEvent: EventDetailData = toEventDetail(event, index);
+
+    onOpenEvent?.(detailEvent);
+    onNavigate?.('event');
   };
 
   return (
@@ -321,6 +250,32 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
         </div>
       </div>
 
+      {/* Sorting and View Options */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'recent' | 'trending' | 'nearest')}
+            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
+          >
+            <option value="recent">Recent first</option>
+            <option value="trending">Trending</option>
+            <option value="nearest">Nearest</option>
+          </select>
+          <button
+            onClick={() => setShowSavedOnly(!showSavedOnly)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+              showSavedOnly
+                ? 'bg-[#F59E0B] text-white'
+                : 'bg-[#1A1A21] border border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+            }`}
+          >
+            ❤️ Saved
+          </button>
+        </div>
+        <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
+      </div>
+
       {/* Trending Banner */}
       <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm overflow-x-auto max-w-full">
         <Flame size={14} className="sm:w-4 sm:h-4 text-[#F59E0B] flex-shrink-0" />
@@ -355,9 +310,37 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event, index) => {
             const actualIndex = events.indexOf(event);
-            const isJoined = joinedEvents.has(actualIndex);
+            const isSaved = savedEventIds.includes(event.id);
             return (
               <div key={index} className="relative group">
+                <div className="absolute top-4 right-4 z-10">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSaveEvent(event.id);
+                    }}
+                    className={`rounded-full p-2 transition-all ${
+                      isSaved
+                        ? 'bg-[#F59E0B]/20 text-[#F59E0B]'
+                        : 'bg-black/30 text-white hover:bg-black/50'
+                    }`}
+                    aria-label={isSaved ? 'Remove bookmark' : 'Bookmark event'}
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill={isSaved ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 5a2 2 0 012-2h6a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                      />
+                    </svg>
+                  </button>
+                </div>
                 <EventCard
                   index={index}
                   userInitial={event.userInitial}
@@ -371,19 +354,12 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
                   accentColor={event.accentColor}
                   audienceColor={event.audienceColor}
                   coverImage={event.coverImage}
+                  isVerified={event.isVerified}
+                  reliabilityScore={event.reliabilityScore}
+                  averageRating={event.averageRating}
+                  reviewCount={event.reviewCount}
+                  onInterested={() => openEventDetail(event, actualIndex)}
                 />
-                <motion.button
-                  onClick={() => handleJoinEvent(actualIndex)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`absolute bottom-4 right-4 px-4 sm:px-5 py-2 sm:py-3 rounded-full font-semibold text-sm sm:text-base transition-all opacity-0 group-hover:opacity-100 ${
-                    isJoined
-                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                      : 'bg-[#F59E0B] text-black hover:bg-[#ffd700] shadow-lg shadow-[#F59E0B]/30'
-                  }`}
-                >
-                  {isJoined ? '✓ Joined' : 'I\'m interested'}
-                </motion.button>
               </div>
             );
           })
@@ -391,7 +367,7 @@ export function Discover({ onNavigate = () => {} }: DiscoverProps) {
           <div className="col-span-1 md:col-span-2 text-center py-12">
             <p className="text-gray-400 text-lg">No vibes found matching your search or filter.</p>
             <button
-              onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); }}
+              onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); setSortBy('recent'); setShowSavedOnly(false); }}
               className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"
             >
               Clear filters →

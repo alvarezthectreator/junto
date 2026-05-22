@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Star,
   Sun,
+  Video,
   Trash2,
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
@@ -21,6 +22,8 @@ interface ProfileProps {
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
   onToggleLightMode?: () => void;
+  setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
@@ -29,17 +32,39 @@ export const Profile: React.FC<ProfileProps> = ({
   onNavigate = () => {},
   isLightMode = false,
   onToggleLightMode = () => {},
+  setActiveNav = () => {},
+  onCloseSidebar = () => {},
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
+  const [showMessage, setShowMessage] = useState('');
+  const [newInterest, setNewInterest] = useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
     name: 'Sarah Adeyemi',
     age: 26,
+    dob: '1999-08-14',
+    genderIdentity: 'Woman',
+    occupation: 'Product Designer',
     bio: 'Adventure seeker, coffee lover, dog parent. Usually down for brunch, beach days, and spontaneous city plans.',
     interests: ['Hiking', 'Photography', 'Coffee', 'Art'],
     reliabilityScore: 92,
     isVerified: true,
     location: 'Lagos, Nigeria',
-    photos: ['https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400'],
+    profileId: 'JTO-9201-NG',
+    visibility: {
+      dob: 'private',
+      genderIdentity: 'private',
+      occupation: 'public',
+      bio: 'public',
+      photos: 'public',
+    },
+    introVideo: '',
+    photos: [
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',
+      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
+    ],
   });
 
   const stats = {
@@ -94,10 +119,53 @@ export const Profile: React.FC<ProfileProps> = ({
     ? 'border-amber-700/15 bg-amber-100/70'
     : 'border-yellow-500/15 bg-yellow-500/[0.05]';
 
+  const handleAddInterest = () => {
+    if (newInterest.trim() && !profile.interests.includes(newInterest)) {
+      setProfile({
+        ...profile,
+        interests: [...profile.interests, newInterest]
+      });
+      setNewInterest('');
+      setShowMessage('Interest added!');
+      setTimeout(() => setShowMessage(''), 2000);
+    }
+  };
+
+  const handleRemoveInterest = (interest: string) => {
+    setProfile({
+      ...profile,
+      interests: profile.interests.filter(i => i !== interest)
+    });
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const newPhotoUrl = event.target?.result as string;
+        setProfile({
+          ...profile,
+          photos: [newPhotoUrl, ...profile.photos]
+        });
+        setShowPhotoUpload(false);
+        setShowMessage('Photo added!');
+        setTimeout(() => setShowMessage(''), 2000);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = () => {
+    setShowMessage('Profile saved successfully!');
+    setIsEditing(false);
+    setTimeout(() => setShowMessage(''), 2000);
+  };
+
   return (
     <div className={`flex min-h-screen transition-colors duration-300 ${pageClass}`}>
       <div className="relative z-50">
-        <Sidebar activeNav="" setActiveNav={() => {}} onNavigate={onNavigate} />
+        <Sidebar activeNav="" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
       </div>
 
       <main className="mobile-page-main relative ml-64 flex-1 overflow-hidden">
@@ -135,7 +203,13 @@ export const Profile: React.FC<ProfileProps> = ({
                   <Settings size={20} />
                 </button>
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
+                  onClick={() => {
+                    if (isEditing) {
+                      handleSaveProfile();
+                    } else {
+                      setIsEditing(true);
+                    }
+                  }}
                   className="rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
                 >
                   <span className="inline-flex items-center gap-2">
@@ -260,6 +334,83 @@ export const Profile: React.FC<ProfileProps> = ({
               </div>
 
               <PanelCard
+                eyebrow="Identity"
+                title="Profile details people scan first"
+                description="Add the extra context that helps people trust a profile before they say yes."
+                lightMode={isLightMode}
+              >
+                {isEditing ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input
+                      type="date"
+                      value={profile.dob}
+                      onChange={(e) => setProfile({ ...profile, dob: e.target.value })}
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
+                    />
+                    <input
+                      type="text"
+                      value={profile.genderIdentity}
+                      onChange={(e) => setProfile({ ...profile, genderIdentity: e.target.value })}
+                      placeholder="Gender identity"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
+                    />
+                    <input
+                      type="text"
+                      value={profile.occupation}
+                      onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
+                      placeholder="Occupation"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition md:col-span-2 ${inputClass}`}
+                    />
+                    <select
+                      value={profile.visibility.dob}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          visibility: { ...profile.visibility, dob: e.target.value },
+                        })
+                      }
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
+                    >
+                      <option value="public">DOB public</option>
+                      <option value="private">DOB private</option>
+                    </select>
+                    <select
+                      value={profile.visibility.occupation}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          visibility: { ...profile.visibility, occupation: e.target.value },
+                        })
+                      }
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
+                    >
+                      <option value="public">Occupation public</option>
+                      <option value="private">Occupation private</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {[
+                      { label: 'Profile ID', value: profile.profileId, helper: 'Share this with trusted contacts' },
+                      { label: 'Date of birth', value: profile.dob, helper: `${profile.visibility.dob} view` },
+                      { label: 'Gender identity', value: profile.genderIdentity, helper: `${profile.visibility.genderIdentity} view` },
+                      { label: 'Occupation', value: profile.occupation, helper: `${profile.visibility.occupation} view` },
+                      { label: 'Bio visibility', value: profile.visibility.bio, helper: 'Controls what people see first' },
+                      { label: 'Media visibility', value: profile.visibility.photos, helper: 'Photos and intro video' },
+                    ].map((item) => (
+                      <div key={item.label} className={`rounded-[1.35rem] border p-4 ${innerCardClass}`}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+                          {item.label}
+                        </p>
+                        <p className={`mt-2 text-base font-semibold ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>{item.value}</p>
+                        <p className={`mt-1 text-xs ${mutedTextClass}`}>{item.helper}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </PanelCard>
+
+              <PanelCard
                 eyebrow="About you"
                 title="What people should know"
                 description="Clear details make your profile feel intentional, trustworthy, and easy to say yes to."
@@ -274,23 +425,60 @@ export const Profile: React.FC<ProfileProps> = ({
                       rows={4}
                       placeholder="Tell people what you're into..."
                     />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <input
+                        type="text"
+                        value={profile.occupation}
+                        onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
+                        placeholder="Occupation"
+                        className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
+                      />
+                      <input
+                        type="text"
+                        value={profile.genderIdentity}
+                        onChange={(e) => setProfile({ ...profile, genderIdentity: e.target.value })}
+                        placeholder="Gender identity"
+                        className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
+                      />
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {profile.interests.map((interest) => (
                         <span key={interest} className={`rounded-full border px-3 py-2 text-xs ${interestPillClass}`}>
-                          {interest} x
+                          {interest} <button onClick={() => handleRemoveInterest(interest)} className="ml-2 font-bold">×</button>
                         </span>
                       ))}
-                      <input
-                        type="text"
-                        placeholder="Add interest..."
-                        className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Add interest..."
+                          value={newInterest}
+                          onChange={(e) => setNewInterest(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddInterest();
+                              e.preventDefault();
+                            }
+                          }}
+                          className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
+                        />
+                        <button 
+                          onClick={handleAddInterest}
+                          className="rounded-full bg-[#F59E0B] text-white px-3 py-2 text-xs font-semibold hover:bg-[#F59E0B]/90"
+                        >
+                          Add
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
                     <div>
                       <p className={`text-sm leading-7 ${bodyTextClass}`}>{profile.bio}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>{profile.occupation}</span>
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>{profile.genderIdentity}</span>
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>DOB private</span>
+                      </div>
                     </div>
                     <div className={`rounded-[1.4rem] border p-4 ${innerCardClass}`}>
                       <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
@@ -310,12 +498,12 @@ export const Profile: React.FC<ProfileProps> = ({
 
               <PanelCard
                 eyebrow="Gallery"
-                title="Photos that set the tone"
+                title="Photos and intro video"
                 description="Show enough personality that people can imagine the kind of hangout they'd have with you."
                 lightMode={isLightMode}
               >
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                  {profile.photos.map((photo, idx) => (
+                  {profile.photos.slice(0, 6).map((photo, idx) => (
                     <div key={idx} className={`overflow-hidden rounded-[1.5rem] border ${galleryCardClass}`}>
                       <img
                         src={photo}
@@ -326,11 +514,21 @@ export const Profile: React.FC<ProfileProps> = ({
                   ))}
                   {isEditing && (
                     <button
+                      onClick={() => fileInputRef.current?.click()}
                       className={`flex aspect-square items-center justify-center rounded-[1.5rem] border border-dashed transition ${addPhotoClass}`}
                     >
                       <Camera size={24} />
                     </button>
                   )}
+                  <div className={`flex aspect-square flex-col items-center justify-center rounded-[1.5rem] border ${galleryCardClass} p-4 text-center`}>
+                    <Video size={22} className={isLightMode ? 'text-amber-700' : 'text-yellow-300'} />
+                    <p className={`mt-2 text-xs font-semibold uppercase tracking-[0.18em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+                      Intro video
+                    </p>
+                    <p className={`mt-1 text-[11px] ${mutedTextClass}`}>
+                      {profile.introVideo ? 'Uploaded' : 'Add a short intro clip'}
+                    </p>
+                  </div>
                 </div>
               </PanelCard>
             </div>
@@ -453,6 +651,24 @@ export const Profile: React.FC<ProfileProps> = ({
               </PanelCard>
             </aside>
           </section>
+
+          {showMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-6 right-6 bg-[#1A1A21] border border-[#F59E0B]/50 rounded-2xl px-6 py-3 text-white font-medium shadow-lg z-50">
+              {showMessage}
+            </motion.div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoUpload}
+            className="hidden"
+          />
         </motion.div>
       </main>
     </div>

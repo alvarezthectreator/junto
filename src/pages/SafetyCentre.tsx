@@ -15,6 +15,8 @@ import { Sidebar } from '../components/Sidebar';
 
 interface SafetyCentreProps {
   onNavigate?: (page: string) => void;
+  setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
 type SafetyTab = 'profile' | 'contacts' | 'history';
@@ -47,10 +49,14 @@ const historyItems = [
   },
 ];
 
-export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate }) => {
+export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
   const [activeTab, setActiveTab] = useState<SafetyTab>('profile');
   const [sosActive, setSosActive] = useState(false);
   const [sosCountdown, setSosCountdown] = useState(0);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactRelationship, setNewContactRelationship] = useState('Friend');
   const [contacts, setContacts] = useState([
     {
       id: '1',
@@ -90,6 +96,24 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate }) => {
     setSosCountdown(0);
   };
 
+  const handleAddContact = () => {
+    if (!newContactName || !newContactPhone) {
+      alert('Please fill in all fields');
+      return;
+    }
+    const newContact = {
+      id: Date.now().toString(),
+      name: newContactName,
+      phone: newContactPhone,
+      relationship: newContactRelationship,
+    };
+    setContacts([...contacts, newContact]);
+    setNewContactName('');
+    setNewContactPhone('');
+    setNewContactRelationship('Friend');
+    setShowAddContactModal(false);
+  };
+
   const tabButtonClass = (tab: SafetyTab) =>
     `rounded-full px-4 py-2 text-sm font-medium transition ${
       activeTab === tab
@@ -100,7 +124,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate }) => {
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <div className="relative z-50">
-        <Sidebar activeNav="Safety" setActiveNav={() => {}} onNavigate={onNavigate} />
+        <Sidebar activeNav="Safety" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
       </div>
 
       <main className="mobile-page-main flex-1 ml-64 relative overflow-hidden">
@@ -308,7 +332,9 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate }) => {
                       </div>
                     ))}
 
-                    <button className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-dashed border-yellow-500/30 bg-yellow-500/5 px-4 py-4 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/10">
+                    <button 
+                      onClick={() => setShowAddContactModal(true)}
+                      className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-dashed border-yellow-500/30 bg-yellow-500/5 px-4 py-4 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/10">
                       <Plus size={18} />
                       Add trusted contact
                     </button>
@@ -394,6 +420,91 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate }) => {
           </section>
         </motion.div>
       </main>
+
+      {/* Add Contact Modal */}
+      {showAddContactModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-[#1A1A21] border border-white/10 rounded-3xl max-w-md w-full"
+          >
+            <div className="p-6 border-b border-white/5">
+              <h3 className="text-2xl font-semibold text-white">Add Trusted Contact</h3>
+              <p className="text-sm text-gray-400 mt-1">Add someone who'll get your safety alerts</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                  Contact Name
+                </label>
+                <input
+                  type="text"
+                  value={newContactName}
+                  onChange={(e) => setNewContactName(e.target.value)}
+                  placeholder="e.g. Mom, Best Friend"
+                  className="w-full bg-[#0F0F13] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500/50 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={newContactPhone}
+                  onChange={(e) => setNewContactPhone(e.target.value)}
+                  placeholder="+234 803 456 7890"
+                  className="w-full bg-[#0F0F13] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-yellow-500/50 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                  Relationship
+                </label>
+                <select
+                  value={newContactRelationship}
+                  onChange={(e) => setNewContactRelationship(e.target.value)}
+                  className="w-full bg-[#0F0F13] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-500/50 transition-colors"
+                >
+                  <option>Family</option>
+                  <option>Mother</option>
+                  <option>Father</option>
+                  <option>Sibling</option>
+                  <option>Best Friend</option>
+                  <option>Friend</option>
+                  <option>Partner</option>
+                  <option>Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-white/5 flex gap-3">
+              <button
+                onClick={() => setShowAddContactModal(false)}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-white font-medium transition-colors hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddContact}
+                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-semibold transition-opacity hover:opacity-90"
+              >
+                Add Contact
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

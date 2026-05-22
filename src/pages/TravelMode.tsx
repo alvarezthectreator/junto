@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { Calendar, Save, Trash2, ChevronRight } from "lucide-react";
 
 interface TravelModeProps {
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
+  setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
 function TravelEventCard({ event, index, isLightMode = false }: { event: any; index: number; isLightMode?: boolean }) {
@@ -94,22 +97,45 @@ function TravelEventCard({ event, index, isLightMode = false }: { event: any; in
   );
 }
 
-export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, isLightMode = false }) => {
+export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, isLightMode = false, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
   const [selectedCity, setSelectedCity] = useState("Lagos");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
   const [headerVisible, setHeaderVisible] = useState(false);
-  const pageClass = isLightMode ? 'bg-[#f7f3ea] text-[#241b10]' : 'bg-[#050505] text-white';
-  const shellClass = isLightMode ? 'bg-[#fffaf2]' : 'bg-[#050505]';
-  const panelClass = isLightMode ? 'bg-white/80 border-black/10' : 'bg-[#0a0a0a] border-[#1c1c1c]';
-  const textMutedClass = isLightMode ? 'text-[#8d7758]' : 'text-[#888]';
-  const textSoftClass = isLightMode ? 'text-[#7a674f]' : 'text-[#aaa]';
-  const lineClass = isLightMode ? 'border-black/10' : 'border-[#111]';
-  const selectButtonClass = isLightMode ? 'border-black/10 bg-white/80 text-[#7a674f]' : 'border-[#1a1a1a] bg-[#0a0a0a] text-[#aaa]';
+  const [tripStartDate, setTripStartDate] = useState("");
+  const [tripEndDate, setTripEndDate] = useState("");
+  const [savedTrips, setSavedTrips] = useState<Array<{ id: string; city: string; startDate: string; endDate: string }>>([]);
+  const [showSavedTrips, setShowSavedTrips] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setHeaderVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+  const saveTrip = () => {
+    if (!tripStartDate || !selectedCity) {
+      alert('Please select a city and start date');
+      return;
+    }
+    const newTrip = {
+      id: Date.now().toString(),
+      city: selectedCity,
+      startDate: tripStartDate,
+      endDate: tripEndDate || tripStartDate,
+    };
+    setSavedTrips([...savedTrips, newTrip]);
+    alert('Trip saved!');
+  };
+
+  const deleteTrip = (id: string) => {
+    setSavedTrips(savedTrips.filter(trip => trip.id !== id));
+  };
+
+  const loadTrip = (trip: typeof savedTrips[0]) => {
+    setSelectedCity(trip.city);
+    setTripStartDate(trip.startDate);
+    setTripEndDate(trip.endDate);
+    setShowSavedTrips(false);
+  };
 
   const cities = [
     "🇳🇬 Lagos",
@@ -171,7 +197,7 @@ export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, i
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="Travel Mode" setActiveNav={() => {}} onNavigate={onNavigate} />
+      <Sidebar activeNav="Travel Mode" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
 
       <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div
@@ -233,7 +259,7 @@ export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, i
               Select City
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-              {cities.map((city, idx) => {
+              {cities.map((city) => {
                 const cityName = city.split(" ")[1];
                 const isSelected = selectedCity === cityName;
                 return (
@@ -309,6 +335,183 @@ export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, i
               </button>
             ))}
           </div>
+
+          {/* Trip Date Picker */}
+          <div style={{
+            background: isLightMode ? "rgba(245,158,11,0.08)" : "rgba(246,157,17,0.08)",
+            border: isLightMode ? "1px solid rgba(245,158,11,0.18)" : "1px solid rgba(246,157,17,0.2)",
+            borderRadius: 16,
+            padding: "18px",
+            marginBottom: 28,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <Calendar size={18} color="#F69D11" />
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
+                Plan Your Trip
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "flex-end" }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>Start Date</label>
+                <input
+                  type="date"
+                  value={tripStartDate}
+                  onChange={(e) => setTripStartDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                    background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                    color: isLightMode ? "#241b10" : "#fff",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>End Date</label>
+                <input
+                  type="date"
+                  value={tripEndDate}
+                  onChange={(e) => setTripEndDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                    background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                    color: isLightMode ? "#241b10" : "#fff",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#888" }}>
+                {tripStartDate && (
+                  <span>
+                    {Math.ceil((new Date(tripEndDate || tripStartDate).getTime() - new Date(tripStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} days
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={saveTrip}
+                style={{
+                  padding: "8px 14px",
+                  background: "#F69D11",
+                  color: "#000",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "opacity 0.2s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as any).style.opacity = "0.9"; }}
+                onMouseLeave={(e) => { (e.currentTarget as any).style.opacity = "1"; }}
+              >
+                <Save size={14} /> Save
+              </button>
+            </div>
+            {savedTrips.length > 0 && (
+              <button
+                onClick={() => setShowSavedTrips(!showSavedTrips)}
+                style={{
+                  marginTop: 12,
+                  background: "transparent",
+                  border: "none",
+                  color: "#F69D11",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                View {savedTrips.length} saved trip{savedTrips.length !== 1 ? 's' : ''} →
+              </button>
+            )}
+          </div>
+
+          {/* Saved Trips Modal */}
+          {showSavedTrips && savedTrips.length > 0 && (
+            <div style={{
+              background: isLightMode ? "rgba(255,250,242,0.9)" : "rgba(12,12,15,0.95)",
+              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 16,
+              padding: "16px",
+              marginBottom: 28,
+              maxHeight: "250px",
+              overflowY: "auto"
+            }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#F69D11", textTransform: "uppercase" }}>
+                My Trips
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {savedTrips.map((trip) => (
+                  <div
+                    key={trip.id}
+                    style={{
+                      background: isLightMode ? "rgba(255,255,255,0.5)" : "rgba(26,26,33,0.5)",
+                      border: isLightMode ? "1px solid rgba(36,27,16,0.08)" : "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: 10,
+                      padding: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
+                        🌍 {trip.city}
+                      </p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#888" }}>
+                        {trip.startDate} to {trip.endDate}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => loadTrip(trip)}
+                        style={{
+                          background: "transparent",
+                          border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
+                          color: "#F69D11",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <ChevronRight size={12} /> Load
+                      </button>
+                      <button
+                        onClick={() => deleteTrip(trip.id)}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.1)",
+                          border: "1px solid rgba(239, 68, 68, 0.2)",
+                          color: "#ef4444",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Events List */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>

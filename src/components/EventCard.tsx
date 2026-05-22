@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, MessageCircle } from 'lucide-react';
+import { Calendar, MessageCircle, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 interface EventCardProps {
   userInitial: string;
@@ -14,6 +14,11 @@ interface EventCardProps {
   audienceColor: string;
   index: number;
   coverImage?: string;
+  isVerified?: boolean;
+  reliabilityScore?: number;
+  averageRating?: number;
+  reviewCount?: number;
+  onInterested?: () => void;
 }
 export function EventCard({
   userInitial,
@@ -27,7 +32,12 @@ export function EventCard({
   accentColor,
   audienceColor,
   index,
-  coverImage
+  coverImage,
+  isVerified = false,
+  reliabilityScore = 0,
+  averageRating = 0,
+  reviewCount = 0,
+  onInterested
 }: EventCardProps) {
   const avatarColors = [
   'bg-blue-500',
@@ -89,6 +99,23 @@ export function EventCard({
             <p className="text-sm sm:text-lg font-serif italic text-gradient flex items-center gap-1 line-clamp-1">
               {actionText} <span className="text-base sm:text-lg">{emoji}</span>
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] sm:text-xs font-semibold ${
+                  isVerified
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-white/5 text-gray-400 border border-white/10'
+                }`}
+              >
+                {isVerified ? '✓ Verified' : 'Unverified'}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-[#FBBF24]">
+                🟢 {reliabilityScore}%
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] sm:text-xs font-semibold text-gray-300">
+                <Star size={10} className="text-[#FBBF24]" /> {averageRating.toFixed(1)} ({reviewCount})
+              </span>
+            </div>
           </div>
         </div>
 
@@ -134,6 +161,7 @@ export function EventCard({
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3 mt-auto">
           <button
+            onClick={onInterested}
             className={`flex-1 py-2.5 sm:py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity hover:opacity-90 shadow-sm ${accentColor} ${accentColor.includes('text-gray-900') ? 'text-gray-900' : 'text-white'}`}>
             
             I'm Interested →

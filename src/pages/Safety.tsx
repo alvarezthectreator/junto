@@ -11,11 +11,11 @@ import {
 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 
-export function Safety({ onNavigate = () => {} }: { onNavigate?: (page: string) => void }) {
+export function Safety({ onNavigate = () => {}, setActiveNav = () => {} }: { onNavigate?: (page: string) => void; setActiveNav?: (nav: string) => void }) {
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <div className="relative z-50">
-        <Sidebar activeNav="Safety" setActiveNav={() => {}} onNavigate={onNavigate} />
+        <Sidebar activeNav="Safety" setActiveNav={setActiveNav} onNavigate={onNavigate} />
       </div>
       
       <main className="mobile-page-main flex-1 ml-0 md:ml-64 w-full overflow-x-hidden">
