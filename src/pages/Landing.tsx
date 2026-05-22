@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Check, Shield, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { DottedSurface } from '../components/ui/dotted-surface';
 
 export function Landing({ onLogin }: { onLogin: (email: string, password: string) => void }) {
   const [showLogin, setShowLogin] = useState(false);
@@ -37,16 +38,21 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0A0B0F',
-      backgroundImage: `
-        radial-gradient(ellipse 60% 40% at 20% 10%, rgba(167, 139, 250, 0.06), transparent 60%),
-        radial-gradient(ellipse 40% 30% at 80% 80%, rgba(255, 107, 107, 0.06), transparent 60%)
-      `,
       color: '#fff',
       overflow: 'hidden',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      position: 'relative'
     }}>
+      <DottedSurface />
+      
+      <div style={{
+        position: 'relative',
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh'
+      }}>
       {/* Navigation */}
       <nav style={{
         display: 'flex',
@@ -483,6 +489,7 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
           </motion.div>
         </motion.div>
       )}
+      </div>
     </div>
   );
 }
