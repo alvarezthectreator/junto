@@ -114,7 +114,7 @@ export function App() {
     const renderPage = () => {
       switch (currentPage) {
         case 'Discover':
-          return <Discover selectedLocation={selectedLocation} currentUser={currentUser} onNavigate={handleNavigate} onOpenEvent={handleOpenEvent} />;
+          return <Discover selectedLocation={selectedLocation} currentUser={currentUser} onNavigate={handleNavigate} onOpenEvent={handleOpenEvent} onOpenUser={handleOpenUser} />;
         case 'EventDetail':
           return <EventDetail eventData={selectedEvent} onNavigate={handleNavigate} onOpenUser={handleOpenUser} />;
         case 'Nearby':

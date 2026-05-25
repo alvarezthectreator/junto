@@ -19,6 +19,8 @@ interface EventCardProps {
   averageRating?: number;
   reviewCount?: number;
   onInterested?: () => void;
+  onOpenUser?: (user: any) => void;
+  userAvatar?: string;
 }
 export function EventCard({
   userInitial,
@@ -37,7 +39,9 @@ export function EventCard({
   reliabilityScore = 0,
   averageRating = 0,
   reviewCount = 0,
-  onInterested
+  onInterested,
+  onOpenUser,
+  userAvatar
 }: EventCardProps) {
   const avatarColors = [
   'bg-blue-500',
@@ -86,7 +90,19 @@ export function EventCard({
         className={`p-3 sm:p-4 md:p-6 flex flex-col flex-1 relative z-10 ${coverImage ? 'pt-2 sm:pt-3 md:pt-4' : ''}`}>
         
         {/* Header */}
-        <div className="flex items-start gap-2 sm:gap-3 md:gap-4 mb-2 sm:mb-3 md:mb-4">
+        <div 
+          className="flex items-start gap-2 sm:gap-3 md:gap-4 mb-2 sm:mb-3 md:mb-4 cursor-pointer group/header transition-opacity hover:opacity-80"
+          onClick={() => {
+            if (onOpenUser) {
+              onOpenUser({
+                id: userName,
+                name: userName,
+                avatar: userAvatar || userInitial,
+                reliabilityScore: reliabilityScore,
+                isVerified: isVerified,
+              });
+            }
+          }}>
           <div
             className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm sm:text-base md:text-lg font-serif text-white shadow-sm shrink-0 ${accentColor}`}>
             

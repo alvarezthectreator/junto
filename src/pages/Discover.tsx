@@ -12,11 +12,12 @@ import * as API from '../services/api';
 interface DiscoverProps {
   onNavigate?: (page: string) => void;
   onOpenEvent?: (event: EventDetailData) => void;
+  onOpenUser?: (user: any) => void;
   currentUser?: any;
   selectedLocation?: string;
 }
 
-export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
+export function Discover({ onNavigate = () => {}, onOpenEvent, onOpenUser, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
@@ -59,8 +60,42 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
   const events = useBackend && apiEvents.length > 0 ? apiEvents : discoverEvents;
 
+  // Transform API events to match mock event format
+  const transformApiEvent = (event: any, index: number) => {
+    const colors = ['bg-[#FF6B6B]', 'bg-[#4ECDC4]', 'bg-[#FFE66D]', 'bg-[#95E1D3]', 'bg-[#F38181]'];
+    const audienceColors = ['bg-emerald-500/10 text-emerald-400', 'bg-blue-500/10 text-blue-400', 'bg-purple-500/10 text-purple-400'];
+    
+    // Extract first letter from title or use default
+    const userInitial = event.title?.charAt(0).toUpperCase() || 'E';
+    // Extract a name from title (use first word or default to "Host")
+    const userName = event.title?.split(' ')[0] || 'Host';
+    
+    return {
+      ...event,
+      userInitial: userInitial,
+      userName: userName,
+      userImage: '', // No avatar from API
+      actionText: event.title || 'Event',
+      emoji: '🎯',
+      accentColor: colors[index % colors.length],
+      audienceColor: audienceColors[index % audienceColors.length],
+      coverImage: '',
+      isVerified: false,
+      reliabilityScore: 85,
+      averageRating: 4.0,
+      reviewCount: 0,
+      audience: 'Open to all',
+      interestedCount: event.max_guests || 0
+    };
+  };
+
+  // Process events - add missing properties for API events
+  const processedEvents = useBackend && apiEvents.length > 0 
+    ? apiEvents.map(transformApiEvent)
+    : discoverEvents;
+
   // Filter events based on active filter and search
-  let filteredEvents = events.filter((event: any) => {
+  let filteredEvents = processedEvents.filter((event: any) => {
     const matchesFilter = activeFilter === 'All vibes' || 
       (activeFilter === 'Tonight' && event.event_date?.includes('today')) ||
       (activeFilter === 'This week' && true) ||
@@ -360,7 +395,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 md:gap-6 pb-12 w-full">
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event, index) => {
-            const actualIndex = events.indexOf(event);
+            const actualIndex = processedEvents.indexOf(event);
             const isSaved = savedEventIds.includes(event.id);
             return (
               <div key={index} className="relative group w-full">
@@ -410,6 +445,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
                   averageRating={event.averageRating}
                   reviewCount={event.reviewCount}
                   onInterested={() => openEventDetail(event, actualIndex)}
+                  onOpenUser={onOpenUser}
+                  userAvatar={event.userImage}
                 />
               </div>
             );
