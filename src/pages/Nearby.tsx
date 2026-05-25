@@ -224,9 +224,9 @@ export const Nearby: React.FC<NearbyProps> = ({
       <main
         style={{
           flex: 1,
-          marginLeft: 256,
           minHeight: "100dvh",
           overflowY: "auto",
+          paddingBottom: 80,
           background: isLightMode
             ? "radial-gradient(circle at top, rgba(245,158,11,0.12), transparent 34%), #f8f3e8"
             : "radial-gradient(circle at top, rgba(245,158,11,0.12), transparent 34%), #050505",
