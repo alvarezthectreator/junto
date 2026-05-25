@@ -90,47 +90,82 @@ VITE_API_BASE_URL=https://your-backend-randomid.railway.app/api
    ```
 3. Save and let it redeploy
 
-### 3. Migrate Database Schema to PostgreSQL
+### 3. Database Setup
 
-Your backend currently uses SQLite. When you connect to PostgreSQL on Railway, you need to run the schema:
+### SQLite vs PostgreSQL
 
-#### Option A: Manual Migration (Easy)
-1. In Railway dashboard, click PostgreSQL service
-2. Go to "Connect" tab
-3. Copy the connection string
-4. Use a PostgreSQL client to run `backend/src/db/schema.sql`
+- **Development (Local)**: Uses SQLite (`junto.db`)
+  - No setup needed, works out of the box
+  - Great for testing
+  - Run `npm run seed` to add mock data
 
-#### Option B: Auto-migration (requires code change)
-Let me update your backend to auto-run schema on PostgreSQL connection.
+- **Production (Railway)**: Uses PostgreSQL
+  - Persistent database that survives deployments
+  - Better performance
+  - Automatic on Railway
 
-## Troubleshooting
+### Backend Database Support
 
-### "Failed to fetch" Error
-- **Cause**: Frontend can't reach backend
-- **Fix**: Check that `VITE_API_BASE_URL` environment variable is set correctly in Vercel
-- **Verify**: Open Vercel project → Settings → Environment Variables
+Your backend now supports **both SQLite and PostgreSQL** automatically:
+- If `DATABASE_URL` environment variable exists → PostgreSQL
+- Otherwise → SQLite
 
-### Backend Not Starting
-- Check Railway logs: Dashboard → Backend Service → "Logs" tab
-- Look for database connection errors
-- Ensure PostgreSQL service is running
+### Setting Up PostgreSQL on Railway
 
-### CORS Errors
-- Update `FRONTEND_URL` in Railway backend variables to your Vercel domain
-- Check backend code has correct CORS origin
+#### Step 1: Add PostgreSQL Service
+1. Go to Railway dashboard for your project
+2. Click "Add Service" → "Add from Marketplace"
+3. Search "PostgreSQL" and click it
+4. Confirm to add PostgreSQL to your project
+5. Railway automatically creates `DATABASE_URL` environment variable ✅
 
-## Quick Reference
+#### Step 2: Run Database Migrations
+When your backend starts with PostgreSQL, it will:
+1. Detect `DATABASE_URL` is set
+2. Use `schema-postgres.sql` instead of `schema.sql`
+3. Create all tables automatically
+4. Run seed data if `MOCK_DATA=true`
 
-| Service | URL | Details |
-|---------|-----|---------|
-| Frontend (Vercel) | https://junto.vercel.app | React + Vite |
-| Backend (Railway) | https://your-backend-randomid.railway.app | Node.js + Express |
-| Database (Railway) | PostgreSQL instance | Auto-managed |
-| API Endpoint | https://your-backend-randomid.railway.app/api | Called from frontend |
+No manual migration needed! Your backend handles it.
 
-## Next Steps
-1. Sign up for Railway: https://railway.app
-2. Connect GitHub and deploy backend
-3. Add PostgreSQL database
-4. Update frontend environment variables
-5. Test login with +2348123456789
+#### Step 3: Verify in Logs
+1. Go to Railway backend service logs
+2. Should see: `🐘 Connected to PostgreSQL database`
+3. Then: `📦 Creating database tables (postgres)...`
+4. Then: `🌱 Seeding postgres database with mock data...`
+
+### Local Development
+
+Keep using SQLite:
+
+```bash
+# Start backend (uses SQLite)
+npm run dev
+
+# Seed with mock data
+npm run seed
+
+# Reinitialize database
+npm run migrate
+```
+
+### Migration Commands
+
+```bash
+# Backend folder
+cd backend
+
+# Develop with SQLite
+npm run dev
+
+# Seed database with mock data
+npm run seed
+
+# Reinitialize/create tables
+npm run migrate
+
+# Production start
+npm start
+```
+
+---

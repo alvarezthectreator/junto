@@ -2,15 +2,18 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import process from 'process';
-import db from './connection.js';
+import { query, DB_TYPE } from './connection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function initializeDatabase() {
   try {
-    console.log('📦 Creating database tables...');
-    const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
+    console.log(`📦 Creating database tables (${DB_TYPE})...`);
+    
+    // Choose schema based on database type
+    const schemaFile = DB_TYPE === 'postgres' ? 'schema-postgres.sql' : 'schema.sql';
+    const schema = readFileSync(join(__dirname, schemaFile), 'utf8');
     
     // Split by semicolon and filter out comments and empty lines
     const statements = schema
@@ -25,35 +28,62 @@ export async function initializeDatabase() {
       })
       .filter(stmt => stmt.length > 0);
     
-    return new Promise((resolve) => {
-      let completed = 0;
-      const total = statements.length;
-      
-      if (total === 0) {
-        console.log('✅ No statements to execute');
-        resolve();
-        return;
-      }
-      
-      statements.forEach((statement, index) => {
+    let completed = 0;
+    const total = statements.length;
+    
+    if (total === 0) {
+      console.log('✅ No statements to execute');
+      return;
+    }
+    
+    // Execute all statements for PostgreSQL
+    if (DB_TYPE === 'postgres') {
+      for (const statement of statements) {
         if (statement.trim()) {
-          db.run(statement, (err) => {
-            if (err) {
-              console.error(`❌ Error executing statement ${index + 1}:`);
-              console.error('Statement:', statement.substring(0, 100) + '...');
-              console.error('Error:', err.message);
-            } else {
-              console.log(`✅ Executed statement ${index + 1}`);
-            }
-            completed++;
-            if (completed === total) {
-              console.log('✅ Database tables created successfully');
-              resolve();
-            }
-          });
+          try {
+            await query(statement);
+            console.log(`✅ Executed statement ${++completed}/${total}`);
+          } catch (err) {
+            console.error(`❌ Error executing statement ${completed + 1}:`);
+            console.error('Statement:', statement.substring(0, 100) + '...');
+            console.error('Error:', err.message);
+            // Continue with other statements
+          }
         }
+      }
+    } else {
+      // SQLite execution (callback-based)
+      return new Promise((resolve, reject) => {
+        const executeStatements = (index) => {
+          if (index >= statements.length) {
+            console.log('✅ Database tables created successfully');
+            resolve();
+            return;
+          }
+          
+          const statement = statements[index];
+          if (statement.trim()) {
+            query(statement)
+              .then(() => {
+                console.log(`✅ Executed statement ${index + 1}/${total}`);
+                executeStatements(index + 1);
+              })
+              .catch(err => {
+                console.error(`❌ Error executing statement ${index + 1}:`);
+                console.error('Statement:', statement.substring(0, 100) + '...');
+                console.error('Error:', err.message);
+                executeStatements(index + 1);
+              });
+          } else {
+            executeStatements(index + 1);
+          }
+        };
+        
+        executeStatements(0);
       });
-    });
+    }
+    
+    console.log('✅ Database tables created successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
     throw error;
