@@ -16,9 +16,12 @@ interface EventsMapProps {
   events: EventMarker[];
 }
 // Build a custom DivIcon for each event marker
-function createMarkerIcon(initial: string, accentColor: string) {
+function createMarkerIcon(initial: string | undefined, accentColor: string | undefined) {
+  const displayInitial = initial || '♥';
+  const displayColor = accentColor || '#F59E0B';
+  
   // Extract a hex color from the tailwind-style accentColor string
-  const colorMatch = accentColor.match(/#[0-9A-Fa-f]{6}/);
+  const colorMatch = displayColor.match(/#[0-9A-Fa-f]{6}/);
   const color = colorMatch ? colorMatch[0] : '#F59E0B';
   return L.divIcon({
     className: 'junto-marker',
@@ -47,7 +50,7 @@ function createMarkerIcon(initial: string, accentColor: string) {
             font-weight: 700;
             font-family: 'Playfair Display', serif;
             font-size: 16px;
-          ">${initial}</span>
+          ">${displayInitial}</span>
         </div>
       </div>
     `,

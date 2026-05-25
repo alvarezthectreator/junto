@@ -6,6 +6,7 @@ interface HelpProps {
   isLightMode?: boolean;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
+  currentUser?: any;
 }
 
 function FaqItem({ faq, index, isExpanded, onToggle, isLightMode = false }: { faq: any; index: number; isExpanded: boolean; onToggle: () => void; isLightMode?: boolean }) {

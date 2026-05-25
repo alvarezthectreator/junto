@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X, MessageSquare } from 'lucide-react';
 import ApplicationCard from './ApplicationCard';
 import { EventApplication } from '../../types/hostDashboard';
+import * as API from '../../services/api';
 
 interface ApplicationsTabProps {
   isLightMode?: boolean;
@@ -47,6 +48,40 @@ const mockApplications: EventApplication[] = [
 const ApplicationsTab: React.FC<ApplicationsTabProps> = ({ isLightMode = false }) => {
   const [applications, setApplications] = useState<EventApplication[]>(mockApplications);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'accepted' | 'declined'>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        setLoading(true);
+        const userId = API.getUserId();
+        if (userId) {
+          const response = await API.getUserApplications(userId);
+          const apiApps = response.applications.map((app: any): EventApplication => ({
+            id: app.id,
+            eventId: app.event_id,
+            userId: app.user_id,
+            userName: app.user_id || 'Unknown',
+            userAvatar: '👤',
+            userRating: 4.5,
+            eventAttendance: 0,
+            appliedAt: new Date(app.created_at),
+            status: app.status || 'pending'
+          }));
+          setApplications(apiApps.length > 0 ? apiApps : mockApplications);
+        } else {
+          setApplications(mockApplications);
+        }
+      } catch (error) {
+        console.error('Failed to fetch applications:', error);
+        setApplications(mockApplications);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, []);
 
   const filteredApplications = filterStatus === 'all'
     ? applications

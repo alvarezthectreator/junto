@@ -1,38 +1,40 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, Check, Shield, MapPin } from 'lucide-react';
+import { Phone, Check, Shield, MapPin, Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { DottedSurface } from '../components/ui/dotted-surface';
+import * as API from '../services/api';
 
-export function Landing({ onLogin }: { onLogin: (email: string, password: string) => void }) {
+export function Landing({ onLogin }: { onLogin: (user: any, token: string) => void }) {
   const [showLogin, setShowLogin] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      return;
+    try {
+      if (!phoneNumber || phoneNumber.trim() === '') {
+        setError('Please enter a phone number');
+        setLoading(false);
+        return;
+      }
+
+      // Call API to login
+      const response = await API.login(phoneNumber);
+      
+      // Save display name to localStorage
+      localStorage.setItem('displayName', response.user.display_name);
+      
+      // Call parent's onLogin with user and session_token (not token)
+      onLogin(response.user, response.session_token);
+      setShowLogin(false);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.');
+      setLoading(false);
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email');
-      return;
-    }
-
-    if (isSignUp && password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
-    setShowLogin(false);
-    onLogin(email, password);
   };
 
   return (
@@ -276,15 +278,15 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}>
-                {isSignUp ? 'Create Account' : 'Welcome Back'}
+                Log In
               </h2>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                {isSignUp ? 'Sign up to start discovering events' : 'Sign in to your account'}
+                Enter your phone number to get started
               </p>
             </div>
 
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Email Input */}
+              {/* Phone Input */}
               <div>
                 <label style={{
                   fontSize: '11px',
@@ -295,7 +297,7 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                   display: 'block',
                   fontWeight: '600'
                 }}>
-                  Email Address
+                  Phone Number
                 </label>
                 <div style={{
                   display: 'flex',
@@ -307,12 +309,13 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                   gap: '10px',
                   transition: 'all 0.2s'
                 }}>
-                  <Mail size={18} color='rgba(255,255,255,0.3)' />
+                  <Phone size={18} color='rgba(255,255,255,0.3)' />
                   <input
-                    type='email'
-                    placeholder='your@email.com'
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type='tel'
+                    placeholder='+2348123456789'
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    disabled={loading}
                     style={{
                       flex: 1,
                       background: 'transparent',
@@ -320,67 +323,10 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                       color: '#fff',
                       padding: '13px 0',
                       fontSize: '14px',
-                      outline: 'none'
+                      outline: 'none',
+                      opacity: loading ? 0.6 : 1
                     }}
                   />
-                </div>
-              </div>
-
-              {/* Password Input */}
-              <div>
-                <label style={{
-                  fontSize: '11px',
-                  color: 'rgba(255,255,255,0.35)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.6px',
-                  marginBottom: '5px',
-                  display: 'block',
-                  fontWeight: '600'
-                }}>
-                  Password
-                </label>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '12px',
-                  padding: '0 14px',
-                  gap: '10px',
-                  transition: 'all 0.2s'
-                }}>
-                  <Lock size={18} color='rgba(255,255,255,0.3)' />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder='Enter password'
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#fff',
-                      padding: '13px 0',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'rgba(255,255,255,0.5)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '4px',
-                      transition: 'color 0.2s'
-                    }}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
                 </div>
               </div>
 
@@ -407,6 +353,7 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 type='submit'
+                disabled={loading}
                 style={{
                   width: '100%',
                   background: 'linear-gradient(135deg, #F59E0B, #FB923C)',
@@ -416,42 +363,26 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                   padding: '13px 20px',
                   borderRadius: '12px',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   marginTop: '6px',
                   boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)',
-                  transition: 'all 0.3s'
+                  transition: 'all 0.3s',
+                  opacity: loading ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
                 }}
               >
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {loading ? (
+                  <>
+                    <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    Logging in...
+                  </>
+                ) : (
+                  'Log In'
+                )}
               </motion.button>
-
-              {/* Toggle Sign Up / Sign In */}
-              <p style={{
-                fontSize: '13px',
-                color: 'rgba(255,255,255,0.6)',
-                textAlign: 'center',
-                marginTop: '8px'
-              }}>
-                {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-                <button
-                  type='button'
-                  onClick={() => {
-                    setIsSignUp(!isSignUp);
-                    setError('');
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#A78BFA',
-                    cursor: 'pointer',
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    transition: 'color 0.2s'
-                  }}
-                >
-                  {isSignUp ? 'Sign In' : 'Sign Up'}
-                </button>
-              </p>
             </form>
 
             {/* Demo Credentials */}
@@ -471,11 +402,11 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                 letterSpacing: '0.6px',
                 margin: 0
               }}>
-                Demo Credentials
+                Try These Phone Numbers
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>📧 demo@junto.app</p>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>🔑 password123</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>📱 +2348123456789 (Chioma)</p>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>📱 +2349876543210 (Tunde)</p>
               </div>
               <p style={{
                 fontSize: '12px',
@@ -483,7 +414,7 @@ export function Landing({ onLogin }: { onLogin: (email: string, password: string
                 marginTop: '8px',
                 margin: '8px 0 0 0'
               }}>
-                Or create a new account with any email & password (6+ chars)
+                Works with ANY phone number - just enter and get started!
               </p>
             </div>
           </motion.div>

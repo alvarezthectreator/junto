@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { TopHeader } from '../components/TopHeader';
 import {
   Users,
   MapPin,
@@ -7,11 +8,16 @@ import {
   Flag,
   CheckCircle2,
   XCircle,
-  Phone } from
-'lucide-react';
+  Phone,
+  Menu,
+  X,
+  Plus,
+  Bell
+} from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 
 export function Safety({ onNavigate = () => {}, setActiveNav = () => {} }: { onNavigate?: (page: string) => void; setActiveNav?: (nav: string) => void }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <div className="relative z-50">
@@ -32,6 +38,33 @@ export function Safety({ onNavigate = () => {}, setActiveNav = () => {} }: { onN
         duration: 0.3
       }}
       className="pb-12 sm:pb-20 px-4 sm:px-6 md:px-8">
+      
+      {/* Header with Navigation and Post Button */}
+      <div className="flex items-center justify-between gap-4 mb-8 md:mb-6">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+          aria-label="Toggle menu"
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate?.('hosting')}
+            className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 md:px-4 py-2 rounded-full font-semibold text-sm transition-colors"
+          >
+            <Plus size={18} />
+            <span className="hidden sm:inline">Post</span>
+          </button>
+          <button
+            onClick={() => onNavigate?.('notifications')}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+            title="View notifications"
+          >
+            <Bell size={18} />
+          </button>
+        </div>
+      </div>
       
       {/* Header */}
       <div className="mb-8 sm:mb-10 md:mb-12 border-b border-yellow-500/30 pb-6 sm:pb-8">

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Trash2, Eye } from 'lucide-react';
 import EventCard from './EventCard';
 import CreateEventModal from './CreateEventModal';
 import { HostedEvent } from '../../types/hostDashboard';
+import * as API from '../../services/api';
 
 interface EventsTabProps {
   isLightMode?: boolean;
@@ -64,6 +65,45 @@ const EventsTab: React.FC<EventsTabProps> = ({ isLightMode = false }) => {
   const [events, setEvents] = useState<HostedEvent[]>(mockEvents);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'full' | 'completed'>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHostEvents = async () => {
+      try {
+        setLoading(true);
+        const userId = API.getUserId();
+        if (userId) {
+          const response = await API.getHostEvents(userId);
+          const apiEvents = response.events.map((event: any): HostedEvent => ({
+            id: event.id,
+            title: event.title,
+            image: 'https://via.placeholder.com/300x200?text=' + encodeURIComponent(event.title),
+            description: event.description || '',
+            date: new Date(event.event_date),
+            location: event.location_city || 'Unknown',
+            maxGuests: event.max_guests || 0,
+            confirmedGuests: 0,
+            pendingApplications: 0,
+            price: event.guest_fee || 0,
+            status: event.status === 'active' ? 'active' : event.status === 'completed' ? 'completed' : 'active',
+            createdAt: new Date(event.created_at),
+            audience: 'mixed',
+            hostRating: 4.8
+          }));
+          setEvents(apiEvents.length > 0 ? apiEvents : mockEvents);
+        } else {
+          setEvents(mockEvents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch host events:', error);
+        setEvents(mockEvents);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHostEvents();
+  }, []);
 
   const filteredEvents = filterStatus === 'all' 
     ? events 

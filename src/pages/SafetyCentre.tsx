@@ -17,6 +17,7 @@ interface SafetyCentreProps {
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
+  currentUser?: any;
 }
 
 type SafetyTab = 'profile' | 'contacts' | 'history';

@@ -172,7 +172,11 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     return match ? toEventDetail(match, discoverEvents.findIndex((item) => item.id === match.id)) : undefined;
   }, [eventId]);
 
-  const event = eventData ?? eventFromCatalog ?? defaultEvent;
+  // Merge eventData with defaultEvent to ensure all properties exist
+  const event = {
+    ...defaultEvent,
+    ...(eventData ?? eventFromCatalog)
+  };
   const eventCoords = event.coords ?? [6.4281, 3.4219];
   const mapUrl = `https://www.google.com/maps?q=${eventCoords[0]},${eventCoords[1]}`;
   const currentAttendees = event.attendees ?? [];
@@ -368,7 +372,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
           <div className="overflow-hidden rounded-3xl border border-white/5 bg-[#141419] shadow-2xl shadow-black/20">
             <div className="relative h-56 sm:h-72 md:h-80">
               <img
-                src={event.media.venue[0]}
+                src={event.media?.venue?.[0] || 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=500'}
                 alt={event.title}
                 className="h-full w-full object-cover opacity-75"
               />
@@ -719,10 +723,10 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-2xl border border-white/5 bg-[#101014] p-3 text-center">
                         <p className="text-lg font-bold text-[#FBBF24]">⭐ {event.host.averageRating}</p>
-                        <p className="text-xs text-gray-400">Rating</p>
+                        <p className="text-xs text-gray-400">Avg Rating</p>
                       </div>
                       <div className="rounded-2xl border border-white/5 bg-[#101014] p-3 text-center">
                         <p className="text-lg font-bold text-green-400">{event.host.reliabilityScore}%</p>
@@ -732,12 +736,63 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                         <p className="text-lg font-bold">{event.host.reviews}</p>
                         <p className="text-xs text-gray-400">Reviews</p>
                       </div>
+                      <div className="rounded-2xl border border-white/5 bg-[#101014] p-3 text-center">
+                        <p className="text-lg font-bold text-[#FBBF24]">{event.host.reviews + 2}</p>
+                        <p className="text-xs text-gray-400">Events Hosted</p>
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
                       <p className="text-sm text-gray-300">
                         Experienced event host who loves bringing people together. All events are planned with safety and fun in mind!
                       </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                      <h3 className="mb-4 text-sm font-semibold">Past Events</h3>
+                      <div className="space-y-3">
+                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">Art Lounge Exhibition</p>
+                              <p className="text-xs text-gray-500">Completed 2 weeks ago</p>
+                            </div>
+                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.9</span>
+                          </div>
+                          <div className="space-y-2 mt-2 text-xs text-gray-400">
+                            <p>📊 <span className="text-gray-300">42 attendees</span></p>
+                            <p className="italic mt-1">"{event.host.name} was very organized and attentive. Great experience!" - Amara</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">Sunset Dinner Party</p>
+                              <p className="text-xs text-gray-500">Completed 1 month ago</p>
+                            </div>
+                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.8</span>
+                          </div>
+                          <div className="space-y-2 mt-2 text-xs text-gray-400">
+                            <p>📊 <span className="text-gray-300">28 attendees</span></p>
+                            <p className="italic mt-1">"{event.host.name} made everyone feel welcome. Definitely attending next event!" - Chioma</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">Networking Brunch</p>
+                              <p className="text-xs text-gray-500">Completed 2 months ago</p>
+                            </div>
+                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.7</span>
+                          </div>
+                          <div className="space-y-2 mt-2 text-xs text-gray-400">
+                            <p>📊 <span className="text-gray-300">35 attendees</span></p>
+                            <p className="italic mt-1">"Excellent host! Very attentive to details." - Tunde</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

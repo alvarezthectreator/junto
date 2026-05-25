@@ -314,6 +314,7 @@ interface MyHostProps {
   isLightMode?: boolean;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
+  currentUser?: any;
 }
 
 function CreateEventModal({

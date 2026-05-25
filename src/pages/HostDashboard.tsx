@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Calendar, FileText, Users, TrendingUp } from 'lucide-react';
+import { Plus, Calendar, FileText, Users, TrendingUp, Menu, X, Bell } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import EventsTab from '../components/HostDashboard/EventsTab';
 import ApplicationsTab from '../components/HostDashboard/ApplicationsTab';
@@ -22,6 +22,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   onCloseSidebar = () => {},
   isLightMode = false 
 }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('events');
 
 
@@ -58,6 +59,24 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             transition={{ duration: 0.4 }}
             className="mb-8"
           >
+            {/* Header with Navigation */}
+            <div className="flex items-center justify-between gap-4 mb-6 md:mb-4">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                aria-label="Toggle menu"
+              >
+                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
+              <button
+                onClick={() => onNavigate?.('notifications')}
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors md:hidden"
+                title="View notifications"
+              >
+                <Bell size={18} />
+              </button>
+            </div>
+
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-3xl md:text-4xl font-bold text-white">
                 Host Dashboard

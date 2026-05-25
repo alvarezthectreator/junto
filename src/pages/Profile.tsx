@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Camera,
@@ -15,8 +15,10 @@ import {
   Sun,
   Video,
   Trash2,
+  Loader,
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
+import * as API from '../services/api';
 
 interface ProfileProps {
   onNavigate?: (page: string) => void;
@@ -24,6 +26,7 @@ interface ProfileProps {
   onToggleLightMode?: () => void;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
+  currentUser?: any;
 }
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
@@ -34,11 +37,13 @@ export const Profile: React.FC<ProfileProps> = ({
   onToggleLightMode = () => {},
   setActiveNav = () => {},
   onCloseSidebar = () => {},
+  currentUser
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [showMessage, setShowMessage] = useState('');
   const [newInterest, setNewInterest] = useState('');
+  const [loading, setLoading] = useState(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
     name: 'Sarah Adeyemi',
@@ -66,6 +71,36 @@ export const Profile: React.FC<ProfileProps> = ({
       'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
     ],
   });
+
+  // Fetch user profile from API
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        if (currentUser?.id) {
+          const userProfile = await API.getUserProfile(currentUser.id);
+          // Map API response to component state
+          setProfile(prev => ({
+            ...prev,
+            name: userProfile.name || prev.name,
+            bio: userProfile.bio || prev.bio,
+            interests: userProfile.interests || prev.interests,
+            photos: userProfile.profile_photos || prev.photos,
+            location: userProfile.location || prev.location,
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+        // Keep default profile if API fails
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (currentUser?.id) {
+      fetchProfile();
+    }
+  }, [currentUser?.id]);
 
   const stats = {
     outings: 24,
@@ -644,6 +679,7 @@ export const Profile: React.FC<ProfileProps> = ({
               >
                 <div className="space-y-3">
                   <ActionRow icon={<HelpCircle size={18} />} label="Help & Support" lightMode={isLightMode} />
+                  <ActionRow icon={<Settings size={18} />} label="Settings" onClick={() => onNavigate?.('settings')} lightMode={isLightMode} />
                   <ActionRow icon={<Download size={18} />} label="Export My Data" lightMode={isLightMode} />
                   <ActionRow icon={<Trash2 size={18} />} label="Delete Account" danger lightMode={isLightMode} />
                   <ActionRow icon={<LogOut size={18} />} label="Log Out" subtle lightMode={isLightMode} />
@@ -767,12 +803,14 @@ function ActionRow({
   danger = false,
   subtle = false,
   lightMode,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   danger?: boolean;
   subtle?: boolean;
   lightMode: boolean;
+  onClick?: () => void;
 }) {
   const tone = danger
     ? lightMode
@@ -787,7 +825,7 @@ function ActionRow({
         : 'border-white/8 bg-white/[0.03] text-white hover:bg-white/[0.05]';
 
   return (
-    <button className={`flex w-full items-center gap-3 rounded-[1.25rem] border px-4 py-4 text-left transition ${tone}`}>
+    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-[1.25rem] border px-4 py-4 text-left transition ${tone}`}>
       {icon}
       <span className="text-sm font-medium">{label}</span>
       <ChevronRight size={16} className="ml-auto text-current opacity-50" />

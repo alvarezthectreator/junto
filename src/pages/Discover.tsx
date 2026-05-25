@@ -1,24 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
+import { TopHeader } from '../components/TopHeader';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
+import * as API from '../services/api';
 
 interface DiscoverProps {
   onNavigate?: (page: string) => void;
   onOpenEvent?: (event: EventDetailData) => void;
+  currentUser?: any;
+  selectedLocation?: string;
 }
 
-export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) {
+export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'trending' | 'nearest'>('recent');
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [useBackend, setUseBackend] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const filters = [
   'All vibes',
@@ -29,22 +37,39 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
   'Males only',
   'Trending 🔥'];
 
-  const events = discoverEvents;
+  // Fetch events from API on component mount or location change
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoading(true);
+        const response = await API.getEvents({ city: selectedLocation });
+        setApiEvents(response.events);
+        setUseBackend(true);
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+        // Fall back to mock data if API fails
+        setUseBackend(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [selectedLocation]);
+
+  const events = useBackend && apiEvents.length > 0 ? apiEvents : discoverEvents;
 
   // Filter events based on active filter and search
-  let filteredEvents = events.filter((event) => {
+  let filteredEvents = events.filter((event: any) => {
     const matchesFilter = activeFilter === 'All vibes' || 
-      (activeFilter === 'Tonight' && event.date.includes('Sunday')) ||
+      (activeFilter === 'Tonight' && event.event_date?.includes('today')) ||
       (activeFilter === 'This week' && true) ||
-      (activeFilter === 'Open to all' && event.audience === 'Open to all') ||
-      (activeFilter === 'Females only' && event.audience === 'Females only') ||
-      (activeFilter === 'Males only' && event.audience === 'Males only') ||
-      (activeFilter === 'Trending 🔥' && event.interestedCount >= 7);
+      (activeFilter === 'Trending 🔥' && event.max_guests && event.max_guests >= 7);
     
     const matchesSearch = searchTerm === '' || 
-      event.actionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.userName.toLowerCase().includes(searchTerm.toLowerCase());
+      event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.location_city?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesSaved = !showSavedOnly || savedEventIds.includes(event.id);
     
@@ -53,10 +78,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
 
   // Sort events
   if (sortBy === 'trending') {
-    filteredEvents = [...filteredEvents].sort((a, b) => b.interestedCount - a.interestedCount);
+    filteredEvents = [...filteredEvents].sort((a: any, b: any) => (b.max_guests || 0) - (a.max_guests || 0));
   } else if (sortBy === 'nearest') {
     // This would use actual location data in production
-    filteredEvents = [...filteredEvents].sort((a, b) => (a.userName.charCodeAt(0) - b.userName.charCodeAt(0)));
+    filteredEvents = [...filteredEvents].sort((a: any, b: any) => (a.title?.charCodeAt(0) || 0) - (b.title?.charCodeAt(0) || 0));
   }
   // 'recent' is default array order
 
@@ -68,30 +93,54 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
     );
   };
 
-  const openEventDetail = (event: typeof events[number], index: number) => {
-    const detailEvent: EventDetailData = toEventDetail(event, index);
+  const openEventDetail = (event: any, index: number) => {
+    let detailEvent: EventDetailData;
+    
+    if (useBackend && apiEvents.length > 0) {
+      // Convert API event to EventDetailData format
+      detailEvent = {
+        id: event.id,
+        actionText: event.title,
+        description: event.description || '',
+        date: event.event_date || new Date().toISOString().split('T')[0],
+        time: event.event_time || '18:00',
+        location: event.location_city || 'Unknown',
+        image: '', // API doesn't provide image
+        userName: 'Host',
+        userImage: '',
+        interestedCount: event.max_guests || 0,
+        audience: 'Open to all',
+        guestFee: event.guest_fee || 0,
+      };
+    } else {
+      detailEvent = toEventDetail(event, index);
+    }
 
     onOpenEvent?.(detailEvent);
     onNavigate?.('event');
   };
 
   return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 10
-      }}
-      animate={{
-        opacity: 1,
-        y: 0
-      }}
-      transition={{
-        duration: 0.8
-      }}>
+    <>
+      <TopHeader onNavigate={onNavigate} showHamburger={true} onHamburgerClick={() => setSidebarOpen(!sidebarOpen)} hambugerOpen={sidebarOpen} />
+      
+      <motion.div
+        initial={{
+          opacity: 0,
+          y: 10
+        }}
+        animate={{
+          opacity: 1,
+          y: 0
+        }}
+        transition={{
+          duration: 0.8
+        }}
+        className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-7xl mx-auto">
       
       {/* Hero Section & Stats */}
-      <div className="flex flex-col gap-6 sm:gap-8 md:gap-0 md:flex-row mb-6 sm:mb-8 items-start md:items-center">
-        <section className="flex-1 w-full md:w-auto">
+      <div className="flex flex-col gap-6 sm:gap-8 lg:gap-0 lg:flex-row mb-6 sm:mb-8 items-start lg:items-center w-full">
+        <section className="flex-1 w-full">
           <motion.h2
             initial={{
               opacity: 0,
@@ -105,7 +154,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
               duration: 1.2,
               ease: 'easeOut'
             }}
-            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
+            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
             
             Find someone to go{' '}
             <span className="italic text-gradient font-normal">out with.</span>
@@ -124,7 +173,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
               delay: 0.2,
               ease: 'easeOut'
             }}
-            className="text-gray-400 text-sm sm:text-base lg:text-lg max-w-md">
+            className="text-gray-400 text-xs sm:text-sm md:text-base lg:text-lg max-w-md">
             
             Post where you're going. Find company. Zero obligations.
           </motion.p>
@@ -143,7 +192,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
             duration: 1.0,
             delay: 0.4
           }}
-          className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-lg">
+          className="w-full lg:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl lg:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 shadow-lg flex-shrink-0">
           
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
@@ -221,7 +270,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
       </div>
 
       {/* Filters */}
-      <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
+      <div className="mb-6 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-2 min-w-max">
           {filters.map((filter) => {
             const isActive = activeFilter === filter;
@@ -229,7 +278,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`relative px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
+                className={`relative px-2.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 whitespace-nowrap ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
                 
                 {isActive &&
                 <motion.div
@@ -251,12 +300,12 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
       </div>
 
       {/* Sorting and View Options */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex flex-col gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between w-full">
+        <div className="flex flex-col xs:flex-row gap-2 w-full xs:w-auto">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'recent' | 'trending' | 'nearest')}
-            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
+            className="bg-[#1A1A21] border border-white/5 rounded-full px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors w-full xs:w-auto"
           >
             <option value="recent">Recent first</option>
             <option value="trending">Trending</option>
@@ -264,7 +313,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
           </select>
           <button
             onClick={() => setShowSavedOnly(!showSavedOnly)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap w-full xs:w-auto ${
               showSavedOnly
                 ? 'bg-[#F59E0B] text-white'
                 : 'bg-[#1A1A21] border border-white/5 text-gray-400 hover:text-white hover:border-white/10'
@@ -273,13 +322,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
             ❤️ Saved
           </button>
         </div>
-        <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
+        <span className="text-xs sm:text-sm text-gray-400 w-full xs:w-auto">{filteredEvents.length} vibes found</span>
       </div>
 
       {/* Trending Banner */}
-      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm overflow-x-auto max-w-full">
-        <Flame size={14} className="sm:w-4 sm:h-4 text-[#F59E0B] flex-shrink-0" />
-        <p className="text-gray-300 whitespace-nowrap sm:whitespace-normal">
+      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm max-w-full">
+        <Flame size={14} className="text-[#F59E0B] flex-shrink-0" />
+        <p className="text-gray-300 break-words sm:whitespace-normal">
           <span className="font-medium text-white">Trending:</span> <span className="hidden sm:inline">Movie nights in Lagos · 47 people interested this week</span><span className="sm:hidden">Movie nights</span>
         </p>
       </div>
@@ -302,18 +351,20 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
             Expand →
           </button>
         </div>
-        <EventsMap events={events} />
+        {/* EventsMap disabled - waiting for coordinate data from backend */}
+        {/* Once location_latitude/location_longitude are populated, EventsMap can be re-enabled */}
+        {/* <EventsMap events={events} /> */}
       </div>
 
       {/* Feed Grid with Action Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 md:gap-6 pb-12 w-full">
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event, index) => {
             const actualIndex = events.indexOf(event);
             const isSaved = savedEventIds.includes(event.id);
             return (
-              <div key={index} className="relative group">
-                <div className="absolute top-4 right-4 z-10">
+              <div key={index} className="relative group w-full">
+                <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-10">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -364,8 +415,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
             );
           })
         ) : (
-          <div className="col-span-1 md:col-span-2 text-center py-12">
-            <p className="text-gray-400 text-lg">No vibes found matching your search or filter.</p>
+          <div className="col-span-1 sm:col-span-2 text-center py-12 w-full">
+            <p className="text-gray-400 text-base sm:text-lg">No vibes found matching your search or filter.</p>
             <button
               onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); setSortBy('recent'); setShowSavedOnly(false); }}
               className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"
@@ -383,6 +434,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent }: DiscoverProps) 
           <span className="font-medium text-sm">Load more vibes</span>
         </button>
       </div>
-    </motion.div>);
-
+      </motion.div>
+    </>
+  );
 }

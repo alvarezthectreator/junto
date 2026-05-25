@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Download, MessageSquare, UserX, CheckCircle } from 'lucide-react';
 import GuestCard from './GuestCard';
 import { EventGuest } from '../../types/hostDashboard';
+import * as API from '../../services/api';
 
 interface GuestsTabProps {
   isLightMode?: boolean;
@@ -46,6 +47,34 @@ const mockGuests: EventGuest[] = [
 const GuestsTab: React.FC<GuestsTabProps> = ({ isLightMode = false }) => {
   const [guests, setGuests] = useState<EventGuest[]>(mockGuests);
   const [selectedEvent, setSelectedEvent] = useState('event_1');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGuests = async () => {
+      try {
+        setLoading(true);
+        const userId = API.getUserId();
+        if (userId) {
+          const response = await API.getHostEvents(userId);
+          if (response.events.length > 0) {
+            setSelectedEvent(response.events[0].id);
+          }
+          // In a real app, we'd fetch actual guests from accepted applications
+          // For now, we'll use mock data as a fallback
+          setGuests(mockGuests);
+        } else {
+          setGuests(mockGuests);
+        }
+      } catch (error) {
+        console.error('Failed to fetch guests:', error);
+        setGuests(mockGuests);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGuests();
+  }, []);
 
   const filteredGuests = guests.filter(g => g.eventId === selectedEvent);
   
