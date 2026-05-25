@@ -16,6 +16,7 @@ import {
   Video,
   Trash2,
   Loader,
+  MessageCircle,
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
@@ -74,7 +75,10 @@ export const Profile: React.FC<ProfileProps> = ({
     ],
   });
 
-  // Fetch user profile from API
+  // Determine if viewing own profile or selected user profile
+  const isOwnProfile = !selectedUser;
+
+  // Fetch user profile from API only if viewing own profile
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -99,10 +103,10 @@ export const Profile: React.FC<ProfileProps> = ({
       }
     };
 
-    if (currentUser?.id) {
+    if (isOwnProfile && currentUser?.id) {
       fetchProfile();
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, isOwnProfile]);
 
   // Handle displaying selected user profile
   useEffect(() => {
@@ -119,6 +123,7 @@ export const Profile: React.FC<ProfileProps> = ({
         isVerified: true,
       }));
       setLoading(false);
+      setIsEditing(false);
     }
   }, [selectedUser]);
 
@@ -247,31 +252,42 @@ export const Profile: React.FC<ProfileProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={onToggleLightMode}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${settingsButtonClass}`}
-                >
-                  {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
-                  {isLightMode ? 'Dark mode' : 'Light mode'}
-                </button>
-                <button className={`rounded-full border p-3 transition ${settingsButtonClass}`}>
-                  <Settings size={20} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (isEditing) {
-                      handleSaveProfile();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                  className="rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Edit2 size={16} />
-                    {isEditing ? 'Save profile' : 'Edit profile'}
-                  </span>
-                </button>
+                {isOwnProfile ? (
+                  <>
+                    <button
+                      onClick={onToggleLightMode}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${settingsButtonClass}`}
+                    >
+                      {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                      {isLightMode ? 'Dark mode' : 'Light mode'}
+                    </button>
+                    <button className={`rounded-full border p-3 transition ${settingsButtonClass}`}>
+                      <Settings size={20} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (isEditing) {
+                          handleSaveProfile();
+                        } else {
+                          setIsEditing(true);
+                        }
+                      }}
+                      className="rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Edit2 size={16} />
+                        {isEditing ? 'Save profile' : 'Edit profile'}
+                      </span>
+                    </button>
+                  </>
+                ) : (
+                  <button className="rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90">
+                    <span className="inline-flex items-center gap-2">
+                      <MessageCircle size={16} />
+                      Message
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </section>
