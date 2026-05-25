@@ -235,13 +235,15 @@ export const Nearby: React.FC<NearbyProps> = ({
         {/* NEARBY USERS SECTION */}
         <div style={{ padding: "24px 24px", borderBottom: `1px solid ${borderColor}` }}>
           <h2 style={{ margin: "0 0 20px 0", fontSize: 24, fontWeight: 700 }}>People Nearby</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "row", overflowX: "auto", overflowY: "hidden", gap: 16, paddingBottom: 8, scrollBehavior: "smooth" }}>
             {nearbyUsers.map((user) => (
               <motion.div
                 key={user.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 style={{
+                  width: 180,
+                  flexShrink: 0,
                   borderRadius: 16,
                   overflow: "hidden",
                   background: cardBackground,
