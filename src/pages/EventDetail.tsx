@@ -69,6 +69,7 @@ interface EventDetailProps {
   eventId?: string;
   eventData?: EventDetailData;
   onNavigate?: (page: string) => void;
+  onOpenUser?: (user: any) => void;
   onOpenMessages?: () => void;
 }
 
@@ -102,7 +103,7 @@ function createMapIcon(label: string) {
   });
 }
 
-export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate = () => {}, onOpenMessages }) => {
+export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate = () => {}, onOpenUser = () => {}, onOpenMessages }) => {
   const [isJoined, setIsJoined] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'attendees' | 'host' | 'reviews'>('overview');
@@ -421,7 +422,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
 
             <div className="border-b border-white/5 bg-[#111115] px-4 py-4 sm:px-6 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => {
+                  onOpenUser({
+                    id: event.host.name,
+                    name: event.host.name,
+                    avatar: event.host.avatar,
+                    reliabilityScore: event.host.reliabilityScore,
+                    isVerified: event.host.isVerified,
+                  });
+                  onNavigate('profile');
+                }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                   <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg shadow-lg shadow-[#F59E0B]/20">
                     {event.host.avatar}
                   </div>
@@ -605,7 +615,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                       </div>
                     </motion.div>
 
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
+                      onOpenUser({
+                        id: event.host.name,
+                        name: event.host.name,
+                        avatar: event.host.avatar,
+                        reliabilityScore: event.host.reliabilityScore,
+                        isVerified: event.host.isVerified,
+                      });
+                      onNavigate('profile');
+                    }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg">
@@ -697,7 +716,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               {activeTab === 'host' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="space-y-4">
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
+                      onOpenUser({
+                        id: event.host.name,
+                        name: event.host.name,
+                        avatar: event.host.avatar,
+                        reliabilityScore: event.host.reliabilityScore,
+                        isVerified: event.host.isVerified,
+                      });
+                      onNavigate('profile');
+                    }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center gap-3">
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-2xl">
                           {event.host.avatar}

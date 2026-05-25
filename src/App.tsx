@@ -116,7 +116,7 @@ export function App() {
         case 'Discover':
           return <Discover selectedLocation={selectedLocation} currentUser={currentUser} onNavigate={handleNavigate} onOpenEvent={handleOpenEvent} />;
         case 'EventDetail':
-          return <EventDetail eventData={selectedEvent} onNavigate={handleNavigate} />;
+          return <EventDetail eventData={selectedEvent} onNavigate={handleNavigate} onOpenUser={handleOpenUser} />;
         case 'Nearby':
           return <Nearby currentUser={currentUser} onNavigate={handleNavigate} onOpenUser={handleOpenUser} onOpenEvent={handleOpenEvent} />;
         case 'MyRequests':
