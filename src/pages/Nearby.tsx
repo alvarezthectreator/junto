@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, Calendar, X } from "lucide-react";
+import { MessageCircle, Calendar } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
 interface NearbyProps {
   onNavigate?: (page: string) => void;
+  onOpenUser?: (user: any) => void;
+  onOpenEvent?: (event: any) => void;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
   isLightMode?: boolean;
@@ -170,14 +172,13 @@ const vibes: NearbyVibe[] = [
 
 export const Nearby: React.FC<NearbyProps> = ({
   onNavigate = () => {},
+  onOpenUser = () => {},
+  onOpenEvent = () => {},
   setActiveNav = () => {},
   onCloseSidebar = () => {},
   isLightMode = false,
   currentUser
 }) => {
-  const [likedVibes, setLikedVibes] = useState<string[]>([]);
-  const [requestedVibes, setRequestedVibes] = useState<string[]>([]);
-
   const pageBackground = isLightMode ? "#f8f3e8" : "#050505";
   const pageText = isLightMode ? "#241b10" : "#fff";
   const cardBackground = isLightMode ? "rgba(255,250,242,0.88)" : "rgba(12,12,15,0.76)";
@@ -185,19 +186,6 @@ export const Nearby: React.FC<NearbyProps> = ({
   const subTextColor = isLightMode ? "#7a674f" : "#d1d5db";
   const mutedTextColor = isLightMode ? "#8d7758" : "#9ca3af";
   const panelShadow = isLightMode ? "0 18px 50px rgba(120,53,15,0.12)" : "0 18px 50px rgba(0,0,0,0.35)";
-
-  const handleLikeVibe = async (vibeId: string) => {
-    if (!likedVibes.includes(vibeId)) {
-      setLikedVibes([...likedVibes, vibeId]);
-      try {
-        if (currentUser?.id) {
-          await API.swipeUser(currentUser.id, vibeId, 'right');
-        }
-      } catch (error) {
-        console.error('Failed to swipe:', error);
-      }
-    }
-  };
 
   const handlePassVibe = async (vibeId: string) => {
     try {
@@ -241,6 +229,10 @@ export const Nearby: React.FC<NearbyProps> = ({
                 key={user.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
+                onClick={() => {
+                  onOpenUser(user);
+                  onNavigate('profile');
+                }}
                 style={{
                   width: 180,
                   flexShrink: 0,
@@ -394,7 +386,37 @@ export const Nearby: React.FC<NearbyProps> = ({
                   </p>
                   <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                     <button
-                      onClick={() => handleLikeVibe(vibe.id)}
+                      onClick={() => {
+                        const eventData = {
+                          id: vibe.id,
+                          title: `${vibe.userName} wants to ${vibe.actionText}`,
+                          host: {
+                            name: vibe.userName,
+                            avatar: vibe.coverImage,
+                            reliabilityScore: 92,
+                            isVerified: true,
+                            reviews: 12,
+                            averageRating: 4.8,
+                          },
+                          category: vibe.actionText,
+                          date: vibe.date,
+                          time: vibe.date,
+                          location: vibe.locationName,
+                          description: vibe.description,
+                          billingTier: 'SPLIT' as const,
+                          genderFilter: vibe.audience,
+                          interested: vibe.interestedCount,
+                          spots: `${vibe.interestedCount - 1} interested`,
+                          totalSpots: 10,
+                          currentAttendees: vibe.interestedCount,
+                          estimatedCost: 'TBA',
+                          media: {
+                            venue: [vibe.coverImage],
+                          },
+                        };
+                        onOpenEvent(eventData);
+                        onNavigate('event');
+                      }}
                       style={{
                         border: "none",
                         borderRadius: 8,

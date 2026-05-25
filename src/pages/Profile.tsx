@@ -21,6 +21,7 @@ import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
 
 interface ProfileProps {
+  selectedUser?: any;
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
   onToggleLightMode?: () => void;
@@ -32,6 +33,7 @@ interface ProfileProps {
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
 
 export const Profile: React.FC<ProfileProps> = ({
+  selectedUser,
   onNavigate = () => {},
   isLightMode = false,
   onToggleLightMode = () => {},
@@ -101,6 +103,24 @@ export const Profile: React.FC<ProfileProps> = ({
       fetchProfile();
     }
   }, [currentUser?.id]);
+
+  // Handle displaying selected user profile
+  useEffect(() => {
+    if (selectedUser) {
+      setProfile(prev => ({
+        ...prev,
+        name: selectedUser.name || prev.name,
+        age: selectedUser.age || prev.age,
+        avatar: selectedUser.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=500',
+        bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
+        interests: selectedUser.interests || prev.interests,
+        location: selectedUser.location || 'Lagos, Nigeria',
+        reliabilityScore: selectedUser.reliabilityScore || 92,
+        isVerified: true,
+      }));
+      setLoading(false);
+    }
+  }, [selectedUser]);
 
   const stats = {
     outings: 24,

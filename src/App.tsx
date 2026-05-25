@@ -25,6 +25,7 @@ export function App() {
   const [currentPage, setCurrentPage] = useState('Discover');
   const [selectedLocation, setSelectedLocation] = useState('Lagos');
   const [selectedEvent, setSelectedEvent] = useState<EventDetailData | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   
   // Restore authentication state from localStorage on mount
   useEffect(() => {
@@ -94,6 +95,10 @@ export function App() {
     setSelectedEvent(event);
   };
 
+  const handleOpenUser = (user: any) => {
+    setSelectedUser(user);
+  };
+
   // If not authenticated, show Landing
   if (!isAuthenticated) {
     return (
@@ -113,7 +118,7 @@ export function App() {
         case 'EventDetail':
           return <EventDetail eventData={selectedEvent} onNavigate={handleNavigate} />;
         case 'Nearby':
-          return <Nearby currentUser={currentUser} onNavigate={handleNavigate} />;
+          return <Nearby currentUser={currentUser} onNavigate={handleNavigate} onOpenUser={handleOpenUser} onOpenEvent={handleOpenEvent} />;
         case 'MyRequests':
           return <MyRequests currentUser={currentUser} onNavigate={handleNavigate} />;
         case 'Messages':
@@ -131,7 +136,7 @@ export function App() {
         case 'TravelMode':
           return <TravelMode currentUser={currentUser} onNavigate={handleNavigate} />;
         case 'Profile':
-          return <Profile currentUser={currentUser} onNavigate={handleNavigate} />;
+          return <Profile selectedUser={selectedUser} currentUser={currentUser} onNavigate={handleNavigate} />;
         case 'Help':
           return <Help currentUser={currentUser} onNavigate={handleNavigate} />;
         case 'MyHost':
