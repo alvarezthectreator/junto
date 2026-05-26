@@ -97,7 +97,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 24px',
+          padding: 'clamp(12px, 4vw, 24px) clamp(12px, 6vw, 24px)',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
           background: 'rgba(10,11,15,0.94)',
           backdropFilter: 'blur(18px)',
@@ -106,7 +106,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
           zIndex: 40
         }}>
           <div style={{
-            fontSize: '20px',
+            fontSize: 'clamp(16px, 5vw, 20px)',
             fontWeight: '700',
             background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
             WebkitBackgroundClip: 'text',
@@ -152,7 +152,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px 28px',
+            padding: 'clamp(20px, 8vw, 60px) clamp(16px, 6vw, 40px)',
             textAlign: 'center',
             position: 'relative',
             overflow: 'hidden'
@@ -176,7 +176,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
             >
               <div style={{ fontSize: '60px', marginBottom: '18px' }}>✨</div>
               <h1 style={{
-                fontSize: 'clamp(28px, 8vw, 42px)',
+                fontSize: 'clamp(24px, 10vw, 48px)',
                 fontWeight: '700',
                 marginBottom: '20px',
                 lineHeight: '1.2',
@@ -188,7 +188,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 Good People.<br />Good Times.
               </h1>
               <p style={{
-                fontSize: '16px',
+                fontSize: 'clamp(13px, 4vw, 16px)',
                 color: 'rgba(255,255,255,0.5)',
                 marginBottom: '36px',
                 maxWidth: '380px',
@@ -202,7 +202,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
+                gap: 'clamp(8px, 3vw, 12px)',
                 width: '100%',
                 maxWidth: '360px',
                 marginBottom: '36px'
@@ -221,12 +221,12 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                       transition={{ delay: 0.2 + i * 0.1 }}
                       style={{
                         display: 'flex',
-                        gap: '12px',
+                        gap: 'clamp(8px, 3vw, 12px)',
                         alignItems: 'center',
                         background: 'rgba(255,255,255,0.04)',
                         border: '1px solid rgba(255,255,255,0.08)',
                         borderRadius: '14px',
-                        padding: '12px 16px',
+                        padding: 'clamp(8px, 2vw, 12px) clamp(10px, 3vw, 16px)',
                         textAlign: 'left'
                       }}
                     >
@@ -234,36 +234,35 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '36px',
-                        height: '36px',
+                        width: 'clamp(28px, 8vw, 36px)',
+                        height: 'clamp(28px, 8vw, 36px)',
                         borderRadius: '12px',
                         background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
                         flexShrink: 0
                       }}>
-                        <IconComponent size={20} color="#fff" strokeWidth={2.5} />
+                        <IconComponent size={16} color="#fff" strokeWidth={2.5} />
                       </div>
-                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>{badge.text}</span>
+                      <span style={{ fontSize: 'clamp(11px, 3vw, 13px)', color: 'rgba(255,255,255,0.6)' }}>{badge.text}</span>
                     </motion.div>
                   );
                 })}
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto' }}>
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: '0 12px 40px rgba(252,211,77,0.4)' }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setMode('signup')}
                   style={{
-                    padding: '15px 40px',
+                    padding: 'clamp(11px, 3vw, 15px) clamp(20px, 6vw, 40px)',
                     borderRadius: '14px',
                     border: 'none',
                     background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
                     color: '#fff',
                     fontWeight: '700',
-                    fontSize: '16px',
+                    fontSize: 'clamp(13px, 4vw, 16px)',
                     cursor: 'pointer',
                     boxShadow: '0 8px 30px rgba(252,211,77,0.3)',
-                    maxWidth: '320px',
                     width: '100%',
                     transition: 'all 0.3s'
                   }}
@@ -275,15 +274,14 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setMode('login')}
                   style={{
-                    padding: '15px 40px',
+                    padding: 'clamp(11px, 3vw, 15px) clamp(20px, 6vw, 40px)',
                     borderRadius: '14px',
                     border: '1px solid rgba(255,255,255,0.2)',
                     background: 'transparent',
                     color: '#F59E0B',
                     fontWeight: '700',
-                    fontSize: '16px',
+                    fontSize: 'clamp(13px, 4vw, 16px)',
                     cursor: 'pointer',
-                    maxWidth: '320px',
                     width: '100%',
                     transition: 'all 0.3s'
                   }}
@@ -300,7 +298,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px 20px'
+            padding: 'clamp(16px, 6vw, 40px) clamp(12px, 4vw, 20px)'
           }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -310,14 +308,14 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 background: '#111318',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: '24px',
-                padding: '32px 28px',
+                padding: 'clamp(20px, 6vw, 32px) clamp(16px, 5vw, 28px)',
                 width: '100%',
                 maxWidth: '420px',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
               }}
             >
               <h2 style={{
-                fontSize: '24px',
+                fontSize: 'clamp(18px, 6vw, 24px)',
                 fontWeight: '700',
                 marginBottom: '12px',
                 background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.8))',
@@ -328,7 +326,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 {mode === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
               <p style={{
-                fontSize: '13px',
+                fontSize: 'clamp(12px, 3vw, 13px)',
                 color: 'rgba(255,255,255,0.5)',
                 marginBottom: '24px'
               }}>
@@ -337,15 +335,15 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                   : 'Sign up to start meeting good people'}
               </p>
 
-              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(10px, 3vw, 14px)' }}>
                 {error && (
                   <div style={{
                     background: 'rgba(255, 68, 68, 0.1)',
                     border: '1px solid rgba(255, 68, 68, 0.3)',
                     color: '#FF6B6B',
-                    padding: '12px',
+                    padding: 'clamp(8px, 2vw, 12px)',
                     borderRadius: '8px',
-                    fontSize: '13px',
+                    fontSize: 'clamp(11px, 3vw, 13px)',
                     textAlign: 'center'
                   }}>
                     {error}
@@ -356,7 +354,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 {mode === 'signup' && (
                   <div>
                     <label style={{
-                      fontSize: '11px',
+                      fontSize: 'clamp(10px, 2vw, 11px)',
                       color: 'rgba(255,255,255,0.35)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.6px',
@@ -373,12 +371,12 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                       placeholder="John Doe"
                       style={{
                         width: '100%',
-                        padding: '12px 14px',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
                         borderRadius: '10px',
                         border: '1px solid rgba(255,255,255,0.1)',
                         background: 'rgba(255,255,255,0.02)',
                         color: '#fff',
-                        fontSize: '14px',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
                         transition: 'all 0.2s',
                         outline: 'none',
                         boxSizing: 'border-box'
@@ -398,7 +396,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 {/* Username */}
                 <div>
                   <label style={{
-                    fontSize: '11px',
+                    fontSize: 'clamp(10px, 2vw, 11px)',
                     color: 'rgba(255,255,255,0.35)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.6px',
@@ -418,12 +416,12 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                     placeholder="johndoe"
                     style={{
                       width: '100%',
-                      padding: '12px 14px',
+                      padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
                       borderRadius: '10px',
                       border: '1px solid rgba(255,255,255,0.1)',
                       background: 'rgba(255,255,255,0.02)',
                       color: '#fff',
-                      fontSize: '14px',
+                      fontSize: 'clamp(13px, 3vw, 14px)',
                       transition: 'all 0.2s',
                       outline: 'none',
                       boxSizing: 'border-box'
@@ -442,7 +440,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 {/* Password */}
                 <div>
                   <label style={{
-                    fontSize: '11px',
+                    fontSize: 'clamp(10px, 2vw, 11px)',
                     color: 'rgba(255,255,255,0.35)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.6px',
@@ -463,12 +461,12 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                       placeholder="••••••••"
                       style={{
                         width: '100%',
-                        padding: '12px 40px 12px 14px',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(30px, 8vw, 40px) clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
                         borderRadius: '10px',
                         border: '1px solid rgba(255,255,255,0.1)',
                         background: 'rgba(255,255,255,0.02)',
                         color: '#fff',
-                        fontSize: '14px',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
                         transition: 'all 0.2s',
                         outline: 'none',
                         boxSizing: 'border-box'
@@ -508,7 +506,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 {mode === 'signup' && (
                   <div>
                     <label style={{
-                      fontSize: '11px',
+                      fontSize: 'clamp(10px, 2vw, 11px)',
                       color: 'rgba(255,255,255,0.35)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.6px',
@@ -525,12 +523,12 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                       placeholder="••••••••"
                       style={{
                         width: '100%',
-                        padding: '12px 14px',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
                         borderRadius: '10px',
                         border: '1px solid rgba(255,255,255,0.1)',
                         background: 'rgba(255,255,255,0.02)',
                         color: '#fff',
-                        fontSize: '14px',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
                         transition: 'all 0.2s',
                         outline: 'none',
                         boxSizing: 'border-box'
@@ -552,13 +550,13 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                   type="submit"
                   disabled={loading}
                   style={{
-                    padding: '13px 20px',
+                    padding: 'clamp(11px, 3vw, 13px) clamp(15px, 4vw, 20px)',
                     borderRadius: '10px',
                     border: 'none',
                     background: loading ? 'rgba(245, 158, 11, 0.5)' : 'linear-gradient(135deg, #FCD34D, #F59E0B)',
                     color: '#fff',
                     fontWeight: '700',
-                    fontSize: '15px',
+                    fontSize: 'clamp(13px, 3vw, 15px)',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
                     display: 'flex',
@@ -586,7 +584,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
 
                 {/* Toggle Auth Mode */}
                 <p style={{
-                  fontSize: '13px',
+                  fontSize: 'clamp(12px, 3vw, 13px)',
                   color: 'rgba(255,255,255,0.5)',
                   textAlign: 'center',
                   marginTop: '12px'
