@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import * as API from "../services/api";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -321,7 +322,7 @@ function CreateEventModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (eventData: any) => void;
+  onSubmit: (eventData: any) => Promise<void>;
   isLightMode?: boolean;
 }) {
   const [formData, setFormData] = useState({
@@ -369,9 +370,9 @@ function CreateEventModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validateForm()) {
-      onSubmit({
+      await onSubmit({
         ...formData,
         id: String(Date.now()),
         joined: 0,
@@ -966,8 +967,46 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
     })));
   };
 
-  const handleCreateEvent = (eventData: any) => {
-    setEvents(prev => [eventData, ...prev]);
+  const handleCreateEvent = async (eventData: any) => {
+    try {
+      // Get current user from localStorage
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        alert('Please log in to create events');
+        return;
+      }
+
+      // Prepare event data for backend API
+      const eventPayload = {
+        title: eventData.title,
+        description: eventData.description,
+        location_city: eventData.location,
+        event_date: eventData.date, // Format: YYYY-MM-DD
+        event_time: eventData.time, // Format: HH:MM
+        max_guests: eventData.capacity,
+        host_id: userId,
+        billing_tier: 1, // Default tier
+        host_fee: 0, // Can be updated later
+        guest_fee: 0, // Can be updated later
+      };
+
+      // Send to backend API
+      const response = await API.createEvent(eventPayload);
+      
+      // Add the new event to local state
+      const newEventWithId = {
+        ...eventData,
+        id: response.event.id,
+      };
+      
+      setEvents(prev => [newEventWithId, ...prev]);
+      
+      // Show success message
+      alert(`Event "${eventData.title}" created successfully!`);
+    } catch (error) {
+      console.error('Error creating event:', error);
+      alert('Failed to create event. Please try again.');
+    }
   };
 
   const tabs = [
