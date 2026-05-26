@@ -1,5 +1,6 @@
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import * as API from './services/api';
 import { Sidebar } from './components/Sidebar';
 import { ToastProvider } from './components/Toast';
 import { Landing } from './pages/Landing';
@@ -97,16 +98,12 @@ export function App() {
       return;
     }
 
-    const sessionToken = localStorage.getItem('sessionToken');
-    const userId = localStorage.getItem('userId');
-    const userName = localStorage.getItem('displayName') || 'User';
-
-    if (sessionToken && userId) {
-      setIsAuthenticated(true);
-      setCurrentUser({ id: userId, display_name: userName });
-    } else {
-      setIsAuthenticated(false);
-    }
+    // For demo purposes, always clear session on app load to require fresh login
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('displayName');
+    
+    setIsAuthenticated(false);
   }, []);
 
   const handleLogin = (user: any, token: string) => {
