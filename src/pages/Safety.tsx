@@ -46,7 +46,7 @@ export function Safety() {
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/hosting')}
+            onClick={() => navigate('/myhost')}
             className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 md:px-4 py-2 rounded-full font-semibold text-sm transition-colors"
           >
             <Plus size={18} />

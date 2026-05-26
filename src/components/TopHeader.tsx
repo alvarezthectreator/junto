@@ -41,7 +41,7 @@ export function TopHeader({ showHamburger, onHamburgerClick, hambugerOpen }: Top
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {/* Post Button */}
             <button
-              onClick={() => handleNavigate('/hosting')}
+              onClick={() => handleNavigate('/myhost')}
               className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-2.5 sm:px-3 md:px-4 py-2 rounded-full font-semibold text-xs sm:text-sm transition-colors"
               title="Create a post"
             >
