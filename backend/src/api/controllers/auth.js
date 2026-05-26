@@ -50,6 +50,93 @@ export async function dummyLogin(req, res) {
   }
 }
 
+export async function login(req, res) {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    // Find user by username (case-insensitive demo)
+    let user = await query('SELECT * FROM users WHERE username = ?', [username.toLowerCase()]);
+
+    if (user.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // For demo purposes, just check password matches
+    // In production, use bcrypt to compare password hashes
+    const userData = user.rows[0];
+    if (userData.password !== password) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Return user with session token
+    res.json({
+      success: true,
+      user: {
+        id: userData.id,
+        username: userData.username,
+        display_name: userData.display_name || userData.username,
+        profile_id: userData.profile_id
+      },
+      session_token: `session-${uuidv4()}`,
+      message: '✅ Logged in successfully'
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function signup(req, res) {
+  try {
+    const { username, fullName, password } = req.body;
+
+    if (!username || !fullName || !password) {
+      return res.status(400).json({ error: 'Username, full name, and password required' });
+    }
+
+    // Check if username already exists
+    let existingUser = await query('SELECT * FROM users WHERE username = ?', [username.toLowerCase()]);
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Create new user
+    const userId = uuidv4();
+    const profileId = `JNT-2024-${Date.now().toString().slice(-5)}`;
+
+    await query(
+      `INSERT INTO users (id, username, full_name, display_name, profile_id, password)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, password]
+    );
+
+    // Create profile
+    await query(
+      `INSERT INTO user_profiles (user_id, last_active) VALUES (?, NOW())`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      user: {
+        id: userId,
+        username: username,
+        display_name: fullName,
+        profile_id: profileId
+      },
+      session_token: `session-${uuidv4()}`,
+      message: '✅ Account created successfully'
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function verifySession(req, res) {
   try {
     // For now, just return success - real auth comes later

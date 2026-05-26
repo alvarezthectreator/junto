@@ -1,10 +1,13 @@
 import express from 'express';
-import { dummyLogin, verifySession } from '../controllers/auth.js';
+import { login, signup, verifySession } from '../controllers/auth.js';
 
 const router = express.Router();
 
-// Dummy login (no real auth yet)
-router.post('/login', dummyLogin);
+// Login with username/password
+router.post('/login', login);
+
+// Signup with username/password
+router.post('/signup', signup);
 
 // Verify session
 router.get('/verify', verifySession);

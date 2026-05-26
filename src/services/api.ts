@@ -9,9 +9,11 @@ let sessionToken: string | null = null;
 // Type definitions
 export interface User {
   id: string;
-  phone_number: string;
+  username?: string;
+  display_name?: string;
+  phone_number?: string;
   profile_id: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface UserProfile {
@@ -109,10 +111,17 @@ async function apiCall(
 
 // ==================== AUTH ====================
 
-export async function login(phoneNumber: string): Promise<{ token: string; user: User }> {
-  const response = await apiCall('/auth/login', 'POST', { phone_number: phoneNumber });
-  sessionToken = response.token;
-  localStorage.setItem('sessionToken', response.token);
+export async function login(username: string, password: string): Promise<{ session_token: string; user: User }> {
+  const response = await apiCall('/auth/login', 'POST', { username, password });
+  sessionToken = response.session_token;
+  localStorage.setItem('sessionToken', response.session_token);
+  return response;
+}
+
+export async function signup(username: string, fullName: string, password: string): Promise<{ session_token: string; user: User }> {
+  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password });
+  sessionToken = response.session_token;
+  localStorage.setItem('sessionToken', response.session_token);
   return response;
 }
 
