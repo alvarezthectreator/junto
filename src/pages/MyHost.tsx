@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../components/Toast";
 import * as API from "../services/api";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
@@ -918,6 +919,7 @@ function CreateEventModal({
 
 export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("active");
   const [headerVisible, setHeaderVisible] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -972,7 +974,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
       // Get current user from localStorage
       const userId = localStorage.getItem('userId');
       if (!userId) {
-        alert('Please log in to create events');
+        addToast('Please log in to create events', 'error');
         return;
       }
 
@@ -1002,10 +1004,10 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
       setEvents(prev => [newEventWithId, ...prev]);
       
       // Show success message
-      alert(`Event "${eventData.title}" created successfully!`);
+      addToast(`Event "${eventData.title}" created successfully!`, 'success');
     } catch (error) {
       console.error('Error creating event:', error);
-      alert('Failed to create event. Please try again.');
+      addToast('Failed to create event. Please try again.', 'error');
     }
   };
 

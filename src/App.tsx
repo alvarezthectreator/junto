@@ -1,6 +1,7 @@
 import React, { useEffect, useState, createContext, useContext } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { ToastProvider } from './components/Toast';
 import { Landing } from './pages/Landing';
 import { Discover } from './pages/Discover';
 import { EventDetail, type EventDetailData } from './pages/EventDetail';
@@ -131,29 +132,31 @@ export function App() {
   }
 
   return (
-    <AppContext.Provider value={{ currentUser, selectedEvent, selectedUser, setSelectedEvent, setSelectedUser, handleLogout }}>
-      <Routes>
-        <Route
-          path="/landing"
-          element={
-            !isAuthenticated ? (
-              <Landing onLogin={handleLogin} />
-            ) : (
-              <Navigate to="/discover" replace />
-            )
-          }
-        />
-        <Route
-          path="/*"
-          element={
-            isAuthenticated ? (
-              <AppShell handleLogout={handleLogout} />
-            ) : (
-              <Navigate to="/landing" replace />
-            )
-          }
-        />
-      </Routes>
-    </AppContext.Provider>
+    <ToastProvider>
+      <AppContext.Provider value={{ currentUser, selectedEvent, selectedUser, setSelectedEvent, setSelectedUser, handleLogout }}>
+        <Routes>
+          <Route
+            path="/landing"
+            element={
+              !isAuthenticated ? (
+                <Landing onLogin={handleLogin} />
+              ) : (
+                <Navigate to="/discover" replace />
+              )
+            }
+          />
+          <Route
+            path="/*"
+            element={
+              isAuthenticated ? (
+                <AppShell handleLogout={handleLogout} />
+              ) : (
+                <Navigate to="/landing" replace />
+              )
+            }
+          />
+        </Routes>
+      </AppContext.Provider>
+    </ToastProvider>
   );
 }
