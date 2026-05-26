@@ -363,7 +363,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData }) 
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="sticky top-0 z-50 -mx-4 mb-4 border-b border-white/5 bg-[#0F0F13]/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <button
-            onClick={() => onNavigate('main')}
+            onClick={() => navigate('/discover')}
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-300 transition-colors hover:text-[#F59E0B]"
           >
             <ArrowLeft size={18} />

@@ -89,10 +89,10 @@ export async function createEvent(req, res) {
     const eventId = uuidv4();
     await query(
       `INSERT INTO events (id, host_id, title, description, event_type, location_city, location_address, 
-                          event_date, event_time, cover_photo_url, billing_tier, host_fee, guest_fee, max_guests)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          event_date, event_time, cover_photo_url, billing_tier, host_fee, guest_fee, max_guests, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [eventId, host_id, title, description, event_type, location_city, location_address,
-       event_date, event_time || '18:00', cover_photo_url, tier, tierData.hostFee, tierData.guestFee, max_guests || 15]
+       event_date, event_time || '18:00', cover_photo_url, tier, tierData.hostFee, tierData.guestFee, max_guests || 15, 'active']
     );
 
     // Create notification for host
@@ -150,8 +150,10 @@ export async function getHostEvents(req, res) {
     const { status = 'active', limit = 20 } = req.query;
 
     const result = await query(
-      `SELECT * FROM events WHERE host_id = ? AND status = ?
-       ORDER BY event_date DESC LIMIT ?`,
+      `SELECT e.*, u.display_name FROM events e
+       LEFT JOIN users u ON e.host_id = u.id
+       WHERE e.host_id = ? AND e.status = ?
+       ORDER BY e.event_date DESC LIMIT ?`,
       [hostId, status, limit]
     );
 

@@ -366,7 +366,6 @@ function CreateEventModal({
     if (!formData.time) newErrors.time = "Time is required";
     if (!formData.location.trim()) newErrors.location = "Location is required";
     if (formData.capacity < 1) newErrors.capacity = "Capacity must be at least 1";
-    if (!formData.imageFile) newErrors.image = "Event image is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };

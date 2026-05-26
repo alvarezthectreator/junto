@@ -24,7 +24,7 @@ export function Discover() {
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState('Lagos');
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null); // null means show all events nationwide
   
   const filters = [
   'All vibes',
@@ -40,7 +40,8 @@ export function Discover() {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        const response = await API.getEvents({ city: selectedLocation });
+        // If selectedLocation is null, fetch all events (no city filter)
+        const response = await API.getEvents(selectedLocation ? { city: selectedLocation } : undefined);
         setApiEvents(response.events);
         setUseBackend(true);
       } catch (error) {
@@ -62,10 +63,20 @@ export function Discover() {
     const colors = ['bg-[#FF6B6B]', 'bg-[#4ECDC4]', 'bg-[#FFE66D]', 'bg-[#95E1D3]', 'bg-[#F38181]'];
     const audienceColors = ['bg-emerald-500/10 text-emerald-400', 'bg-blue-500/10 text-blue-400', 'bg-purple-500/10 text-purple-400'];
     
-    // Extract first letter from title or use default
-    const userInitial = event.title?.charAt(0).toUpperCase() || 'E';
-    // Extract a name from title (use first word or default to "Host")
-    const userName = event.title?.split(' ')[0] || 'Host';
+    // Extract first letter from display_name or title
+    const displayName = event.display_name || event.title;
+    const userInitial = displayName?.charAt(0).toUpperCase() || 'E';
+    
+    // Extract first name from display_name (e.g., "alice_johnson" -> "Alice")
+    let userName = 'Host';
+    if (event.display_name) {
+      // Convert snake_case or similar to Title Case and take first word
+      userName = event.display_name
+        .split('_')[0]  // Get first word if separated by underscore
+        .split(' ')[0]  // Get first word if separated by space
+        .charAt(0).toUpperCase() + 
+        event.display_name.split('_')[0].slice(1).toLowerCase();  // Capitalize first letter
+    }
     
     return {
       ...event,

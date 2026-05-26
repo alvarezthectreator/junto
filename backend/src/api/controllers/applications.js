@@ -81,7 +81,16 @@ export async function getEventApplications(req, res) {
     const { eventId } = req.params;
     const { status } = req.query;
 
-    let sql = `SELECT ea.*, u.display_name, u.profile_id, u.bio
+    let sql = `SELECT 
+                 ea.id,
+                 ea.event_id,
+                 ea.user_id,
+                 ea.personal_note,
+                 ea.status,
+                 ea.created_at,
+                 u.display_name as name,
+                 u.profile_id,
+                 u.bio
                FROM event_applications ea
                LEFT JOIN users u ON ea.user_id = u.id
                WHERE ea.event_id = ?`;
@@ -95,7 +104,17 @@ export async function getEventApplications(req, res) {
     sql += ` ORDER BY ea.created_at DESC`;
 
     const result = await query(sql, params);
-    res.json({ applications: result.rows || [] });
+    
+    // Transform the results to match frontend expectations
+    const applications = (result.rows || []).map(app => ({
+      ...app,
+      userId: app.user_id,
+      joinedAt: new Date(app.created_at).toLocaleDateString(),
+      message: app.personal_note,
+      avatar: app.name?.charAt(0).toUpperCase() || '?'
+    }));
+
+    res.json({ applications });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,7 +1,9 @@
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  phone_number VARCHAR(20) UNIQUE NOT NULL,
+  username VARCHAR(255) UNIQUE,
+  password_hash VARCHAR(255),
+  phone_number VARCHAR(20) UNIQUE,
   full_name VARCHAR(255) NOT NULL,
   display_name VARCHAR(255),
   email VARCHAR(255),

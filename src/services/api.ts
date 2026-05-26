@@ -109,11 +109,38 @@ async function apiCall(
 
 // ==================== AUTH ====================
 
-export async function login(phoneNumber: string): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/login', 'POST', { phone_number: phoneNumber });
+export async function signup(username: string, fullName: string, password: string): Promise<{ session_token: string; user: User }> {
+  const response = await apiCall('/auth/signup', 'POST', { 
+    username, 
+    full_name: fullName, 
+    password 
+  });
   sessionToken = response.session_token;
   localStorage.setItem('sessionToken', response.session_token);
   localStorage.setItem('userId', response.user.id);
+  localStorage.setItem('username', username);
+  return response;
+}
+
+export async function login(usernameOrPhone: string, password?: string): Promise<{ session_token: string; user: User }> {
+  // Support both new username/password and old phone number login
+  let response;
+  if (password) {
+    // New username/password login
+    response = await apiCall('/auth/login', 'POST', { 
+      username: usernameOrPhone, 
+      password 
+    });
+  } else {
+    // Old phone number login (backward compatibility)
+    response = await apiCall('/auth/login', 'POST', { phone_number: usernameOrPhone });
+  }
+  sessionToken = response.session_token;
+  localStorage.setItem('sessionToken', response.session_token);
+  localStorage.setItem('userId', response.user.id);
+  if (response.user.username) {
+    localStorage.setItem('username', response.user.username);
+  }
   return response;
 }
 
@@ -125,6 +152,7 @@ export function logout(): void {
   sessionToken = null;
   localStorage.removeItem('sessionToken');
   localStorage.removeItem('userId');
+  localStorage.removeItem('username');
 }
 
 export function getSessionToken(): string | null {

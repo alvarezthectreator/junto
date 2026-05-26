@@ -1,4 +1,5 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
 import { TopHeader } from '../components/TopHeader';
@@ -16,8 +17,12 @@ import {
   Trash2,
   Menu,
   Plus,
-  Bell
+  Bell,
+  MapPin,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
+import * as API from '../services/api';
 
 interface MyRequestsProps {
   onNavigate?: (page: string) => void;
@@ -32,106 +37,133 @@ interface InterestedPerson {
   joinedAt: string;
   message?: string;
   status: 'interested' | 'accepted' | 'declined';
+  userId?: string;
+}
+
+interface HostedEvent {
+  id: string;
+  title: string;
+  event_date: string;
+  event_time: string;
+  location_city: string;
+  description: string;
+  max_guests: number;
+  current_guests_count: number;
+  status: string;
+  host_id: string;
+  display_name: string;
+  applications: InterestedPerson[];
 }
 
 export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onCloseSidebar = () => {} }: MyRequestsProps) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Active');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
-  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'recent' | 'most-interested'>('recent');
-  const [requests, setRequests] = useState([
-    {
-      id: 1,
-      title: 'Beach day at Tarkwa Bay',
-      date: 'Tomorrow, 10am',
-      status: 'Open',
-      statusColor: 'bg-emerald-500/10 text-emerald-400',
-      interestedCount: 5,
-      coverImage: 'https://images.unsplash.com/photo-1596241913254-2c1308332152?w=800',
-      createdAt: '2 days ago',
-      interested: [
-        { id: '1', name: 'Ada M.', avatar: '👩‍🦰', joinedAt: '2 hours ago', message: 'I\'m interested!', status: 'interested' as const },
-        { id: '2', name: 'Oge K.', avatar: '👨‍🦱', joinedAt: '1 hour ago', message: 'Count me in', status: 'interested' as const },
-      ]
-    },
-    {
-      id: 2,
-      title: 'Hiking the conservation centre',
-      date: 'Saturday, 8am',
-      status: 'Closing soon',
-      statusColor: 'bg-amber-500/10 text-amber-400',
-      interestedCount: 12,
-      coverImage: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800',
-      createdAt: '1 week ago',
-      interested: [
-        { id: '3', name: 'Zara P.', avatar: '👩', joinedAt: '30 mins ago', status: 'interested' as const },
-      ]
-    },
-    {
-      id: 3,
-      title: 'Art gallery hopping',
-      date: 'Sunday, 2pm',
-      status: 'Filled',
-      statusColor: 'bg-blue-500/10 text-blue-400',
-      interestedCount: 8,
-      coverImage: 'https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=800',
-      createdAt: '3 days ago',
-      interested: []
-    }
-  ]);
+  const [hostedEvents, setHostedEvents] = useState<HostedEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const tabs = ['Active', 'Past', 'Drafts'];
 
+  // Get current user ID from localStorage
+  const getCurrentUserId = () => {
+    const userStr = localStorage.getItem('userId');
+    return userStr ? userStr.replace(/"/g, '') : null;
+  };
+
+  // Fetch user's hosted events
+  useEffect(() => {
+    const fetchHostedEvents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const userId = getCurrentUserId();
+        
+        if (!userId) {
+          setError('Please log in to view your requests');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch events hosted by current user
+        const eventsResponse = await API.getHostEvents(userId);
+        const events = eventsResponse.events || [];
+
+        // Fetch applications for each event
+        const eventsWithApps = await Promise.all(
+          events.map(async (event: any) => {
+            try {
+              const appsResponse = await API.getEventApplications(event.id);
+              return {
+                ...event,
+                applications: appsResponse.applications || []
+              };
+            } catch (err) {
+              return {
+                ...event,
+                applications: []
+              };
+            }
+          })
+        );
+
+        setHostedEvents(eventsWithApps);
+      } catch (err: any) {
+        console.error('Failed to fetch hosted events:', err);
+        setError(err.message || 'Failed to load your events');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHostedEvents();
+  }, []);
+
   const handleAccept = (personId: string) => {
-    if (!selectedRequestId) return;
-    setRequests(prev => prev.map(req => 
-      req.id === selectedRequestId ? {
-        ...req,
-        interested: req.interested.map(p => p.id === personId ? { ...p, status: 'accepted' as const } : p)
-      } : req
-    ));
     setShowMessage('Application accepted! 🎉');
     setTimeout(() => setShowMessage(''), 2000);
   };
 
   const handleDecline = (personId: string) => {
-    if (!selectedRequestId) return;
-    setRequests(prev => prev.map(req => 
-      req.id === selectedRequestId ? {
-        ...req,
-        interested: req.interested.map(p => p.id === personId ? { ...p, status: 'declined' as const } : p)
-      } : req
-    ));
     setShowMessage('Application declined');
     setTimeout(() => setShowMessage(''), 2000);
   };
 
-  const handleWithdrawEvent = (requestId: number) => {
-    setRequests(prev => prev.filter(req => req.id !== requestId));
+  const handleEventClick = (eventId: string) => {
+    navigate(`/event/${eventId}`);
+  };
+
+  const handleUserClick = (userId: string) => {
+    navigate(`/profile`);
+  };
+
+  const handleWithdrawEvent = (eventId: string) => {
     setShowMessage('Event withdrawn');
     setTimeout(() => setShowMessage(''), 2000);
   };
-  
-  const activeRequests = requests;
+
+  const activeRequests = hostedEvents.filter(e => e.status === 'active');
 
   const sortedRequests = [...activeRequests].sort((a, b) => {
     if (sortBy === 'most-interested') {
-      return b.interestedCount - a.interestedCount;
+      return (b.applications?.length || 0) - (a.applications?.length || 0);
     }
     return 0; // recent is default order
   });
 
-  const openInterestedModal = (requestId: number) => {
-    setSelectedRequestId(requestId);
+  const openInterestedModal = (eventId: string) => {
+    setSelectedEventId(eventId);
     setShowInterestedModal(true);
   };
 
-  const selectedRequest = selectedRequestId !== null ? requests.find(r => r.id === selectedRequestId) : null;
+  const selectedEvent = selectedEventId ? hostedEvents.find(e => e.id === selectedEventId) : null;
 
   const InterestedModal = () => {
-    if (!showInterestedModal || !selectedRequest) return null;
+    if (!showInterestedModal || !selectedEvent) return null;
 
     return (
       <motion.div
@@ -147,7 +179,10 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           className="bg-[#1A1A21] border border-white/10 rounded-3xl max-w-md w-full max-h-[80vh] flex flex-col"
         >
           <div className="flex items-center justify-between p-6 border-b border-white/5">
-            <h3 className="text-xl font-semibold text-white">{selectedRequest.interestedCount} interested</h3>
+            <div>
+              <h3 className="text-xl font-semibold text-white">{selectedEvent.applications?.length || 0} requests</h3>
+              <p className="text-sm text-gray-400 mt-1">{selectedEvent.title}</p>
+            </div>
             <button
               onClick={() => setShowInterestedModal(false)}
               className="text-gray-400 hover:text-white transition-colors p-1"
@@ -157,13 +192,25 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {selectedRequest.interested.length > 0 ? (
-              selectedRequest.interested.map((person) => (
+            {selectedEvent.applications && selectedEvent.applications.length > 0 ? (
+              selectedEvent.applications.map((person) => (
                 <div key={person.id} className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="text-3xl flex-shrink-0">{person.avatar}</div>
+                    <div className="text-3xl flex-shrink-0 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => {
+                      setShowInterestedModal(false);
+                      handleUserClick(person.userId || person.id);
+                    }}>
+                      {person.avatar || '👤'}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white truncate">{person.name}</p>
+                      <p 
+                        className="font-semibold text-white truncate cursor-pointer hover:text-[#F59E0B] transition-colors"
+                        onClick={() => {
+                          setShowInterestedModal(false);
+                          handleUserClick(person.userId || person.id);
+                        }}>
+                        {person.name}
+                      </p>
                       <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
                         <Clock size={12} /> {person.joinedAt}
                       </p>
@@ -203,7 +250,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
             ) : (
               <div className="text-center py-8 text-gray-400">
                 <Users size={32} className="mx-auto mb-3 opacity-50" />
-                <p>No one interested yet</p>
+                <p>No requests yet</p>
               </div>
             )}
           </div>
@@ -285,8 +332,8 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                   <Calendar className="text-[#F59E0B]" size={20} />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400">Active requests</p>
-                  <p className="text-xl font-bold text-white">4</p>
+                  <p className="text-sm text-gray-400">Active events</p>
+                  <p className="text-xl font-bold text-white">{activeRequests.length}</p>
                 </div>
               </div>
               <div className="bg-[#1A1A21] border border-white/5 rounded-2xl p-5 flex items-center gap-4">
@@ -295,7 +342,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Total interested</p>
-                  <p className="text-xl font-bold text-white">23</p>
+                  <p className="text-xl font-bold text-white">{activeRequests.reduce((sum, e) => sum + (e.applications?.length || 0), 0)}</p>
                 </div>
               </div>
               <div className="bg-[#1A1A21] border border-white/5 rounded-2xl p-5 flex items-center gap-4">
@@ -304,7 +351,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Completed hangouts</p>
-                  <p className="text-xl font-bold text-white">12</p>
+                  <p className="text-xl font-bold text-white">0</p>
                 </div>
               </div>
             </div>
@@ -353,19 +400,31 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
 
             {/* Tab Content */}
             <div className="pb-20">
-              {activeTab === 'Active' &&
+              {loading && (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin text-[#F59E0B]" size={32} />
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center gap-3 mb-6">
+                  <AlertCircle className="text-red-400 flex-shrink-0" size={20} />
+                  <p className="text-red-400">{error}</p>
+                </div>
+              )}
+
+              {activeTab === 'Active' && !loading &&
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {sortedRequests.map((req) =>
+                  {sortedRequests.length > 0 ? (
+                    sortedRequests.map((req) =>
                 <div
                   key={req.id}
                   className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col">
                   
-                      <div className="h-32 w-full relative overflow-hidden bg-[#0F0F13]">
-                        <img
-                      src={req.coverImage}
-                      alt={req.title}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                    
+                      <div className="h-32 w-full relative overflow-hidden bg-gradient-to-br from-[#F59E0B]/20 to-[#4ECDC4]/20">
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Calendar className="text-white/20" size={48} />
+                        </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A21] to-transparent opacity-90"></div>
                       </div>
                       <div className="p-6 flex flex-col flex-1 relative z-10 -mt-6">
@@ -374,36 +433,37 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                             {req.title}
                           </h3>
                           <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${req.statusColor}`}>
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          req.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                        }`}>
                         
                             {req.status}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
                           <Calendar size={14} />
-                          {req.date}
+                          {req.event_date}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-gray-500 mb-6">
-                          <Clock size={12} /> Posted {req.createdAt}
+                          <MapPin size={12} /> {req.location_city}
                         </div>
 
                       <div className="flex items-center justify-between mb-6 mt-auto">
                         <div className="flex items-center gap-2">
                           <div className="flex -space-x-2">
-                            {['bg-blue-500', 'bg-purple-500', 'bg-emerald-500'].map(
-                          (color, i) =>
+                            {(req.applications || []).slice(0, 3).map((app, i) => (
                           <div
                             key={i}
-                            className={`w-8 h-8 rounded-full border-2 border-[#1A1A21] ${color} flex items-center justify-center text-[10px] font-bold text-white`}>
+                            className={`w-8 h-8 rounded-full border-2 border-[#1A1A21] bg-gradient-to-br from-[#F59E0B] to-[#4ECDC4] flex items-center justify-center text-[10px] font-bold text-white`}>
                             
-                                  {String.fromCharCode(65 + i)}
+                                  {app.name?.charAt(0).toUpperCase() || '?'}
                                 </div>
 
-                        )}
+                        ))}
                           </div>
                           <span className="text-sm text-gray-300 font-medium ml-2">
                             <span className="text-white">
-                              {req.interestedCount}
+                              {req.applications?.length || 0}
                             </span>{' '}
                             interested
                           </span>
@@ -416,7 +476,9 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                           className="flex-1 py-3 rounded-2xl bg-[#F59E0B] text-white font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2">
                           <Eye size={16} /> View interested
                         </button>
-                        <button className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
+                        <button 
+                          onClick={() => handleEventClick(req.id)}
+                          className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
                           <Edit3 size={18} />
                         </button>
                         <button 
@@ -428,7 +490,20 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                       </div>
                     </div>
                   </div>
-              )}
+                    )
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
+                      <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                        <ImageIcon className="text-gray-500" size={24} />
+                      </div>
+                      <h3 className="text-xl font-semibold text-white mb-2">
+                        No active hangouts
+                      </h3>
+                      <p className="text-gray-400 max-w-sm">
+                        Create your first event to see people interested in joining!
+                      </p>
+                    </div>
+                  )}
               </div>
             }
 
