@@ -26,6 +26,7 @@ import { discoverEvents, getDiscoverEventById, toEventDetail } from './data/disc
 export { useAppContext } from './context/AppContext';
 
 export function App() {
+  const [hasEntered, setHasEntered] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeNav, setActiveNav] = useState('Discover');
   const [currentPage, setCurrentPage] = useState<string>('main');
