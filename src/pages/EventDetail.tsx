@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
+import { useAppContext } from '../App';
 
 interface Attendee {
   id: string;
@@ -68,9 +70,6 @@ export interface EventDetailData {
 interface EventDetailProps {
   eventId?: string;
   eventData?: EventDetailData;
-  onNavigate?: (page: string) => void;
-  onOpenUser?: (user: any) => void;
-  onOpenMessages?: () => void;
 }
 
 function createMapIcon(label: string) {
@@ -103,7 +102,10 @@ function createMapIcon(label: string) {
   });
 }
 
-export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate = () => {}, onOpenUser = () => {}, onOpenMessages }) => {
+export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData }) => {
+  const navigate = useNavigate();
+  const { eventId: routeEventId } = useParams<{ eventId: string }>();
+  const { selectedEvent, setSelectedUser } = useAppContext();
   const [isJoined, setIsJoined] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'attendees' | 'host' | 'reviews'>('overview');
@@ -117,7 +119,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [showGuestListModal, setShowGuestListModal] = useState(false);
 
   const defaultEvent: EventDetailData = {
-    id: eventId || '1',
+    id: routeEventId || eventId || '1',
     title: 'Beach Volleyball at Lekki',
     host: {
       name: 'Tunde O.',
@@ -423,14 +425,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
             <div className="border-b border-white/5 bg-[#111115] px-4 py-4 sm:px-6 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => {
-                  onOpenUser({
+                  setSelectedUser({
                     id: event.host.name,
                     name: event.host.name,
                     avatar: event.host.avatar,
                     reliabilityScore: event.host.reliabilityScore,
                     isVerified: event.host.isVerified,
                   });
-                  onNavigate('profile');
+                  navigate('/profile');
                 }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                   <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg shadow-lg shadow-[#F59E0B]/20">
                     {event.host.avatar}
@@ -616,14 +618,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                     </motion.div>
 
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
-                      onOpenUser({
+                      setSelectedUser({
                         id: event.host.name,
                         name: event.host.name,
                         avatar: event.host.avatar,
                         reliabilityScore: event.host.reliabilityScore,
                         isVerified: event.host.isVerified,
                       });
-                      onNavigate('profile');
+                      navigate('/profile');
                     }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -717,14 +719,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="space-y-4">
                     <div className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
-                      onOpenUser({
+                      setSelectedUser({
                         id: event.host.name,
                         name: event.host.name,
                         avatar: event.host.avatar,
                         reliabilityScore: event.host.reliabilityScore,
                         isVerified: event.host.isVerified,
                       });
-                      onNavigate('profile');
+                      navigate('/profile');
                     }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center gap-3">
                         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-2xl">
@@ -827,14 +829,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <button
-                        onClick={() => onOpenMessages?.()}
+                        onClick={() => navigate('/messages')}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-semibold text-white transition hover:opacity-90"
                       >
                         <MessageCircle size={18} />
                         Message Host
                       </button>
                       <button
-                        onClick={() => onOpenMessages?.()}
+                        onClick={() => navigate('/messages')}
                         className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10"
                       >
                         View All Events by {event.host.name}
@@ -1000,7 +1002,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               >
                 I&apos;m Interested →
               </button>
-              <button onClick={() => onOpenMessages?.()} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={() => navigate('/messages')} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 <MessageCircle size={16} /> Message
               </button>
               <button onClick={handleAddToCalendar} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
@@ -1018,7 +1020,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Cancel Application
               </button>
-              <button onClick={() => onOpenMessages?.()} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={() => navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Message Host
               </button>
               <button onClick={handleAddToCalendar} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">

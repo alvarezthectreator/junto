@@ -1,13 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Sidebar } from "../components/Sidebar";
+import { useState, useEffect } from "react";
 import { Calendar, Save, Trash2, ChevronRight } from "lucide-react";
-
-interface TravelModeProps {
-  onNavigate?: (page: string) => void;
-  isLightMode?: boolean;
-  setActiveNav?: (nav: string) => void;
-  onCloseSidebar?: () => void;
-}
 
 function TravelEventCard({ event, index, isLightMode = false }: { event: any; index: number; isLightMode?: boolean }) {
   const [visible, setVisible] = useState(false);
@@ -97,7 +89,8 @@ function TravelEventCard({ event, index, isLightMode = false }: { event: any; in
   );
 }
 
-export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, isLightMode = false, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
+export const TravelMode = () => {
+  const [isLightMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Lagos");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
   const [headerVisible, setHeaderVisible] = useState(false);
@@ -197,9 +190,7 @@ export const TravelMode: React.FC<TravelModeProps> = ({ onNavigate = () => {}, i
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="Travel Mode" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
-      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
+      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 0, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div
           style={{
             position: "sticky",

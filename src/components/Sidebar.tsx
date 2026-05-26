@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Compass,
   ClipboardList,
@@ -6,19 +7,26 @@ import {
   ShieldAlert,
   User,
   Heart,
+  LogOut,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAppContext } from '../App';
+
 interface SidebarProps {
   activeNav: string;
-  setActiveNav: (nav: string) => void;
-  onNavigate?: (page: string) => void;
-  onCloseSidebar?: () => void;
+  onLogout?: () => void;
 }
-export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }: SidebarProps) {
-  const navigate = (nav: string, page: string) => {
-    setActiveNav(nav);
-    onNavigate?.(page);
-    onCloseSidebar?.();
+
+export function Sidebar({ activeNav, onLogout }: SidebarProps) {
+  const navigate = useNavigate();
+  const { handleLogout } = useAppContext();
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+  };
+
+  const handleLogoutClick = () => {
+    handleLogout();
   };
 
   return (
@@ -31,21 +39,21 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
             icon={<Compass size={18} />}
             label="Discover"
             isActive={activeNav === 'Discover'}
-            onClick={() => navigate('Discover', 'main')}
+            onClick={() => handleNavigate('/discover')}
           />
           
           <NavItem
             icon={<Heart size={18} />}
             label="Nearby"
             isActive={activeNav === 'Nearby'}
-            onClick={() => navigate('Nearby', 'nearby')}
+            onClick={() => handleNavigate('/nearby')}
           />
           
           <NavItem
             icon={<ClipboardList size={18} />}
             label="Requests"
             isActive={activeNav === 'My Requests'}
-            onClick={() => navigate('My Requests', 'requests')}
+            onClick={() => handleNavigate('/requests')}
           />
 
           {/* Personal Section */}
@@ -53,7 +61,7 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
             icon={<MessageCircle size={18} />}
             label="Messages"
             isActive={activeNav === 'Messages'}
-            onClick={() => navigate('Messages', 'messages')}
+            onClick={() => handleNavigate('/messages')}
           />
           
           <NavItem
@@ -61,17 +69,27 @@ export function Sidebar({ activeNav, setActiveNav, onNavigate, onCloseSidebar }:
             label="Safety"
             badge="2"
             isActive={activeNav === 'Safety'}
-            onClick={() => navigate('Safety', 'safety')}
+            onClick={() => handleNavigate('/safety')}
+          />
+
+          <NavItem
+            icon={<User size={18} />}
+            label="Profile"
+            isActive={activeNav === 'Profile'}
+            onClick={() => handleNavigate('/profile')}
           />
         </div>
 
-        {/* Profile Button */}
-        <button 
-          onClick={() => navigate('Profile', 'profile')}
-          className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-white font-medium hover:opacity-90 transition-opacity relative">
-          <User size={16} />
-          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border border-[#0F0F13] rounded-full"></div>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Logout Button */}
+          <button
+            onClick={handleLogoutClick}
+            className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
       </nav>
     </div>
   );

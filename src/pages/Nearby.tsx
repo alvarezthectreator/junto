@@ -1,20 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MessageCircle, Calendar } from "lucide-react";
-import { Sidebar } from "../components/Sidebar";
-import * as API from "../services/api";
-
-interface NearbyProps {
-  onNavigate?: (page: string) => void;
-  onOpenUser?: (user: any) => void;
-  onOpenEvent?: (event: any) => void;
-  setActiveNav?: (nav: string) => void;
-  onCloseSidebar?: () => void;
-  isLightMode?: boolean;
-  currentUser?: any;
-}
+import { useAppContext } from "../App";
 
 interface NearbyUser {
   id: string;
@@ -38,6 +28,8 @@ interface NearbyVibe {
   coords: [number, number];
   accent: string;
   locationName: string;
+  ageRestriction?: string;
+  rules?: string[];
 }
 
 const nearbyUsers: NearbyUser[] = [
@@ -170,15 +162,11 @@ const vibes: NearbyVibe[] = [
   },
 ];
 
-export const Nearby: React.FC<NearbyProps> = ({
-  onNavigate = () => {},
-  onOpenUser = () => {},
-  onOpenEvent = () => {},
-  setActiveNav = () => {},
-  onCloseSidebar = () => {},
-  isLightMode = false,
-  currentUser
-}) => {
+export const Nearby = () => {
+  const navigate = useNavigate();
+  const { setSelectedUser, setSelectedEvent } = useAppContext();
+  const [isLightMode] = useState(false);
+
   const pageBackground = isLightMode ? "#f8f3e8" : "#050505";
   const pageText = isLightMode ? "#241b10" : "#fff";
   const cardBackground = isLightMode ? "rgba(255,250,242,0.88)" : "rgba(12,12,15,0.76)";
@@ -189,9 +177,8 @@ export const Nearby: React.FC<NearbyProps> = ({
 
   const handlePassVibe = async (vibeId: string) => {
     try {
-      if (currentUser?.id) {
-        await API.swipeUser(currentUser.id, vibeId, 'left');
-      }
+      // Implement swipe logic here
+      console.log('Swipe passed:', vibeId);
     } catch (error) {
       console.error('Failed to pass:', error);
     }
@@ -207,8 +194,6 @@ export const Nearby: React.FC<NearbyProps> = ({
         fontFamily: "'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      <Sidebar activeNav="Nearby" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <main
         style={{
           flex: 1,
@@ -230,8 +215,8 @@ export const Nearby: React.FC<NearbyProps> = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => {
-                  onOpenUser(user);
-                  onNavigate('profile');
+                  setSelectedUser(user);
+                  navigate('/profile');
                 }}
                 style={{
                   width: 180,
@@ -274,7 +259,7 @@ export const Nearby: React.FC<NearbyProps> = ({
                 </div>
                 <div style={{ padding: 12, display: "flex", gap: 8 }}>
                   <button
-                    onClick={() => onNavigate("messages")}
+                    onClick={() => navigate("/messages")}
                     style={{
                       flex: 1,
                       border: "none",
@@ -302,7 +287,7 @@ export const Nearby: React.FC<NearbyProps> = ({
                     <span>Chat</span>
                   </button>
                   <button
-                    onClick={() => onNavigate("hosting")}
+                    onClick={() => navigate("/hosting")}
                     style={{
                       flex: 1,
                       border: "none",
@@ -412,10 +397,17 @@ export const Nearby: React.FC<NearbyProps> = ({
                           estimatedCost: 'TBA',
                           media: {
                             venue: [vibe.coverImage],
+                            host: []
                           },
                         };
-                        onOpenEvent(eventData);
-                        onNavigate('event');
+                        const completeEventData = {
+                          ...eventData,
+                          duration: '2-3 hours',
+                          ageRestriction: vibe.ageRestriction || '18+',
+                          rules: vibe.rules || []
+                        };
+                        setSelectedEvent(completeEventData);
+                        navigate(`/event/${completeEventData.id || vibe.id}`);
                       }}
                       style={{
                         border: "none",

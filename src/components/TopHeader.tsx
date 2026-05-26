@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Plus, MoreVertical, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAppContext } from '../App';
 
 interface TopHeaderProps {
-  onNavigate?: (page: string) => void;
+  showHamburger?: boolean;
+  onHamburgerClick?: () => void;
+  hambugerOpen?: boolean;
 }
 
-export function TopHeader({ 
-  onNavigate = () => {} 
-}: TopHeaderProps) {
+export function TopHeader({ showHamburger, onHamburgerClick, hambugerOpen }: TopHeaderProps) {
+  const navigate = useNavigate();
+  const { handleLogout } = useAppContext();
   const [showMenu, setShowMenu] = useState(false);
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-[#0F0F13]/95 backdrop-blur-md">
@@ -33,7 +41,7 @@ export function TopHeader({
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {/* Post Button */}
             <button
-              onClick={() => onNavigate('hosting')}
+              onClick={() => handleNavigate('/hosting')}
               className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-2.5 sm:px-3 md:px-4 py-2 rounded-full font-semibold text-xs sm:text-sm transition-colors"
               title="Create a post"
             >
@@ -43,7 +51,7 @@ export function TopHeader({
 
             {/* Notifications */}
             <button
-              onClick={() => onNavigate('notifications')}
+              onClick={() => handleNavigate('/notifications')}
               className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors relative"
               title="View notifications"
             >
@@ -72,7 +80,7 @@ export function TopHeader({
                 >
                   <button
                     onClick={() => {
-                      onNavigate('venues');
+                      handleNavigate('/venues');
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
@@ -81,7 +89,7 @@ export function TopHeader({
                   </button>
                   <button
                     onClick={() => {
-                      onNavigate('celeb');
+                      handleNavigate('/discover');
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
@@ -90,7 +98,7 @@ export function TopHeader({
                   </button>
                   <button
                     onClick={() => {
-                      onNavigate('premium');
+                      handleNavigate('/premium');
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
@@ -99,7 +107,7 @@ export function TopHeader({
                   </button>
                   <button
                     onClick={() => {
-                      onNavigate('help');
+                      handleNavigate('/help');
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
@@ -108,10 +116,7 @@ export function TopHeader({
                   </button>
                   <button
                     onClick={() => {
-                      localStorage.removeItem('sessionToken');
-                      localStorage.removeItem('userId');
-                      localStorage.removeItem('displayName');
-                      window.location.href = '/';
+                      handleLogout();
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-3 transition-colors border-t border-white/5"

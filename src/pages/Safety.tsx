@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { TopHeader } from '../components/TopHeader';
 import {
   Users,
   MapPin,
@@ -14,17 +14,13 @@ import {
   Plus,
   Bell
 } from 'lucide-react';
-import { Sidebar } from '../components/Sidebar';
 
-export function Safety({ onNavigate = () => {}, setActiveNav = () => {} }: { onNavigate?: (page: string) => void; setActiveNav?: (nav: string) => void }) {
+export function Safety() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
-      <div className="relative z-50">
-        <Sidebar activeNav="Safety" setActiveNav={setActiveNav} onNavigate={onNavigate} />
-      </div>
-      
-      <main className="mobile-page-main flex-1 ml-0 md:ml-64 w-full overflow-x-hidden">
+      <main className="mobile-page-main flex-1 w-full overflow-x-hidden">
         <motion.div
           initial={{
             opacity: 0,
@@ -50,14 +46,14 @@ export function Safety({ onNavigate = () => {}, setActiveNav = () => {} }: { onN
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onNavigate?.('hosting')}
+            onClick={() => navigate('/hosting')}
             className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 md:px-4 py-2 rounded-full font-semibold text-sm transition-colors"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">Post</span>
           </button>
           <button
-            onClick={() => onNavigate?.('notifications')}
+            onClick={() => navigate('/notifications')}
             className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
             title="View notifications"
           >

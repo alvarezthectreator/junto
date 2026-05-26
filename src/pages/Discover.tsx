@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
@@ -7,17 +8,12 @@ import { TopHeader } from '../components/TopHeader';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
+import { useAppContext } from '../App';
 import * as API from '../services/api';
 
-interface DiscoverProps {
-  onNavigate?: (page: string) => void;
-  onOpenEvent?: (event: EventDetailData) => void;
-  onOpenUser?: (user: any) => void;
-  currentUser?: any;
-  selectedLocation?: string;
-}
-
-export function Discover({ onNavigate = () => {}, onOpenEvent, onOpenUser, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
+export function Discover() {
+  const navigate = useNavigate();
+  const { setSelectedEvent, setSelectedUser } = useAppContext();
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
@@ -28,6 +24,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, onOpenUser, curre
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState('Lagos');
   
   const filters = [
   'All vibes',
@@ -151,13 +148,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, onOpenUser, curre
       detailEvent = toEventDetail(event, index);
     }
 
-    onOpenEvent?.(detailEvent);
-    onNavigate?.('event');
+    setSelectedEvent(detailEvent);
+    navigate(`/event/${detailEvent.id || index}`);
   };
 
   return (
     <>
-      <TopHeader onNavigate={onNavigate} showHamburger={true} onHamburgerClick={() => setSidebarOpen(!sidebarOpen)} hambugerOpen={sidebarOpen} />
+      <TopHeader showHamburger={true} onHamburgerClick={() => setSidebarOpen(!sidebarOpen)} hambugerOpen={sidebarOpen} />
       
       <motion.div
         initial={{
@@ -445,7 +442,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, onOpenUser, curre
                   averageRating={event.averageRating}
                   reviewCount={event.reviewCount}
                   onInterested={() => openEventDetail(event, actualIndex)}
-                  onOpenUser={onOpenUser}
+                  onOpenUser={(user) => {
+                    setSelectedUser(user);
+                    navigate('/profile');
+                  }}
                   userAvatar={event.userImage}
                 />
               </div>

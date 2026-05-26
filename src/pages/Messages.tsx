@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   CheckCheck,
@@ -300,6 +301,7 @@ function CallModal({
 }
 
 export function Messages() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeConversation, setActiveConversation] = useState(1);
   const [search, setSearch] = useState('');
@@ -445,14 +447,14 @@ export function Messages() {
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onNavigate?.('hosting')}
+            onClick={() => navigate('/hosting')}
             className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 md:px-4 py-2 rounded-full font-semibold text-sm transition-colors"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">Post</span>
           </button>
           <button
-            onClick={() => onNavigate?.('notifications')}
+            onClick={() => navigate('/notifications')}
             className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
             title="View notifications"
           >
