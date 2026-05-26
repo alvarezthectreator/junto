@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import L from 'leaflet';
@@ -70,6 +69,8 @@ export interface EventDetailData {
 interface EventDetailProps {
   eventId?: string;
   eventData?: EventDetailData;
+  onNavigate?: (page: string) => void;
+  onOpenMessages?: () => void;
 }
 
 function createMapIcon(label: string) {
@@ -102,9 +103,7 @@ function createMapIcon(label: string) {
   });
 }
 
-export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData }) => {
-  const navigate = useNavigate();
-  const { eventId: routeEventId } = useParams<{ eventId: string }>();
+export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate, onOpenMessages }) => {
   const { selectedEvent, setSelectedUser } = useAppContext();
   const [isJoined, setIsJoined] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -119,7 +118,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData }) 
   const [showGuestListModal, setShowGuestListModal] = useState(false);
 
   const defaultEvent: EventDetailData = {
-    id: routeEventId || eventId || '1',
+    id: eventId || '1',
     title: 'Beach Volleyball at Lekki',
     host: {
       name: 'Tunde O.',
@@ -363,7 +362,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData }) 
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="sticky top-0 z-50 -mx-4 mb-4 border-b border-white/5 bg-[#0F0F13]/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <button
-            onClick={() => navigate('/discover')}
+            onClick={() => onNavigate?.('main')}
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-300 transition-colors hover:text-[#F59E0B]"
           >
             <ArrowLeft size={18} />
