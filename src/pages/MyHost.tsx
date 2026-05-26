@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sidebar } from "../components/Sidebar";
+import { useNavigate } from "react-router-dom";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -310,11 +310,7 @@ function PastEventCard({ event, index, isLightMode = false }: { event: any; inde
 }
 
 interface MyHostProps {
-  onNavigate?: (page: string) => void;
   isLightMode?: boolean;
-  setActiveNav?: (nav: string) => void;
-  onCloseSidebar?: () => void;
-  currentUser?: any;
 }
 
 function CreateEventModal({
@@ -919,7 +915,8 @@ function CreateEventModal({
   );
 }
 
-export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMode = false, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
+export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("active");
   const [headerVisible, setHeaderVisible] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1000,9 +997,7 @@ export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMo
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="My Host Studio" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
-      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
+      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 0, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div style={{
           position: "sticky",
           top: 0,
@@ -1030,7 +1025,7 @@ export const MyHost: React.FC<MyHostProps> = ({ onNavigate = () => {}, isLightMo
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => onNavigate?.('dashboard')}
+              onClick={() => navigate('/hosting')}
               style={{
                 display: "flex",
                 alignItems: "center",

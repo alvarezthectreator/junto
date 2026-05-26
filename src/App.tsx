@@ -65,6 +65,7 @@ function AppShell({ handleLogout }: { handleLogout: () => void }) {
           <Route path="/safety" element={<Safety />} />
           <Route path="/premium" element={<Premium />} />
           <Route path="/hosting" element={<HostDashboard />} />
+          <Route path="/myhost" element={<MyHost />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/travel" element={<TravelMode />} />
