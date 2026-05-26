@@ -1,4 +1,4 @@
-import { query } from '../../db/connection.js';
+import { query } from '../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function getUserById(req, res) {
@@ -9,11 +9,11 @@ export async function getUserById(req, res) {
       `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
-       WHERE u.id = ?`,
+       WHERE u.id = $1`,
       [userId]
     );
 
-    if (!result.rows || result.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -31,11 +31,11 @@ export async function getUserProfile(req, res) {
       `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
-       WHERE u.id = ?`,
+       WHERE u.id = $1`,
       [userId]
     );
 
-    if (!result.rows || result.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -53,13 +53,13 @@ export async function updateUserProfile(req, res) {
     // Update user
     if (display_name || bio || gender || city || occupation) {
       await query(
-        `UPDATE users SET display_name = COALESCE(?, display_name),
-                         bio = COALESCE(?, bio),
-                         gender = COALESCE(?, gender),
-                         city = COALESCE(?, city),
-                         occupation = COALESCE(?, occupation),
-                         updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+        `UPDATE users SET display_name = COALESCE($1, display_name),
+                         bio = COALESCE($2, bio),
+                         gender = COALESCE($3, gender),
+                         city = COALESCE($4, city),
+                         occupation = COALESCE($5, occupation),
+                         updated_at = NOW()
+         WHERE id = $6`,
         [display_name, bio, gender, city, occupation, userId]
       );
     }
@@ -67,11 +67,11 @@ export async function updateUserProfile(req, res) {
     // Update profile
     if (interests || travel_mode_enabled !== undefined) {
       await query(
-        `UPDATE user_profiles SET interests = COALESCE(?, interests),
-                                  travel_mode_enabled = COALESCE(?, travel_mode_enabled),
-                                  travel_destination_city = COALESCE(?, travel_destination_city),
-                                  updated_at = CURRENT_TIMESTAMP
-         WHERE user_id = ?`,
+        `UPDATE user_profiles SET interests = COALESCE($1, interests),
+                                  travel_mode_enabled = COALESCE($2, travel_mode_enabled),
+                                  travel_destination_city = COALESCE($3, travel_destination_city),
+                                  updated_at = NOW()
+         WHERE user_id = $4`,
         [interests ? JSON.stringify(interests) : null, travel_mode_enabled, travel_destination_city, userId]
       );
     }
@@ -89,13 +89,15 @@ export async function searchUsers(req, res) {
     let sql = `SELECT u.*, up.interests FROM users u
                LEFT JOIN user_profiles up ON u.id = up.user_id WHERE u.is_active = true`;
     const params = [];
+    let paramCount = 1;
 
     if (city) {
-      sql += ` AND u.city = ?`;
+      sql += ` AND u.city = $${paramCount}`;
       params.push(city);
+      paramCount++;
     }
 
-    sql += ` LIMIT ? OFFSET ?`;
+    sql += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);

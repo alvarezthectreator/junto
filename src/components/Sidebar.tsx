@@ -10,7 +10,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAppContext } from '../App';
+import { useAppContext } from '../context/AppContext';
 
 interface SidebarProps {
   activeNav: string;
@@ -30,10 +30,10 @@ export function Sidebar({ activeNav, onLogout }: SidebarProps) {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-[#0F0F13] px-4 py-2 md:py-3 rounded-t-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-[#0F0F13] px-2 md:px-4 py-2 md:py-3 rounded-t-2xl">
       {/* Bottom Navbar */}
-      <nav className="flex items-center justify-between gap-1 md:gap-3 max-w-7xl mx-auto">
-        <div className="flex items-center justify-center gap-1 md:gap-4 flex-1">
+      <nav className="flex items-center justify-between gap-0.5 md:gap-3 max-w-7xl mx-auto">
+        <div className="flex items-center justify-center gap-0.5 md:gap-4 flex-1 min-w-0">
           {/* Discover Section */}
           <NavItem
             icon={<Compass size={18} />}
@@ -80,14 +80,14 @@ export function Sidebar({ activeNav, onLogout }: SidebarProps) {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
           {/* Logout Button */}
           <button
             onClick={handleLogoutClick}
-            className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+            className="flex-shrink-0 flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all"
             title="Logout"
           >
-            <LogOut size={18} />
+            <LogOut size={16} className="md:w-5 md:h-5" />
           </button>
         </div>
       </nav>
@@ -111,19 +111,19 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-colors relative group text-xs font-medium ${
+      className={`flex flex-col items-center gap-0.5 md:gap-1 px-1 md:px-2 py-1.5 md:py-2 rounded-lg transition-colors relative group text-[9px] md:text-xs font-medium whitespace-nowrap ${
         isActive 
           ? 'text-[#F59E0B] bg-white/5' 
           : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
       title={label}
     >
-      <div className={isActive ? 'text-[#F59E0B]' : 'group-hover:text-white'}>
+      <div className={`${isActive ? 'text-[#F59E0B]' : 'group-hover:text-white'}`}>
         {icon}
       </div>
-      <span className="whitespace-nowrap">{label}</span>
+      <span className="block leading-none">{label}</span>
       {badge && (
-        <span className="absolute -top-1 -right-1 bg-[#F59E0B] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+        <span className="absolute -top-1 -right-1 bg-[#F59E0B] text-white text-[7px] md:text-[9px] font-bold w-3.5 md:w-4 h-3.5 md:h-4 rounded-full flex items-center justify-center">
           {badge}
         </span>
       )}

@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import process from 'process';
 import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
 

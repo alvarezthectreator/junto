@@ -1,4 +1,4 @@
-import { query } from '../../db/connection.js';
+import { query } from '../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function applyToEvent(req, res) {
@@ -11,39 +11,39 @@ export async function applyToEvent(req, res) {
 
     // Check if already applied
     const existingApp = await query(
-      'SELECT id FROM event_applications WHERE event_id = ? AND user_id = ?',
+      'SELECT id FROM event_applications WHERE event_id = $1 AND user_id = $2',
       [event_id, user_id]
     );
 
-    if (existingApp.rows && existingApp.rows.length > 0) {
+    if (existingApp.rows.length > 0) {
       return res.status(400).json({ error: 'Already applied to this event' });
     }
 
     const applicationId = uuidv4();
-    await query(
+    const result = await query(
       `INSERT INTO event_applications (id, event_id, user_id, personal_note, status)
-       VALUES (?, ?, ?, ?, 'pending')`,
+       VALUES ($1, $2, $3, $4, 'pending')
+       RETURNING *`,
       [applicationId, event_id, user_id, personal_note || null]
     );
 
     // Get event and user info for notification
-    const eventRes = await query('SELECT title, host_id FROM events WHERE id = ?', [event_id]);
-    const userRes = await query('SELECT display_name FROM users WHERE id = ?', [user_id]);
+    const eventRes = await query('SELECT title, host_id FROM events WHERE id = $1', [event_id]);
+    const userRes = await query('SELECT display_name FROM users WHERE id = $1', [user_id]);
 
-    if (eventRes.rows && eventRes.rows.length > 0) {
+    if (eventRes.rows.length > 0) {
       const event = eventRes.rows[0];
       const user = userRes.rows[0];
-      const notifId = uuidv4();
 
       // Notify host
       await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [notifId, event.host_id, 'new_application', user_id, 'New Event Application', `${user.display_name} applied to "${event.title}"`]
+        `INSERT INTO notifications (user_id, notification_type, related_user_id, title, body)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [event.host_id, 'new_application', user_id, 'New Event Application', `${user.display_name} applied to "${event.title}"`]
       );
     }
 
-    res.status(201).json({ application: { id: applicationId }, message: '✅ Application submitted' });
+    res.status(201).json({ application: result.rows[0], message: '✅ Application submitted' });
   } catch (error) {
     console.error('Apply error:', error);
     res.status(500).json({ error: error.message });
@@ -58,19 +58,19 @@ export async function getUserApplications(req, res) {
     let sql = `SELECT ea.*, e.title, e.event_date, e.location_city, e.billing_tier, e.host_id
                FROM event_applications ea
                LEFT JOIN events e ON ea.event_id = e.id
-               WHERE ea.user_id = ?`;
+               WHERE ea.user_id = $1`;
     const params = [userId];
 
     if (status) {
-      sql += ` AND ea.status = ?`;
+      sql += ` AND ea.status = $${params.length + 1}`;
       params.push(status);
     }
 
-    sql += ` ORDER BY ea.created_at DESC LIMIT ?`;
+    sql += ` ORDER BY ea.created_at DESC LIMIT $${params.length + 1}`;
     params.push(limit);
 
     const result = await query(sql, params);
-    res.json({ applications: result.rows || [] });
+    res.json({ applications: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -81,40 +81,21 @@ export async function getEventApplications(req, res) {
     const { eventId } = req.params;
     const { status } = req.query;
 
-    let sql = `SELECT 
-                 ea.id,
-                 ea.event_id,
-                 ea.user_id,
-                 ea.personal_note,
-                 ea.status,
-                 ea.created_at,
-                 u.display_name as name,
-                 u.profile_id,
-                 u.bio
+    let sql = `SELECT ea.*, u.display_name, u.profile_id, u.bio
                FROM event_applications ea
                LEFT JOIN users u ON ea.user_id = u.id
-               WHERE ea.event_id = ?`;
+               WHERE ea.event_id = $1`;
     const params = [eventId];
 
     if (status) {
-      sql += ` AND ea.status = ?`;
+      sql += ` AND ea.status = $${params.length + 1}`;
       params.push(status);
     }
 
     sql += ` ORDER BY ea.created_at DESC`;
 
     const result = await query(sql, params);
-    
-    // Transform the results to match frontend expectations
-    const applications = (result.rows || []).map(app => ({
-      ...app,
-      userId: app.user_id,
-      joinedAt: new Date(app.created_at).toLocaleDateString(),
-      message: app.personal_note,
-      avatar: app.name?.charAt(0).toUpperCase() || '?'
-    }));
-
-    res.json({ applications });
+    res.json({ applications: result.rows });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -129,48 +110,39 @@ export async function updateApplicationStatus(req, res) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    await query(
-      `UPDATE event_applications SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    const result = await query(
+      `UPDATE event_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
       [status, applicationId]
     );
 
-    // Get application details
-    const appRes = await query('SELECT * FROM event_applications WHERE id = ?', [applicationId]);
-    
-    if (!appRes.rows || appRes.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    const app = appRes.rows[0];
+    const app = result.rows[0];
 
     // Get user and event info for notification
-    const userRes = await query('SELECT display_name FROM users WHERE id = ?', [app.user_id]);
-    const eventRes = await query('SELECT title, host_id FROM events WHERE id = ?', [app.event_id]);
+    const userRes = await query('SELECT display_name FROM users WHERE id = $1', [app.user_id]);
+    const eventRes = await query('SELECT title FROM events WHERE id = $1', [app.event_id]);
 
-    if (status === 'accepted' && userRes.rows && userRes.rows.length > 0 && eventRes.rows && eventRes.rows.length > 0) {
-      const event = eventRes.rows[0];
+    if (status === 'accepted' && userRes.rows.length > 0 && eventRes.rows.length > 0) {
       // Create conversation between host and user
-      const convId = uuidv4();
-      try {
-        await query(
-          `INSERT INTO conversations (id, user1_id, user2_id) 
-           VALUES (?, ?, ?)`,
-          [convId, app.user_id, event.host_id]
-        );
-      } catch (e) {
-        // Conversation might already exist
-      }
+      const convResult = await query(
+        `INSERT INTO conversations (user1_id, user2_id) 
+         VALUES ($1, $2) ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [app.user_id, (await query('SELECT host_id FROM events WHERE id = $1', [app.event_id])).rows[0].host_id]
+      );
 
       // Notify applicant
-      const notifId = uuidv4();
       await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_event_id, title, body)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [notifId, app.user_id, 'event_accepted', app.event_id, 'Application Accepted', `You've been accepted to "${eventRes.rows[0].title}"!`]
+        `INSERT INTO notifications (user_id, notification_type, related_event_id, title, body)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [app.user_id, 'event_accepted', app.event_id, 'Application Accepted', `You've been accepted to "${eventRes.rows[0].title}"!`]
       );
     }
 
-    res.json({ application: app, message: `✅ Application ${status}` });
+    res.json({ application: result.rows[0], message: `✅ Application ${status}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

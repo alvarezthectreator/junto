@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
-import { useAppContext } from '../App';
+import { useAppContext } from '../context/AppContext';
 
 interface Attendee {
   id: string;

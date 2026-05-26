@@ -1,7 +1,7 @@
 // Junto API Service
 // Handles all backend API communication
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Session token storage
 let sessionToken: string | null = null;
@@ -71,7 +71,7 @@ export interface Notification {
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
-  method = 'GET',
+  method: string = 'GET',
   body?: any
 ): Promise<any> {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -109,50 +109,20 @@ async function apiCall(
 
 // ==================== AUTH ====================
 
-export async function signup(username: string, fullName: string, password: string): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/signup', 'POST', { 
-    username, 
-    full_name: fullName, 
-    password 
-  });
-  sessionToken = response.session_token;
-  localStorage.setItem('sessionToken', response.session_token);
-  localStorage.setItem('userId', response.user.id);
-  localStorage.setItem('username', username);
+export async function login(phoneNumber: string): Promise<{ token: string; user: User }> {
+  const response = await apiCall('/auth/login', 'POST', { phone_number: phoneNumber });
+  sessionToken = response.token;
+  localStorage.setItem('sessionToken', response.token);
   return response;
 }
 
-export async function login(usernameOrPhone: string, password?: string): Promise<{ session_token: string; user: User }> {
-  // Support both new username/password and old phone number login
-  let response;
-  if (password) {
-    // New username/password login
-    response = await apiCall('/auth/login', 'POST', { 
-      username: usernameOrPhone, 
-      password 
-    });
-  } else {
-    // Old phone number login (backward compatibility)
-    response = await apiCall('/auth/login', 'POST', { phone_number: usernameOrPhone });
-  }
-  sessionToken = response.session_token;
-  localStorage.setItem('sessionToken', response.session_token);
-  localStorage.setItem('userId', response.user.id);
-  if (response.user.username) {
-    localStorage.setItem('username', response.user.username);
-  }
-  return response;
-}
-
-export async function verifySession(): Promise<{ valid: boolean }> {
+export async function verifySession(): Promise<{ valid: boolean; user: User }> {
   return apiCall('/auth/verify');
 }
 
 export function logout(): void {
   sessionToken = null;
   localStorage.removeItem('sessionToken');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('username');
 }
 
 export function getSessionToken(): string | null {
@@ -162,27 +132,22 @@ export function getSessionToken(): string | null {
   return sessionToken;
 }
 
-export function getUserId(): string | null {
-  return localStorage.getItem('userId');
-}
-
 // ==================== USERS ====================
 
-export async function getUserById(userId: string): Promise<{ user: User }> {
+export async function getUserById(userId: string): Promise<User> {
   return apiCall(`/users/${userId}`);
 }
 
-export async function getUserProfile(userId: string): Promise<{ profile: UserProfile }> {
-  return apiCall(`/users/${userId}`);
+export async function getUserProfile(userId: string): Promise<UserProfile> {
+  return apiCall(`/users/${userId}/profile`);
 }
 
-export async function updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<{ success: boolean; message: string }> {
-  return apiCall(`/users/${userId}`, 'PUT', profile);
+export async function updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile> {
+  return apiCall(`/users/${userId}/profile`, 'PUT', profile);
 }
 
-export async function searchUsers(city?: string): Promise<{ users: User[] }> {
-  const query = city ? `?city=${encodeURIComponent(city)}` : '';
-  return apiCall(`/users/search${query}`);
+export async function searchUsers(query: string): Promise<User[]> {
+  return apiCall(`/users/search?q=${encodeURIComponent(query)}`);
 }
 
 export async function getTravelModeUsers(city: string): Promise<User[]> {
@@ -191,35 +156,32 @@ export async function getTravelModeUsers(city: string): Promise<User[]> {
 
 // ==================== EVENTS ====================
 
-export async function getEvents(filters?: { city?: string; tier?: number; date?: string; limit?: number; offset?: number }): Promise<{ events: Event[] }> {
+export async function getEvents(filters?: { city?: string; date?: string }): Promise<Event[]> {
   let endpoint = '/events';
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
-  if (filters?.tier) params.append('tier', filters.tier.toString());
   if (filters?.date) params.append('date', filters.date);
-  if (filters?.limit) params.append('limit', filters.limit.toString());
-  if (filters?.offset) params.append('offset', filters.offset.toString());
   if (params.toString()) endpoint += `?${params.toString()}`;
   return apiCall(endpoint);
 }
 
-export async function getEventById(eventId: string): Promise<{ event: Event }> {
+export async function getEventById(eventId: string): Promise<Event> {
   return apiCall(`/events/${eventId}`);
 }
 
-export async function createEvent(event: Partial<Event>): Promise<{ event: { id: string }; message: string }> {
+export async function createEvent(event: Partial<Event>): Promise<Event> {
   return apiCall('/events', 'POST', event);
 }
 
-export async function updateEvent(eventId: string, updates: Partial<Event>): Promise<{ message: string }> {
+export async function updateEvent(eventId: string, updates: Partial<Event>): Promise<Event> {
   return apiCall(`/events/${eventId}`, 'PUT', updates);
 }
 
-export async function deleteEvent(eventId: string): Promise<{ success: boolean; message: string }> {
+export async function deleteEvent(eventId: string): Promise<void> {
   return apiCall(`/events/${eventId}`, 'DELETE');
 }
 
-export async function getHostEvents(hostId: string): Promise<{ events: Event[] }> {
+export async function getHostEvents(hostId: string): Promise<Event[]> {
   return apiCall(`/events/host/${hostId}`);
 }
 
@@ -228,28 +190,28 @@ export async function getHostEvents(hostId: string): Promise<{ events: Event[] }
 export async function applyToEvent(
   userId: string,
   eventId: string,
-  personal_note?: string
-): Promise<{ application: { id: string }; message: string }> {
+  message?: string
+): Promise<any> {
   return apiCall('/applications', 'POST', {
     user_id: userId,
     event_id: eventId,
-    personal_note,
+    message,
   });
 }
 
-export async function getEventApplications(eventId: string): Promise<{ applications: any[] }> {
+export async function getEventApplications(eventId: string): Promise<any[]> {
   return apiCall(`/applications/event/${eventId}`);
-}
-
-export async function getUserApplications(userId: string): Promise<{ applications: any[] }> {
-  return apiCall(`/applications/user/${userId}`);
 }
 
 export async function updateApplicationStatus(
   applicationId: string,
-  status: 'accepted' | 'rejected' | 'pending'
-): Promise<{ application: any; message: string }> {
-  return apiCall(`/applications/${applicationId}`, 'PATCH', { status });
+  status: 'accepted' | 'rejected'
+): Promise<any> {
+  return apiCall(`/applications/${applicationId}/status`, 'PUT', { status });
+}
+
+export async function withdrawApplication(applicationId: string): Promise<void> {
+  return apiCall(`/applications/${applicationId}`, 'DELETE');
 }
 
 // ==================== MESSAGES ====================
@@ -258,7 +220,7 @@ export async function sendMessage(
   conversationId: string | null,
   recipientId: string,
   content: string,
-  messageType = 'text'
+  messageType: string = 'text'
 ): Promise<Message> {
   return apiCall('/messages', 'POST', {
     conversation_id: conversationId,
@@ -274,8 +236,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
 
 export async function getConversation(
   conversationId: string,
-  limit = 50,
-  offset = 0
+  limit: number = 50,
+  offset: number = 0
 ): Promise<{ conversation: Conversation; messages: Message[] }> {
   return apiCall(`/messages/conversations/${conversationId}?limit=${limit}&offset=${offset}`);
 }
@@ -312,7 +274,7 @@ export async function addTrustedContact(
   userId: string,
   contactName: string,
   contactPhone: string,
-  isPrimary = false
+  isPrimary: boolean = false
 ): Promise<any> {
   return apiCall(`/safety/${userId}/trusted-contacts`, 'POST', {
     contact_name: contactName,

@@ -1,15 +1,5 @@
-import { query, DB_TYPE } from './connection.js';
+import pool from './connection.js';
 import { v4 as uuidv4 } from 'uuid';
-import process from 'process';
-
-// Helper to convert SQL parameters from SQLite (?) to PostgreSQL ($1, $2, etc.)
-function convertSql(sql, params) {
-  if (DB_TYPE === 'postgres') {
-    let paramIndex = 1;
-    return sql.replace(/\?/g, () => `$${paramIndex++}`);
-  }
-  return sql;
-}
 
 const MOCK_USERS = [
   { phone: '+2348123456789', name: 'Chioma Okonkwo', display: 'Chioma', gender: 'Female', city: 'Lagos', occupation: 'Product Manager', bio: 'Love art, food, and good conversations', interests: ['art', 'food', 'travel'] },
@@ -35,121 +25,97 @@ const BILLING_TIERS = {
 };
 
 export async function seedDatabase() {
+  const client = await pool.connect();
   try {
-    console.log(`🌱 Seeding ${DB_TYPE} database with mock data...`);
-    
     // Check if already seeded
-    const userCheck = await query('SELECT COUNT(*) as count FROM users');
-    if (userCheck.rows && userCheck.rows[0].count > 0) {
+    const userCheck = await client.query('SELECT COUNT(*) FROM users');
+    if (userCheck.rows[0].count > 0) {
       console.log('✅ Database already seeded, skipping...');
       return;
     }
 
-    console.log('📝 Creating users and profiles...');
+    console.log('🌱 Seeding database with mock data...');
 
     // Seed Users
     const userIds = [];
-    for (let i = 0; i < MOCK_USERS.length; i++) {
-      const mockUser = MOCK_USERS[i];
-      const userId = uuidv4();
-      const profileId = `JNT-2024-${String(i + 1).padStart(5, '0')}`;
-      
-      const userSql = convertSql(
-        `INSERT INTO users (id, phone_number, full_name, display_name, gender, city, occupation, bio, profile_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    for (const mockUser of MOCK_USERS) {
+      const profileId = `JNT-2024-${String(userIds.length + 1).padStart(5, '0')}`;
+      const result = await client.query(
+        `INSERT INTO users (phone_number, full_name, display_name, gender, city, occupation, bio, profile_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [mockUser.phone, mockUser.name, mockUser.display, mockUser.gender, mockUser.city, mockUser.occupation, mockUser.bio, profileId]
       );
-      await query(userSql, [userId, mockUser.phone, mockUser.name, mockUser.display, mockUser.gender, mockUser.city, mockUser.occupation, mockUser.bio, profileId]);
-      userIds.push(userId);
+      userIds.push(result.rows[0].id);
 
       // Create user profile
-      const profileId2 = uuidv4();
-      const profileSql = convertSql(
-        `INSERT INTO user_profiles (id, user_id, interests, last_active)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+      await client.query(
+        `INSERT INTO user_profiles (user_id, interests, last_active)
+         VALUES ($1, $2, NOW())`,
+        [result.rows[0].id, JSON.stringify(mockUser.interests)]
       );
-      await query(profileSql, [profileId2, userId, JSON.stringify(mockUser.interests)]);
     }
     console.log(`✅ Created ${userIds.length} users`);
 
-    console.log('📝 Creating events...');
-    
     // Seed Events
     for (const mockEvent of MOCK_EVENTS) {
       const tier = mockEvent.tier;
       const tierData = BILLING_TIERS[tier];
       const eventDate = new Date();
       eventDate.setDate(eventDate.getDate() + Math.floor(Math.random() * 30) + 1);
-      const eventId = uuidv4();
 
-      const eventSql = convertSql(
-        `INSERT INTO events (id, host_id, title, description, event_type, location_city, location_address, event_date, event_time, billing_tier, host_fee, guest_fee, max_guests, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      await client.query(
+        `INSERT INTO events (host_id, title, description, event_type, location_city, location_address, event_date, event_time, billing_tier, host_fee, guest_fee, max_guests, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          userIds[mockEvent.hostIndex],
+          mockEvent.title,
+          mockEvent.description,
+          mockEvent.type,
+          mockEvent.city,
+          mockEvent.address,
+          eventDate.toISOString().split('T')[0],
+          '18:00',
+          tier,
+          tierData.hostFee,
+          tierData.guestFee,
+          15,
+          'active'
+        ]
       );
-      await query(eventSql, [
-        eventId,
-        userIds[mockEvent.hostIndex],
-        mockEvent.title,
-        mockEvent.description,
-        mockEvent.type,
-        mockEvent.city,
-        mockEvent.address,
-        eventDate.toISOString().split('T')[0],
-        '18:00',
-        tier,
-        tierData.hostFee,
-        tierData.guestFee,
-        15,
-        'active'
-      ]);
     }
     console.log(`✅ Created ${MOCK_EVENTS.length} events`);
 
-    console.log('📝 Creating swipes and matches...');
-    
     // Seed some swipes for Nearby Mode
     for (let i = 0; i < userIds.length; i++) {
       for (let j = 0; j < userIds.length; j++) {
         if (i !== j && Math.random() > 0.6) {
           const direction = Math.random() > 0.5 ? 'right' : 'left';
-          const swipeId = uuidv4();
-          try {
-            const swipeSql = convertSql(
-              `INSERT INTO swipes (id, swiper_id, swiped_user_id, direction)
-               VALUES (?, ?, ?, ?)`
-            );
-            await query(swipeSql, [swipeId, userIds[i], userIds[j], direction]);
-          } catch (e) {
-            // Ignore conflicts
-          }
+          await client.query(
+            `INSERT INTO swipes (swiper_id, swiped_user_id, direction)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+            [userIds[i], userIds[j], direction]
+          );
         }
       }
     }
 
     // Seed some matches
     for (let i = 0; i < Math.min(3, userIds.length - 1); i++) {
-      const matchId = uuidv4();
-      try {
-        const matchSql = convertSql(
-          `INSERT INTO matches (id, user1_id, user2_id)
-           VALUES (?, ?, ?)`
-        );
-        await query(matchSql, [matchId, userIds[i], userIds[i + 1]]);
-      } catch (e) {
-        // Ignore conflicts
-      }
+      await client.query(
+        `INSERT INTO matches (user1_id, user2_id, matched_at)
+         VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING`,
+        [userIds[i], userIds[i + 1]]
+      );
     }
     console.log('✅ Created swipes and matches');
 
-    console.log('📝 Creating trusted contacts...');
-    
     // Seed trusted contacts
     for (let i = 0; i < userIds.length; i++) {
-      const contactId = uuidv4();
-      const contactSql = convertSql(
-        `INSERT INTO trusted_contacts (id, user_id, contact_name, contact_phone, is_primary)
-         VALUES (?, ?, ?, ?, ?)`
+      await client.query(
+        `INSERT INTO trusted_contacts (user_id, contact_name, contact_phone, is_primary)
+         VALUES ($1, $2, $3, $4)`,
+        [userIds[i], 'Emergency Contact', '+2349000000000', true]
       );
-      await query(contactSql, [contactId, userIds[i], 'Emergency Contact', '+2349000000000', true]);
     }
     console.log('✅ Created trusted contacts');
 
@@ -157,6 +123,8 @@ export async function seedDatabase() {
   } catch (error) {
     console.error('❌ Error seeding database:', error);
     throw error;
+  } finally {
+    client.release();
   }
 }
 

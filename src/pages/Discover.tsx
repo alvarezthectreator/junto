@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
-import { TopHeader } from '../components/TopHeader';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
-import { useAppContext } from '../App';
 import * as API from '../services/api';
 
-export function Discover() {
-  const navigate = useNavigate();
-  const { setSelectedEvent, setSelectedUser } = useAppContext();
+interface DiscoverProps {
+  onNavigate?: (page: string) => void;
+  onOpenEvent?: (event: EventDetailData) => void;
+  currentUser?: any;
+  selectedLocation?: string;
+}
+
+export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
@@ -23,8 +25,6 @@ export function Discover() {
   const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<string | null>(null); // null means show all events nationwide
   
   const filters = [
   'All vibes',
@@ -40,10 +40,8 @@ export function Discover() {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        // If selectedLocation is null, fetch all events (no city filter)
-        const response = await API.getEvents(selectedLocation ? { city: selectedLocation } : undefined);
-        setApiEvents(response.events);
-        setUseBackend(true);
+        const events = await API.getEvents({ city: selectedLocation });
+        setApiEvents(events);
       } catch (error) {
         console.error('Failed to fetch events:', error);
         // Fall back to mock data if API fails
@@ -58,52 +56,8 @@ export function Discover() {
 
   const events = useBackend && apiEvents.length > 0 ? apiEvents : discoverEvents;
 
-  // Transform API events to match mock event format
-  const transformApiEvent = (event: any, index: number) => {
-    const colors = ['bg-[#FF6B6B]', 'bg-[#4ECDC4]', 'bg-[#FFE66D]', 'bg-[#95E1D3]', 'bg-[#F38181]'];
-    const audienceColors = ['bg-emerald-500/10 text-emerald-400', 'bg-blue-500/10 text-blue-400', 'bg-purple-500/10 text-purple-400'];
-    
-    // Extract first letter from display_name or title
-    const displayName = event.display_name || event.title;
-    const userInitial = displayName?.charAt(0).toUpperCase() || 'E';
-    
-    // Extract first name from display_name (e.g., "alice_johnson" -> "Alice")
-    let userName = 'Host';
-    if (event.display_name) {
-      // Convert snake_case or similar to Title Case and take first word
-      userName = event.display_name
-        .split('_')[0]  // Get first word if separated by underscore
-        .split(' ')[0]  // Get first word if separated by space
-        .charAt(0).toUpperCase() + 
-        event.display_name.split('_')[0].slice(1).toLowerCase();  // Capitalize first letter
-    }
-    
-    return {
-      ...event,
-      userInitial: userInitial,
-      userName: userName,
-      userImage: '', // No avatar from API
-      actionText: event.title || 'Event',
-      emoji: '🎯',
-      accentColor: colors[index % colors.length],
-      audienceColor: audienceColors[index % audienceColors.length],
-      coverImage: '',
-      isVerified: false,
-      reliabilityScore: 85,
-      averageRating: 4.0,
-      reviewCount: 0,
-      audience: 'Open to all',
-      interestedCount: event.max_guests || 0
-    };
-  };
-
-  // Process events - add missing properties for API events
-  const processedEvents = useBackend && apiEvents.length > 0 
-    ? apiEvents.map(transformApiEvent)
-    : discoverEvents;
-
   // Filter events based on active filter and search
-  let filteredEvents = processedEvents.filter((event: any) => {
+  let filteredEvents = events.filter((event: any) => {
     const matchesFilter = activeFilter === 'All vibes' || 
       (activeFilter === 'Tonight' && event.event_date?.includes('today')) ||
       (activeFilter === 'This week' && true) ||
@@ -159,31 +113,27 @@ export function Discover() {
       detailEvent = toEventDetail(event, index);
     }
 
-    setSelectedEvent(detailEvent);
-    navigate(`/event/${detailEvent.id || index}`);
+    onOpenEvent?.(detailEvent);
+    onNavigate?.('event');
   };
 
   return (
-    <>
-      <TopHeader showHamburger={true} onHamburgerClick={() => setSidebarOpen(!sidebarOpen)} hambugerOpen={sidebarOpen} />
-      
-      <motion.div
-        initial={{
-          opacity: 0,
-          y: 10
-        }}
-        animate={{
-          opacity: 1,
-          y: 0
-        }}
-        transition={{
-          duration: 0.8
-        }}
-        className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-7xl mx-auto">
+    <motion.div
+      initial={{
+        opacity: 0,
+        y: 10
+      }}
+      animate={{
+        opacity: 1,
+        y: 0
+      }}
+      transition={{
+        duration: 0.8
+      }}>
       
       {/* Hero Section & Stats */}
-      <div className="flex flex-col gap-6 sm:gap-8 lg:gap-0 lg:flex-row mb-6 sm:mb-8 items-start lg:items-center w-full">
-        <section className="flex-1 w-full">
+      <div className="flex flex-col gap-6 sm:gap-8 md:gap-0 md:flex-row mb-6 sm:mb-8 items-start md:items-center">
+        <section className="flex-1 w-full md:w-auto">
           <motion.h2
             initial={{
               opacity: 0,
@@ -197,7 +147,7 @@ export function Discover() {
               duration: 1.2,
               ease: 'easeOut'
             }}
-            className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-3 sm:mb-4 tracking-tight leading-tight">
             
             Find someone to go{' '}
             <span className="italic text-gradient font-normal">out with.</span>
@@ -216,7 +166,7 @@ export function Discover() {
               delay: 0.2,
               ease: 'easeOut'
             }}
-            className="text-gray-400 text-xs sm:text-sm md:text-base lg:text-lg max-w-md">
+            className="text-gray-400 text-sm sm:text-base lg:text-lg max-w-md">
             
             Post where you're going. Find company. Zero obligations.
           </motion.p>
@@ -235,7 +185,7 @@ export function Discover() {
             duration: 1.0,
             delay: 0.4
           }}
-          className="w-full lg:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl lg:rounded-3xl p-3 sm:p-4 md:p-5 lg:p-6 shadow-lg flex-shrink-0">
+          className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-lg">
           
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
@@ -313,7 +263,7 @@ export function Discover() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
         <div className="flex items-center gap-2 min-w-max">
           {filters.map((filter) => {
             const isActive = activeFilter === filter;
@@ -321,7 +271,7 @@ export function Discover() {
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`relative px-2.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 whitespace-nowrap ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
+                className={`relative px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
                 
                 {isActive &&
                 <motion.div
@@ -343,12 +293,12 @@ export function Discover() {
       </div>
 
       {/* Sorting and View Options */}
-      <div className="flex flex-col gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between w-full">
-        <div className="flex flex-col xs:flex-row gap-2 w-full xs:w-auto">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'recent' | 'trending' | 'nearest')}
-            className="bg-[#1A1A21] border border-white/5 rounded-full px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors w-full xs:w-auto"
+            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
           >
             <option value="recent">Recent first</option>
             <option value="trending">Trending</option>
@@ -356,7 +306,7 @@ export function Discover() {
           </select>
           <button
             onClick={() => setShowSavedOnly(!showSavedOnly)}
-            className={`px-3 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap w-full xs:w-auto ${
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
               showSavedOnly
                 ? 'bg-[#F59E0B] text-white'
                 : 'bg-[#1A1A21] border border-white/5 text-gray-400 hover:text-white hover:border-white/10'
@@ -365,13 +315,13 @@ export function Discover() {
             ❤️ Saved
           </button>
         </div>
-        <span className="text-xs sm:text-sm text-gray-400 w-full xs:w-auto">{filteredEvents.length} vibes found</span>
+        <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
       </div>
 
       {/* Trending Banner */}
-      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-2.5 sm:px-4 py-2 text-xs sm:text-sm max-w-full">
-        <Flame size={14} className="text-[#F59E0B] flex-shrink-0" />
-        <p className="text-gray-300 break-words sm:whitespace-normal">
+      <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm overflow-x-auto max-w-full">
+        <Flame size={14} className="sm:w-4 sm:h-4 text-[#F59E0B] flex-shrink-0" />
+        <p className="text-gray-300 whitespace-nowrap sm:whitespace-normal">
           <span className="font-medium text-white">Trending:</span> <span className="hidden sm:inline">Movie nights in Lagos · 47 people interested this week</span><span className="sm:hidden">Movie nights</span>
         </p>
       </div>
@@ -394,20 +344,18 @@ export function Discover() {
             Expand →
           </button>
         </div>
-        {/* EventsMap disabled - waiting for coordinate data from backend */}
-        {/* Once location_latitude/location_longitude are populated, EventsMap can be re-enabled */}
-        {/* <EventsMap events={events} /> */}
+        <EventsMap events={events} />
       </div>
 
       {/* Feed Grid with Action Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 md:gap-6 pb-12 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event, index) => {
-            const actualIndex = processedEvents.indexOf(event);
+            const actualIndex = events.indexOf(event);
             const isSaved = savedEventIds.includes(event.id);
             return (
-              <div key={index} className="relative group w-full">
-                <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-10">
+              <div key={index} className="relative group">
+                <div className="absolute top-4 right-4 z-10">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -453,18 +401,13 @@ export function Discover() {
                   averageRating={event.averageRating}
                   reviewCount={event.reviewCount}
                   onInterested={() => openEventDetail(event, actualIndex)}
-                  onOpenUser={(user) => {
-                    setSelectedUser(user);
-                    navigate('/profile');
-                  }}
-                  userAvatar={event.userImage}
                 />
               </div>
             );
           })
         ) : (
-          <div className="col-span-1 sm:col-span-2 text-center py-12 w-full">
-            <p className="text-gray-400 text-base sm:text-lg">No vibes found matching your search or filter.</p>
+          <div className="col-span-1 md:col-span-2 text-center py-12">
+            <p className="text-gray-400 text-lg">No vibes found matching your search or filter.</p>
             <button
               onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); setSortBy('recent'); setShowSavedOnly(false); }}
               className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"
@@ -482,7 +425,6 @@ export function Discover() {
           <span className="font-medium text-sm">Load more vibes</span>
         </button>
       </div>
-      </motion.div>
-    </>
-  );
+    </motion.div>);
+
 }

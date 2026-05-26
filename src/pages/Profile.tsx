@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   Camera,
-  CheckCircle2,
   ChevronRight,
   Download,
   Edit2,
@@ -18,23 +16,11 @@ import {
   Video,
   Trash2,
   Loader,
-  MessageCircle,
-  Calendar,
-  Briefcase,
-  User,
-  Eye,
-  Plus,
-  X,
-  Award,
-  Lock,
-  Globe,
-  ArrowLeft
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
 
 interface ProfileProps {
-  selectedUser?: any;
   onNavigate?: (page: string) => void;
   isLightMode?: boolean;
   onToggleLightMode?: () => void;
@@ -45,86 +31,7 @@ interface ProfileProps {
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
 
-// --- PREMIUM REUSABLE SUB-COMPONENTS ---
-
-interface StatCardProps {
-  value: string | number;
-  label: string;
-  icon: React.ReactNode;
-  isLightMode: boolean;
-}
-
-const StatCard: React.FC<StatCardProps> = ({ value, label, icon, isLightMode }) => (
-  <motion.div
-    whileHover={{ y: -4, scale: 1.02 }}
-    className={`relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 ${
-      isLightMode
-        ? 'border-amber-900/10 bg-white shadow-[0_8px_30px_rgb(120,53,15,0.04)]'
-        : 'border-white/[0.06] bg-gradient-to-b from-[#16161a] to-[#0f0f12] shadow-xl'
-    }`}
-  >
-    <div className="flex items-center justify-between">
-      <span className={`text-2xl font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
-        {value}
-      </span>
-      <div className={`rounded-xl p-2 ${isLightMode ? 'bg-amber-100/80 text-amber-800' : 'bg-yellow-500/10 text-yellow-400'}`}>
-        {icon}
-      </div>
-    </div>
-    <p className={`mt-2 text-xs font-medium uppercase tracking-wider ${isLightMode ? 'text-amber-800/60' : 'text-gray-400'}`}>
-      {label}
-    </p>
-  </motion.div>
-);
-
-interface WidgetCardProps {
-  title: string;
-  subtitle?: string;
-  icon?: React.ReactNode;
-  isLightMode: boolean;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-}
-
-const WidgetCard: React.FC<WidgetCardProps> = ({ title, subtitle, icon, isLightMode, children, action }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-    className={`relative rounded-3xl border p-5 sm:p-6 lg:p-8 transition-all duration-300 ${
-      isLightMode
-        ? 'border-amber-900/10 bg-white/90 shadow-[0_20px_50px_rgba(120,53,15,0.05)] backdrop-blur-md'
-        : 'border-white/[0.05] bg-gradient-to-b from-[#141419] to-[#0c0c0f] shadow-2xl backdrop-blur-md'
-    }`}
-  >
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        {icon && (
-          <div className={`rounded-xl p-2.5 ${isLightMode ? 'bg-amber-50 text-amber-700' : 'bg-white/[0.03] text-yellow-400'}`}>
-            {icon}
-          </div>
-        )}
-        <div>
-          <h3 className={`text-lg font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
-            {title}
-          </h3>
-          {subtitle && (
-            <p className={`text-xs mt-0.5 ${isLightMode ? 'text-amber-800/60' : 'text-gray-400'}`}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-    {children}
-  </motion.div>
-);
-
-// --- MAIN PROFILE COMPONENT ---
-
 export const Profile: React.FC<ProfileProps> = ({
-  selectedUser,
   onNavigate = () => {},
   isLightMode = false,
   onToggleLightMode = () => {},
@@ -132,28 +39,24 @@ export const Profile: React.FC<ProfileProps> = ({
   onCloseSidebar = () => {},
   currentUser
 }) => {
-  const navigate = useNavigate();
-  const { userId } = useParams<{ userId?: string }>();
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [showMessage, setShowMessage] = useState('');
   const [newInterest, setNewInterest] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
-    name: 'Loading...',
-    age: 0,
-    dob: '',
-    genderIdentity: '',
-    occupation: '',
-    bio: '',
-    interests: [],
-    reliabilityScore: 0,
-    isVerified: false,
-    location: '',
-    profileId: '',
+    name: 'Sarah Adeyemi',
+    age: 26,
+    dob: '1999-08-14',
+    genderIdentity: 'Woman',
+    occupation: 'Product Designer',
+    bio: 'Adventure seeker, coffee lover, dog parent. Usually down for brunch, beach days, and spontaneous city plans.',
+    interests: ['Hiking', 'Photography', 'Coffee', 'Art'],
+    reliabilityScore: 92,
+    isVerified: true,
+    location: 'Lagos, Nigeria',
+    profileId: 'JTO-9201-NG',
     visibility: {
       dob: 'private',
       genderIdentity: 'private',
@@ -162,83 +65,42 @@ export const Profile: React.FC<ProfileProps> = ({
       photos: 'public',
     },
     introVideo: '',
-    photos: [],
+    photos: [
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',
+      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
+    ],
   });
 
-  // Determine if viewing own profile or another user's
-  const viewingUserId = userId;
-  const isOwnProfile = !viewingUserId || viewingUserId === localStorage.getItem('userId')?.replace(/"/g, '');
-
+  // Fetch user profile from API
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        setError(null);
-
-        if (viewingUserId) {
-          // Viewing another user's profile by ID
-          console.log('Fetching profile for user:', viewingUserId);
-          const response = await API.getUserById(viewingUserId);
-          const userData = response.user || response;
-          console.log('Profile data received:', userData);
-          
+        if (currentUser?.id) {
+          const userProfile = await API.getUserProfile(currentUser.id);
+          // Map API response to component state
           setProfile(prev => ({
             ...prev,
-            name: userData.display_name || userData.full_name || userData.username || 'User',
-            bio: userData.bio || 'No bio available',
-            interests: userData.interests ? (typeof userData.interests === 'string' ? JSON.parse(userData.interests) : userData.interests) : [],
-            location: userData.city || userData.location || 'Location not specified',
-            profileId: userData.id || '',
-            isVerified: userData.is_verified || true,
-            reliabilityScore: 85,
-            photos: userData.profile_photos ? (typeof userData.profile_photos === 'string' ? JSON.parse(userData.profile_photos) : userData.profile_photos) : [
-              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
-              'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600',
-            ]
+            name: userProfile.name || prev.name,
+            bio: userProfile.bio || prev.bio,
+            interests: userProfile.interests || prev.interests,
+            photos: userProfile.profile_photos || prev.photos,
+            location: userProfile.location || prev.location,
           }));
-        } else {
-          // Viewing own profile
-          const currentUserId = localStorage.getItem('userId')?.replace(/"/g, '');
-          if (currentUserId) {
-            console.log('Fetching own profile for user:', currentUserId);
-            const response = await API.getUserById(currentUserId);
-            const userData = response.user || response;
-            console.log('Own profile data received:', userData);
-            
-            setProfile(prev => ({
-              ...prev,
-              name: userData.display_name || userData.full_name || userData.username || 'User',
-              bio: userData.bio || 'No bio available',
-              interests: userData.interests ? (typeof userData.interests === 'string' ? JSON.parse(userData.interests) : userData.interests) : [],
-              location: userData.city || userData.location || 'Location not specified',
-              profileId: userData.id || '',
-              isVerified: userData.is_verified || true,
-              reliabilityScore: 85,
-              photos: userData.profile_photos ? (typeof userData.profile_photos === 'string' ? JSON.parse(userData.profile_photos) : userData.profile_photos) : [
-                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
-                'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600',
-              ]
-            }));
-          } else {
-            setError('Please log in to view your profile');
-          }
         }
-      } catch (err: any) {
-        console.error('Failed to fetch profile:', err);
-        setError(err.message || 'Failed to load profile');
-        // Set fallback data
-        setProfile(prev => ({
-          ...prev,
-          name: 'Profile User',
-          bio: 'Welcome to my profile!',
-        }));
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+        // Keep default profile if API fails
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
-  }, [viewingUserId]);
+    if (currentUser?.id) {
+      fetchProfile();
+    }
+  }, [currentUser?.id]);
 
   const stats = {
     outings: 24,
@@ -246,6 +108,51 @@ export const Profile: React.FC<ProfileProps> = ({
     reviews: 18,
     rating: 4.7,
   };
+
+  const pageClass = isLightMode ? 'bg-[#f7f3ea] text-[#241b10]' : 'bg-[#0F0F13] text-white';
+  const mainGlowClass = isLightMode
+    ? 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.16),transparent_26%),radial-gradient(circle_at_85%_15%,rgba(251,146,60,0.14),transparent_24%),linear-gradient(180deg,#f8f3e8_0%,#f6efe1_100%)]'
+    : 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.16),transparent_28%),radial-gradient(circle_at_85%_15%,rgba(251,146,60,0.12),transparent_22%),#0F0F13]';
+  const sectionBorderClass = isLightMode ? 'border-yellow-700/20' : 'border-yellow-500/15';
+  const bodyTextClass = isLightMode ? 'text-[#5e4d37]' : 'text-gray-300';
+  const mutedTextClass = isLightMode ? 'text-[#8d7758]' : 'text-gray-400';
+  const titleClass = isLightMode ? 'text-amber-700' : 'text-yellow-400';
+  const heroCardClass = isLightMode
+    ? 'border-amber-700/15 bg-gradient-to-br from-white via-[#f7f0e4] to-[#f1e3ce] shadow-[0_24px_80px_rgba(120,53,15,0.12)]'
+    : 'border-yellow-500/18 bg-gradient-to-br from-[#1a1712] via-[#141419] to-black shadow-[0_24px_80px_rgba(0,0,0,0.28)]';
+  const heroTopClass = isLightMode
+    ? 'border-b border-amber-800/10 bg-[linear-gradient(115deg,rgba(251,191,36,0.28),rgba(245,158,11,0.18)),radial-gradient(circle_at_top_left,rgba(255,255,255,0.7),transparent_24%),#f4ead9]'
+    : 'border-b border-white/8 bg-[linear-gradient(115deg,rgba(245,158,11,0.42),rgba(120,53,15,0.5)),radial-gradient(circle_at_top_left,rgba(255,255,255,0.14),transparent_26%),#18181d]';
+  const borderSoftClass = isLightMode ? 'border-black/8' : 'border-white/10';
+  const surfaceClass = isLightMode ? 'bg-white/80' : 'bg-black/25';
+  const inputClass = isLightMode
+    ? 'border-black/10 bg-white/90 text-[#241b10] placeholder:text-[#9b886c] focus:border-amber-500/40'
+    : 'border-white/10 bg-white/5 text-white placeholder:text-gray-500 focus:border-yellow-500/40';
+  const pillClass = isLightMode
+    ? 'border-black/8 bg-white/75 text-[#4b3b28]'
+    : 'border-white/10 bg-white/[0.04] text-gray-200';
+  const strengthCardClass = isLightMode
+    ? 'border-amber-800/10 bg-amber-100/70'
+    : 'border-yellow-500/15 bg-yellow-500/[0.06]';
+  const panelClass = isLightMode
+    ? 'border-amber-800/12 bg-gradient-to-br from-white via-[#fbf7ef] to-[#f3e7d5] shadow-[0_18px_40px_rgba(120,53,15,0.10)]'
+    : 'border-yellow-500/15 bg-gradient-to-br from-white/[0.035] via-black/45 to-black/70 shadow-[0_18px_40px_rgba(0,0,0,0.16)]';
+  const accentCopyClass = isLightMode ? 'text-amber-700/80' : 'text-yellow-400/75';
+  const panelTitleClass = isLightMode ? 'text-amber-700' : 'text-yellow-300';
+  const innerCardClass = isLightMode ? 'border-black/8 bg-[#fffaf2]' : 'border-white/8 bg-black/20';
+  const interestPillClass = isLightMode
+    ? 'border-amber-700/15 bg-amber-100 text-amber-800'
+    : 'border-amber-500/20 bg-amber-500/10 text-amber-200';
+  const galleryCardClass = isLightMode ? 'border-black/8 bg-white/80' : 'border-white/10 bg-white/5';
+  const addPhotoClass = isLightMode
+    ? 'border-amber-700/20 bg-amber-50 text-amber-700 hover:bg-amber-100'
+    : 'border-yellow-500/30 bg-yellow-500/5 text-yellow-300 hover:bg-yellow-500/10';
+  const settingsButtonClass = isLightMode
+    ? 'border-black/10 bg-white/75 text-[#6b5539] hover:bg-white hover:text-[#241b10]'
+    : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white';
+  const previewStripeClass = isLightMode
+    ? 'border-amber-700/15 bg-amber-100/70'
+    : 'border-yellow-500/15 bg-yellow-500/[0.05]';
 
   const handleAddInterest = () => {
     if (newInterest.trim() && !profile.interests.includes(newInterest)) {
@@ -290,541 +197,637 @@ export const Profile: React.FC<ProfileProps> = ({
     setTimeout(() => setShowMessage(''), 2000);
   };
 
-  // Modern Dynamic Class Mappings
-  const pageBg = isLightMode ? 'bg-[#FAF8F5] text-[#1E1915]' : 'bg-[#0B0B0E] text-[#F3F4F6]';
-  const inputStyle = isLightMode
-    ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 focus:border-amber-500 focus:bg-white'
-    : 'border-white/[0.08] bg-white/[0.03] text-white focus:border-yellow-500 focus:bg-white/[0.06]';
-
   return (
-    <div className={`flex min-h-screen transition-colors duration-500 font-sans antialiased ${pageBg}`}>
-      {/* Sidebar Layout Alignment */}
+    <div className={`flex min-h-screen transition-colors duration-300 ${pageClass}`}>
       <div className="relative z-50">
         <Sidebar activeNav="" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
       </div>
 
-      {/* Main Container */}
-      <main className="relative ml-0 lg:ml-64 flex-1 overflow-x-hidden min-h-screen pb-24">
-        {/* Subtle Brand Background Glow Accents */}
-        <div className="absolute top-0 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-yellow-500/[0.03] blur-[120px] pointer-events-none" />
-        <div className="absolute top-[300px] left-0 -z-10 h-[400px] w-[400px] rounded-full bg-amber-600/[0.02] blur-[100px] pointer-events-none" />
+      <main className="mobile-page-main relative ml-64 flex-1 overflow-hidden">
+        <div className={`absolute inset-0 transition-colors duration-300 ${mainGlowClass}`} />
 
-        {/* Global Toast Notification Toast */}
-        <AnimatePresence>
-          {showMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="fixed top-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2.5 rounded-full bg-neutral-900 px-5 py-3 text-sm font-medium text-white shadow-2xl border border-white/10 backdrop-blur-md"
-            >
-              <CheckCircle2 size={16} className="text-yellow-400" />
-              <span>{showMessage}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Sub-Header Area */}
-        <header className={`border-b px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-6 ${isLightMode ? 'border-amber-900/5 bg-white/40' : 'border-white/[0.04] bg-[#0B0B0E]/40'} backdrop-blur-md sticky top-0 z-40`}>
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            {viewingUserId && (
-              <button 
-                onClick={() => navigate(-1)}
-                className={`p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0`}
-              >
-                <ArrowLeft size={18} />
-              </button>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold truncate">{isOwnProfile ? 'Your Profile' : `${profile.name}'s Profile`}</h1>
-              {error && <p className="text-xs sm:text-sm text-red-400 mt-1">{error}</p>}
-            </div>
-          </div>
-          <div className="flex gap-2 sm:gap-3 flex-shrink-0">
-            {isOwnProfile && (
-              <>
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={() => setIsEditing(false)}
-                      className="px-3 sm:px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 transition-colors text-xs sm:text-sm font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveProfile}
-                      className="px-3 sm:px-4 py-2 rounded-lg bg-[#F59E0B] text-black hover:bg-[#F59E0B]/90 transition-colors text-xs sm:text-sm font-semibold"
-                    >
-                      Save
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg bg-[#F59E0B] text-black hover:bg-[#F59E0B]/90 transition-colors text-xs sm:text-sm font-semibold"
-                  >
-                    <Edit2 size={14} className="hidden sm:block" /> <span className="sm:hidden">Edit</span><span className="hidden sm:inline">Edit Profile</span>
-                  </button>
-                )}
-              </>
-            )}
-            {!isOwnProfile && (
-              <button className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg bg-[#F59E0B] text-black hover:bg-[#F59E0B]/90 transition-colors text-xs sm:text-sm font-semibold">
-                <MessageCircle size={14} className="hidden sm:block" /> <span className="sm:hidden">Msg</span><span className="hidden sm:inline">Message</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Dynamic Grid Layout Viewport */}
-        <div className="mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-10 py-4 sm:py-8">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader className="animate-spin text-[#F59E0B]" size={32} />
-            </div>
-          ) : error && !profile.name.includes('Profile User') ? (
-            <div className={`rounded-2xl p-4 sm:p-6 flex items-start sm:items-center gap-3 sm:gap-4 ${
-              isLightMode 
-                ? 'border-red-900/10 bg-red-50/50 text-red-900' 
-                : 'border-red-500/20 bg-red-500/10 text-red-400'
-            }`}>
-              <X size={20} className="flex-shrink-0 mt-1 sm:mt-0" />
-              <div>
-                <p className="font-semibold text-sm">{error}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_360px] gap-4 sm:gap-6 md:gap-8">
-          
-          {/* Main Layout Stream */}
-          <div className="space-y-8 min-w-0">
-            
-            {/* Premium Profile Billboard Section */}
-            <div className={`relative overflow-hidden rounded-2xl sm:rounded-3xl border transition-all duration-300 ${
-              isLightMode 
-                ? 'border-amber-900/10 bg-white shadow-[0_30px_70px_rgba(120,53,15,0.04)]' 
-                : 'border-white/[0.05] bg-gradient-to-b from-[#131317] to-[#0A0A0D] shadow-2xl'
-            }`}>
-              {/* Dynamic Cover Drop */}
-              <div className={`relative h-24 sm:h-40 md:h-48 lg:h-52 w-full overflow-hidden ${
-                isLightMode 
-                  ? 'bg-gradient-to-br from-amber-100 to-amber-200/40' 
-                  : 'bg-gradient-to-br from-[#1F1C18] via-[#141419] to-[#0B0B0E]'
-              }`}>
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,0.12),transparent_60%)]" />
-                <div className="absolute bottom-2 right-3 sm:bottom-4 sm:right-6 hidden sm:flex items-center gap-1.5 rounded-full bg-black/40 px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[11px] font-medium text-white/90 backdrop-blur-md">
-                  <Globe size={10} className="sm:w-3 sm:h-3" />
-                  <span className="hidden sm:inline">Publicly visible</span>
-                </div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="relative pb-20"
+        >
+          <section className={`border-b px-6 py-8 md:px-10 ${sectionBorderClass}`}>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-3xl">
+                <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.35em] ${accentCopyClass}`}>
+                  Profile
+                </p>
+                <h1 className={`text-4xl font-serif font-bold tracking-tight md:text-5xl ${titleClass}`}>
+                  A polished first impression, before the first meetup.
+                </h1>
+                <p className={`mt-4 max-w-2xl text-base md:text-lg ${bodyTextClass}`}>
+                  Keep your identity, trust signals, and personality details sharp and easy to scan.
+                </p>
               </div>
 
-              {/* Identity Blueprint Block */}
-              <div className="relative px-4 sm:px-6 pb-4 sm:pb-6 md:pb-8">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6 -mt-12 sm:-mt-16 md:-mt-20 mb-4 sm:mb-6">
-                  {/* Avatar Engine */}
-                  <div className="relative inline-block group">
-                    <div className={`h-20 w-20 sm:h-28 md:h-36 sm:w-28 md:w-36 overflow-hidden rounded-xl sm:rounded-2xl border-[3px] sm:border-[4px] shadow-2xl transition-transform duration-300 group-hover:scale-[1.01] ${
-                      isLightMode ? 'border-[#FAF8F5] bg-white' : 'border-[#0B0B0E] bg-[#141419]'
-                    }`}>
-                      <img
-                        src={profile.photos[0]}
-                        alt={profile.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    {isEditing && (
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 rounded-xl bg-yellow-500 p-1.5 sm:p-2.5 text-black shadow-lg hover:bg-yellow-400 transition-all"
-                      >
-                        <Camera size={14} className="sm:w-4 sm:h-4" />
-                      </motion.button>
-                    )}
-                  </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={onToggleLightMode}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${settingsButtonClass}`}
+                >
+                  {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                  {isLightMode ? 'Dark mode' : 'Light mode'}
+                </button>
+                <button className={`rounded-full border p-3 transition ${settingsButtonClass}`}>
+                  <Settings size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (isEditing) {
+                      handleSaveProfile();
+                    } else {
+                      setIsEditing(true);
+                    }
+                  }}
+                  className="rounded-full bg-gradient-to-r from-yellow-500 to-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Edit2 size={16} />
+                    {isEditing ? 'Save profile' : 'Edit profile'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-4 sm:gap-6 px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8 md:py-10 xl:grid-cols-[1.45fr_0.8fr] grid-cols-1">
+            <div className="space-y-4 sm:space-y-6 w-full min-w-0">
+              <div className={`overflow-hidden rounded-2xl sm:rounded-3xl border transition-colors duration-300 ${heroCardClass}`}>
+                <div className={`relative h-36 sm:h-40 md:h-44 overflow-hidden ${heroTopClass}`}>
+                  <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,transparent,rgba(255,255,255,0.05),transparent)]" />
                 </div>
 
-                {/* Profile Data Canvas */}
-                <div className="max-w-2xl">
-                  {isEditing ? (
-                    <div className="space-y-3 sm:space-y-4 max-w-xl">
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Full Name</label>
-                        <input
-                          type="text"
-                          value={profile.name}
-                          onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                          className={`w-full rounded-xl border px-3 sm:px-4 py-2 text-sm sm:text-base font-semibold outline-none transition-all ${inputStyle}`}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Age</label>
-                          <input
-                            type="number"
-                            value={profile.age}
-                            onChange={(e) => setProfile({ ...profile, age: parseInt(e.target.value || '0', 10) })}
-                            className={`w-full rounded-xl border px-3 sm:px-4 py-2 text-sm sm:text-base font-semibold outline-none transition-all ${inputStyle}`}
+                <div className="relative px-4 sm:px-6 pb-4 sm:pb-6">
+                  <div className="flex flex-col gap-6 sm:gap-8 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="-mt-12 sm:-mt-14 flex flex-1 flex-col items-start min-w-0">
+                      <div className="relative">
+                        <div
+                          className={`h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-2xl sm:rounded-[1.75rem] border-4 shadow-xl ${isLightMode ? 'border-[#f7f3ea] bg-white shadow-amber-900/10' : 'border-[#0F0F13] bg-[#1b1b22] shadow-black/30'}`}
+                        >
+                          <img
+                            src={profile.photos[0]}
+                            alt={profile.name}
+                            className="h-full w-full object-cover"
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Location</label>
-                          <input
-                            type="text"
-                            value={profile.location}
-                            onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                            className={`w-full rounded-xl border px-3 sm:px-4 py-2 text-sm sm:text-base font-semibold outline-none transition-all ${inputStyle}`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <h2 className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
-                          {profile.name}, <span className="opacity-80 text-sm sm:text-xl md:text-2xl">{profile.age}</span>
-                        </h2>
-                        {profile.isVerified && (
-                          <div className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-green-400">
-                            <ShieldCheck size={10} className="sm:w-3 sm:h-3" />
-                            <span className="hidden sm:inline">Verified</span>
-                          </div>
+                        {isEditing && (
+                          <button
+                            className={`absolute bottom-0 right-0 sm:bottom-1 sm:right-1 rounded-full p-1.5 sm:p-2 transition ${isLightMode ? 'bg-white text-amber-700 hover:bg-amber-50' : 'bg-black/75 text-yellow-300 hover:bg-black'}`}
+                          >
+                            <Camera size={14} className="sm:w-4 sm:h-4" />
+                          </button>
                         )}
                       </div>
 
-                      <div className="mt-2 flex items-center gap-2 text-xs sm:text-sm font-medium opacity-70">
-                        <MapPin size={12} className="sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span className="truncate">{profile.location}</span>
+                      <div className="mt-3 sm:mt-4 w-full min-w-0">
+                        {isEditing ? (
+                          <div className="space-y-2 sm:space-y-3">
+                            <input
+                              type="text"
+                              value={profile.name}
+                              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                              className={`w-full rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 text-lg sm:text-2xl font-bold outline-none transition ${inputClass}`}
+                            />
+                            <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row">
+                              <input
+                                type="number"
+                                value={profile.age}
+                                onChange={(e) =>
+                                  setProfile({ ...profile, age: Number.parseInt(e.target.value || '0', 10) })
+                                }
+                                className={`w-20 sm:w-24 rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 outline-none transition ${inputClass}`}
+                                max="99"
+                              />
+                              <input
+                                type="text"
+                                value={profile.location}
+                                onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+                                className={`flex-1 rounded-xl sm:rounded-2xl border px-3 sm:px-4 py-2 sm:py-3 outline-none transition ${inputClass}`}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                              <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight break-words ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>
+                                {profile.name}, {profile.age}
+                              </h2>
+                              {profile.isVerified && (
+                                <span className="inline-flex items-center gap-1 sm:gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.15em] text-green-300 flex-shrink-0">
+                                  <ShieldCheck size={12} className="sm:w-[14px] sm:h-[14px]" />
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                            <p className={`mt-2 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm ${bodyTextClass} break-words`}>
+                              <MapPin size={14} className={`sm:w-4 sm:h-4 flex-shrink-0 ${isLightMode ? 'text-amber-700' : 'text-amber-300'}`} />
+                              {profile.location}
+                            </p>
+                            <p className={`mt-2 sm:mt-4 max-w-xl text-xs sm:text-sm leading-6 sm:leading-7 ${bodyTextClass}`}>
+                              {profile.bio}
+                            </p>
+                          </>
+                        )}
                       </div>
+                    </div>
 
-                      <p className={`mt-3 sm:mt-4 text-xs sm:text-sm leading-relaxed ${isLightMode ? 'text-amber-900/80' : 'text-gray-300'}`}>
-                        {profile.bio}
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:w-[320px] w-full sm:w-auto">
+                      <MiniStat value={stats.outings} label="Outings" accent="text-yellow-600" lightMode={isLightMode} />
+                      <MiniStat value={stats.hosted} label="Hosted" accent="text-amber-600" lightMode={isLightMode} />
+                      <MiniStat value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} accent="text-yellow-700" lightMode={isLightMode} />
+                      <MiniStat value={`${profile.reliabilityScore}%`} label="Reliability" accent="text-green-600" lightMode={isLightMode} />
+                    </div>
+                  </div>
+
+                  <div className={`mt-4 sm:mt-6 grid gap-3 sm:gap-4 border-t pt-4 sm:pt-6 lg:grid-cols-[1.2fr_0.8fr] ${isLightMode ? 'border-black/8' : 'border-white/8'}`}>
+                    <div className="flex flex-wrap gap-2">
+                      {quickTraits.map((trait) => (
+                        <span key={trait} className={`rounded-full border px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium ${pillClass}`}>
+                          {trait}
+                        </span>
+                      ))}
+                    </div>
+                    <div className={`rounded-2xl sm:rounded-[1.4rem] border p-3 sm:p-4 ${strengthCardClass}`}>
+                      <p className={`text-[9px] sm:text-[11px] font-semibold uppercase tracking-[0.15em] sm:tracking-[0.2em] ${isLightMode ? 'text-amber-700/80' : 'text-yellow-300/80'}`}>
+                        Profile strength
+                      </p>
+                      <div className={`mt-3 h-2 overflow-hidden rounded-full ${isLightMode ? 'bg-black/8' : 'bg-white/10'}`}>
+                        <div className="h-full w-[88%] rounded-full bg-gradient-to-r from-yellow-400 to-amber-500" />
+                      </div>
+                      <p className={`mt-3 text-sm ${bodyTextClass}`}>
+                        Strong trust profile with verified identity, clear photos, and consistent reviews.
                       </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Micro Traits Matrix */}
-                <div className={`mt-4 sm:mt-6 flex flex-wrap gap-1.5 sm:gap-2 border-t pt-3 sm:pt-5 ${isLightMode ? 'border-amber-900/5' : 'border-white/[0.04]'}`}>
-                  {quickTraits.map((trait) => (
-                    <span
-                      key={trait}
-                      className={`rounded-xl border px-2 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold tracking-wide ${
-                        isLightMode
-                          ? 'border-amber-900/5 bg-amber-50 text-amber-950'
-                          : 'border-white/[0.05] bg-white/[0.02] text-gray-300'
-                      }`}
-                    >
-                      {trait}
-                    </span>
-                  ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Quick Core Stats Block */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard value={stats.outings} label="Total Outings" icon={<Globe size={16} />} isLightMode={isLightMode} />
-              <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
-              <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
-              <StatCard value={`${profile.reliabilityScore}%`} label="Reliability" icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
-            </div>
-
-            {/* Panel Widget: Professional Identity Map */}
-            <WidgetCard title="Identity Portfolio" subtitle="Key identity attributes visible to community members" icon={<User size={18} />} isLightMode={isLightMode}>
-              {isEditing ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Date of Birth</label>
+              <PanelCard
+                eyebrow="Identity"
+                title="Profile details people scan first"
+                description="Add the extra context that helps people trust a profile before they say yes."
+                lightMode={isLightMode}
+              >
+                {isEditing ? (
+                  <div className="grid gap-3 md:grid-cols-2">
                     <input
                       type="date"
                       value={profile.dob}
                       onChange={(e) => setProfile({ ...profile, dob: e.target.value })}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all ${inputStyle}`}
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Gender Identity</label>
                     <input
                       type="text"
                       value={profile.genderIdentity}
                       onChange={(e) => setProfile({ ...profile, genderIdentity: e.target.value })}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all ${inputStyle}`}
+                      placeholder="Gender identity"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
                     />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Occupation</label>
                     <input
                       type="text"
                       value={profile.occupation}
                       onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all ${inputStyle}`}
+                      placeholder="Occupation"
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition md:col-span-2 ${inputClass}`}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Birthdate Privacy</label>
                     <select
                       value={profile.visibility.dob}
-                      onChange={(e) => setProfile({ ...profile, visibility: { ...profile.visibility, dob: e.target.value } })}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all ${inputStyle}`}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          visibility: { ...profile.visibility, dob: e.target.value },
+                        })
+                      }
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
                     >
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
+                      <option value="public">DOB public</option>
+                      <option value="private">DOB private</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Occupation Privacy</label>
                     <select
                       value={profile.visibility.occupation}
-                      onChange={(e) => setProfile({ ...profile, visibility: { ...profile.visibility, occupation: e.target.value } })}
-                      className={`w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-all ${inputStyle}`}
+                      onChange={(e) =>
+                        setProfile({
+                          ...profile,
+                          visibility: { ...profile.visibility, occupation: e.target.value },
+                        })
+                      }
+                      className={`rounded-2xl border px-4 py-3 text-sm outline-none transition ${inputClass}`}
                     >
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
+                      <option value="public">Occupation public</option>
+                      <option value="private">Occupation private</option>
                     </select>
                   </div>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                  {[
-                    { label: 'Profile ID Token', value: profile.profileId, icon: <Lock size={12} />, meta: 'Secure internal reference' },
-                    { label: 'Date of Birth', value: profile.dob, icon: <Calendar size={12} />, meta: `${profile.visibility.dob} view state` },
-                    { label: 'Gender Alignment', value: profile.genderIdentity, icon: <User size={12} />, meta: `${profile.visibility.genderIdentity} visibility` },
-                    { label: 'Current Profession', value: profile.occupation, icon: <Briefcase size={12} />, meta: `${profile.visibility.occupation} status` },
-                    { label: 'Bio Feed Privacy', value: profile.visibility.bio, icon: <Eye size={12} />, meta: 'Feed global standard' },
-                    { label: 'Media Authorization', value: profile.visibility.photos, icon: <Globe size={12} />, meta: 'Asset global scope' },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className={`rounded-2xl border p-4 flex flex-col justify-between transition-all ${
-                        isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 opacity-50">
-                          {item.icon}
-                          <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
-                        </div>
-                        <p className={`mt-2 text-sm font-bold ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
-                          {item.value}
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {[
+                      { label: 'Profile ID', value: profile.profileId, helper: 'Share this with trusted contacts' },
+                      { label: 'Date of birth', value: profile.dob, helper: `${profile.visibility.dob} view` },
+                      { label: 'Gender identity', value: profile.genderIdentity, helper: `${profile.visibility.genderIdentity} view` },
+                      { label: 'Occupation', value: profile.occupation, helper: `${profile.visibility.occupation} view` },
+                      { label: 'Bio visibility', value: profile.visibility.bio, helper: 'Controls what people see first' },
+                      { label: 'Media visibility', value: profile.visibility.photos, helper: 'Photos and intro video' },
+                    ].map((item) => (
+                      <div key={item.label} className={`rounded-[1.35rem] border p-4 ${innerCardClass}`}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+                          {item.label}
                         </p>
+                        <p className={`mt-2 text-base font-semibold ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>{item.value}</p>
+                        <p className={`mt-1 text-xs ${mutedTextClass}`}>{item.helper}</p>
                       </div>
-                      <span className="mt-3 text-[11px] opacity-40 block">{item.meta}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </WidgetCard>
+                    ))}
+                  </div>
+                )}
+              </PanelCard>
 
-            {/* Panel Widget: Narrative Framework */}
-            <WidgetCard title="Personal Interests & Bio" subtitle="Contextual traits that describe you" icon={<Award size={18} />} isLightMode={isLightMode}>
-              {isEditing ? (
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Bio</label>
+              <PanelCard
+                eyebrow="About you"
+                title="What people should know"
+                description="Clear details make your profile feel intentional, trustworthy, and easy to say yes to."
+                lightMode={isLightMode}
+              >
+                {isEditing ? (
+                  <div className="space-y-4">
                     <textarea
                       value={profile.bio}
                       onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all ${inputStyle}`}
+                      className={`w-full rounded-[1.5rem] border px-4 py-4 text-sm outline-none transition ${inputClass}`}
                       rows={4}
+                      placeholder="Tell people what you're into..."
                     />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Manage Interests</label>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {profile.interests.map((interest) => (
-                        <span
-                          key={interest}
-                          className="inline-flex items-center gap-1 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 text-xs font-semibold text-yellow-500"
-                        >
-                          {interest}
-                          <button onClick={() => handleRemoveInterest(interest)} className="hover:text-red-400 transition-all ml-1">
-                            <X size={12} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    
-                    <div className="flex gap-2 max-w-sm">
+                    <div className="grid gap-3 md:grid-cols-2">
                       <input
                         type="text"
-                        placeholder="Add interest tag..."
-                        value={newInterest}
-                        onChange={(e) => setNewInterest(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleAddInterest();
-                            e.preventDefault();
-                          }
-                        }}
-                        className={`flex-1 rounded-xl border px-3 py-1.5 text-xs outline-none transition-all ${inputStyle}`}
+                        value={profile.occupation}
+                        onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
+                        placeholder="Occupation"
+                        className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
                       />
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleAddInterest}
-                        className="rounded-xl bg-yellow-500 px-4 py-1.5 text-xs font-bold text-black shadow-md hover:bg-yellow-400 transition-all"
-                      >
-                        Add
-                      </motion.button>
+                      <input
+                        type="text"
+                        value={profile.genderIdentity}
+                        onChange={(e) => setProfile({ ...profile, genderIdentity: e.target.value })}
+                        placeholder="Gender identity"
+                        className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
+                      />
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-                  <div>
-                    <p className={`text-sm leading-relaxed ${isLightMode ? 'text-amber-900/80' : 'text-gray-300'}`}>
-                      {profile.bio}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span className={`rounded-xl border px-3 py-1 text-xs font-medium ${isLightMode ? 'bg-amber-50 text-amber-950' : 'bg-white/[0.02] text-gray-300'}`}>
-                        {profile.occupation}
-                      </span>
-                      <span className={`rounded-xl border px-3 py-1 text-xs font-medium ${isLightMode ? 'bg-amber-50 text-amber-950' : 'bg-white/[0.02] text-gray-300'}`}>
-                        {profile.genderIdentity}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className={`rounded-2xl border p-4 ${isLightMode ? 'border-amber-900/5 bg-amber-50/20' : 'border-white/[0.04] bg-white/[0.01]'}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-50 block mb-3">
-                      Interests Matrix
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {profile.interests.map((interest) => (
-                        <span
-                          key={interest}
-                          className={`rounded-xl border px-3 py-1.5 text-xs font-semibold ${
-                            isLightMode 
-                              ? 'border-amber-600/10 bg-amber-100/50 text-amber-900' 
-                              : 'border-yellow-500/10 bg-yellow-500/[0.04] text-yellow-400'
-                          }`}
-                        >
-                          {interest}
+                        <span key={interest} className={`rounded-full border px-3 py-2 text-xs ${interestPillClass}`}>
+                          {interest} <button onClick={() => handleRemoveInterest(interest)} className="ml-2 font-bold">×</button>
                         </span>
                       ))}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Add interest..."
+                          value={newInterest}
+                          onChange={(e) => setNewInterest(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddInterest();
+                              e.preventDefault();
+                            }
+                          }}
+                          className={`rounded-full border px-4 py-2 text-xs outline-none transition ${inputClass}`}
+                        />
+                        <button 
+                          onClick={handleAddInterest}
+                          className="rounded-full bg-[#F59E0B] text-white px-3 py-2 text-xs font-semibold hover:bg-[#F59E0B]/90"
+                        >
+                          Add
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </WidgetCard>
-
-            {/* Panel Widget: Media Vault Layout */}
-            <WidgetCard title="Media Gallery" subtitle="Visual presentation of your lifestyle profile" icon={<Camera size={18} />} isLightMode={isLightMode}>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                {profile.photos.slice(0, 4).map((photo, idx) => (
-                  <motion.div
-                    key={idx}
-                    whileHover={{ scale: 1.02 }}
-                    className={`group relative aspect-square overflow-hidden rounded-2xl border transition-all ${
-                      isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'
-                    }`}
-                  >
-                    <img
-                      src={photo}
-                      alt={`Asset allocation ${idx + 1}`}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  </motion.div>
-                ))}
-                
-                {isEditing && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`flex aspect-square flex-col items-center justify-center rounded-2xl border border-dashed text-sm font-semibold transition-all ${
-                      isLightMode
-                        ? 'border-amber-900/20 bg-amber-50 text-amber-900 hover:bg-amber-100/60'
-                        : 'border-white/[0.15] bg-white/[0.01] text-gray-400 hover:bg-white/[0.03]'
-                    }`}
-                  >
-                    <Plus size={20} className="mb-1 text-yellow-500" />
-                    <span>Upload</span>
-                  </motion.button>
+                ) : (
+                  <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                    <div>
+                      <p className={`text-sm leading-7 ${bodyTextClass}`}>{profile.bio}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>{profile.occupation}</span>
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>{profile.genderIdentity}</span>
+                        <span className={`rounded-full border px-3 py-1.5 text-xs ${pillClass}`}>DOB private</span>
+                      </div>
+                    </div>
+                    <div className={`rounded-[1.4rem] border p-4 ${innerCardClass}`}>
+                      <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+                        Interests
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {profile.interests.map((interest) => (
+                          <span key={interest} className={`rounded-full border px-3 py-2 text-xs font-medium ${interestPillClass}`}>
+                            {interest}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
+              </PanelCard>
 
-                <div className={`flex aspect-square flex-col items-center justify-center rounded-2xl border p-4 text-center transition-all ${
-                  isLightMode ? 'border-amber-900/5 bg-amber-50/20' : 'border-white/[0.04] bg-white/[0.01]'
-                }`}>
-                  <Video size={18} className="text-yellow-500 mb-1" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider block">Intro Video</span>
-                  <span className="text-xs opacity-40 mt-1">
-                    {profile.introVideo ? 'Active Profile Clip' : 'No Video'}
-                  </span>
+              <PanelCard
+                eyebrow="Gallery"
+                title="Photos and intro video"
+                description="Show enough personality that people can imagine the kind of hangout they'd have with you."
+                lightMode={isLightMode}
+              >
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                  {profile.photos.slice(0, 6).map((photo, idx) => (
+                    <div key={idx} className={`overflow-hidden rounded-[1.5rem] border ${galleryCardClass}`}>
+                      <img
+                        src={photo}
+                        alt={`Profile photo ${idx + 1}`}
+                        className="aspect-square w-full object-cover transition hover:scale-[1.02]"
+                      />
+                    </div>
+                  ))}
+                  {isEditing && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`flex aspect-square items-center justify-center rounded-[1.5rem] border border-dashed transition ${addPhotoClass}`}
+                    >
+                      <Camera size={24} />
+                    </button>
+                  )}
+                  <div className={`flex aspect-square flex-col items-center justify-center rounded-[1.5rem] border ${galleryCardClass} p-4 text-center`}>
+                    <Video size={22} className={isLightMode ? 'text-amber-700' : 'text-yellow-300'} />
+                    <p className={`mt-2 text-xs font-semibold uppercase tracking-[0.18em] ${isLightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+                      Intro video
+                    </p>
+                    <p className={`mt-1 text-[11px] ${mutedTextClass}`}>
+                      {profile.introVideo ? 'Uploaded' : 'Add a short intro clip'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </WidgetCard>
-
-          </div>
-
-          {/* Sidebar Widget Block Stack */}
-          <aside className="space-y-6">
-            
-            {/* Trust Optimization Blueprint Widget */}
-            <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${
-              isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'
-            }`}>
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldCheck size={16} className="text-yellow-500" />
-                <h4 className="text-xs font-bold uppercase tracking-wider">
-                  Profile Status Score
-                </h4>
-              </div>
-              
-              <div className="flex items-end justify-between mb-2">
-                <span className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">
-                  88%
-                </span>
-                <span className="text-xs font-medium opacity-60">Excellent Integrity</span>
-              </div>
-              
-              <div className={`h-2 w-full rounded-full overflow-hidden mb-4 ${isLightMode ? 'bg-amber-900/5' : 'bg-white/[0.08]'}`}>
-                <div className="h-full w-[88%] rounded-full bg-gradient-to-r from-yellow-400 to-amber-500" />
-              </div>
-              
-              <p className="text-xs opacity-60 leading-relaxed">
-                Your absolute trustworthiness signals are active. Verification enhances priority discovery states across your locale.
-              </p>
+              </PanelCard>
             </div>
 
-            {/* Secondary Option Canvas Widget */}
-            <WidgetCard title="App Interface" subtitle="Personalize operational views" icon={<Sun size={16} />} isLightMode={isLightMode}>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={onToggleLightMode}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
-                  isLightMode
-                    ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/50'
-                    : 'border-white/[0.06] bg-white/[0.02] text-white hover:bg-white/[0.04]'
-                }`}
+            <aside className="space-y-6">
+              <PanelCard
+                eyebrow="Appearance"
+                title="Theme controls"
+                description="Switch the app between the default dark look and a light interface."
+                lightMode={isLightMode}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isLightMode ? 'bg-white text-amber-950' : 'bg-white/[0.04] text-yellow-400'}`}>
-                    {isLightMode ? <Moon size={14} /> : <Sun size={14} />}
+                <button
+                  onClick={onToggleLightMode}
+                  className={`flex w-full items-center justify-between rounded-[1.5rem] border px-5 py-4 text-left transition ${
+                    isLightMode
+                      ? 'border-amber-700/15 bg-amber-100/70 text-amber-900 hover:bg-amber-100'
+                      : 'border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.07]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                        isLightMode ? 'bg-white text-amber-700' : 'bg-yellow-500/15 text-yellow-300'
+                      }`}
+                    >
+                      {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
+                    </div>
+                    <div>
+                      <p className={`font-semibold ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>
+                        {isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+                      </p>
+                      <p className={`mt-1 text-sm ${isLightMode ? 'text-[#8d7758]' : 'text-gray-400'}`}>
+                        Turns black backgrounds light and flips white text darker across the app.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold">Theme Toggle Engine</p>
-                    <p className="text-[11px] opacity-50 mt-0.5">Currently: {isLightMode ? 'Light View' : 'Dark View'}</p>
+                  <ChevronRight size={18} className="opacity-60" />
+                </button>
+              </PanelCard>
+
+              <PanelCard
+                eyebrow="Trust signals"
+                title="Trust at a glance"
+                description="The details below help other members understand that you are real, responsive, and easy to plan with."
+                lightMode={isLightMode}
+              >
+                <div className="space-y-4">
+                  <TrustRow
+                    icon={<ShieldCheck size={18} />}
+                    title="Identity verified"
+                    text="Your account checks out, which gives hosts and guests extra confidence."
+                    accent="text-green-600"
+                    bg={isLightMode ? 'bg-green-100' : 'bg-green-500/10'}
+                    lightMode={isLightMode}
+                  />
+                  <TrustRow
+                    icon={<Star size={18} />}
+                    title={`${stats.rating} average rating`}
+                    text={`${stats.reviews} reviews from people you've gone out with.`}
+                    accent={isLightMode ? 'text-yellow-700' : 'text-yellow-300'}
+                    bg={isLightMode ? 'bg-yellow-100' : 'bg-yellow-500/10'}
+                    lightMode={isLightMode}
+                  />
+                  <TrustRow
+                    icon={<MapPin size={18} />}
+                    title="Lagos local"
+                    text="Your location helps nearby people discover and trust your plans faster."
+                    accent={isLightMode ? 'text-amber-700' : 'text-amber-300'}
+                    bg={isLightMode ? 'bg-amber-100' : 'bg-amber-500/10'}
+                    lightMode={isLightMode}
+                  />
+                </div>
+              </PanelCard>
+
+              <PanelCard
+                eyebrow="Preview"
+                title="How others see you"
+                description="A compact view of the signals most people scan before joining a plan."
+                lightMode={isLightMode}
+              >
+                <div className={`rounded-[1.5rem] border p-4 ${innerCardClass}`}>
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={profile.photos[0]}
+                      alt={profile.name}
+                      className="h-16 w-16 rounded-2xl object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={`truncate font-semibold ${isLightMode ? 'text-[#241b10]' : 'text-white'}`}>{profile.name}</p>
+                        {profile.isVerified && <ShieldCheck size={14} className="text-green-500" />}
+                      </div>
+                      <p className={`mt-1 text-sm ${mutedTextClass}`}>{profile.location}</p>
+                    </div>
+                  </div>
+                  <p className={`mt-4 text-sm leading-6 ${bodyTextClass}`}>
+                    Friendly, reliable, and usually up for well-planned city hangouts.
+                  </p>
+                  <div className={`mt-4 flex items-center justify-between rounded-[1rem] border px-4 py-3 ${previewStripeClass}`}>
+                    <span className={`text-sm ${bodyTextClass}`}>Reliability score</span>
+                    <span className={isLightMode ? 'font-semibold text-amber-700' : 'font-semibold text-yellow-300'}>
+                      {profile.reliabilityScore}%
+                    </span>
                   </div>
                 </div>
-                <ChevronRight size={14} className="opacity-40" />
-              </motion.button>
-            </WidgetCard>
+              </PanelCard>
 
-          </aside>          </div>
-          )}        </div>
+              <PanelCard
+                eyebrow="Account"
+                title="Manage your profile"
+                description="Support, exports, and account actions all in one spot."
+                lightMode={isLightMode}
+              >
+                <div className="space-y-3">
+                  <ActionRow icon={<HelpCircle size={18} />} label="Help & Support" lightMode={isLightMode} />
+                  <ActionRow icon={<Download size={18} />} label="Export My Data" lightMode={isLightMode} />
+                  <ActionRow icon={<Trash2 size={18} />} label="Delete Account" danger lightMode={isLightMode} />
+                  <ActionRow icon={<LogOut size={18} />} label="Log Out" subtle lightMode={isLightMode} />
+                </div>
+              </PanelCard>
+            </aside>
+          </section>
 
-        {/* Hidden Form Capture Handlers */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handlePhotoUpload}
-          accept="image/*"
-          className="hidden"
-        />
+          {showMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-6 right-6 bg-[#1A1A21] border border-[#F59E0B]/50 rounded-2xl px-6 py-3 text-white font-medium shadow-lg z-50">
+              {showMessage}
+            </motion.div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoUpload}
+            className="hidden"
+          />
+        </motion.div>
       </main>
     </div>
   );
 };
+
+function MiniStat({
+  value,
+  label,
+  accent,
+  lightMode,
+}: {
+  value: string | number;
+  label: string;
+  accent: string;
+  lightMode: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-[1.35rem] border p-4 text-center backdrop-blur-sm ${
+        lightMode ? 'border-black/8 bg-white/75' : 'border-white/10 bg-black/25'
+      }`}
+    >
+      <p className={`text-2xl font-bold ${accent}`}>{value}</p>
+      <p className={`mt-1 text-xs uppercase tracking-[0.18em] ${lightMode ? 'text-[#8d7758]' : 'text-gray-500'}`}>
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function PanelCard({
+  eyebrow,
+  title,
+  description,
+  children,
+  lightMode,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  lightMode: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-[2rem] border p-6 transition-colors duration-300 ${
+        lightMode
+          ? 'border-amber-800/12 bg-gradient-to-br from-white via-[#fbf7ef] to-[#f3e7d5] shadow-[0_18px_40px_rgba(120,53,15,0.10)]'
+          : 'border-yellow-500/15 bg-gradient-to-br from-white/[0.035] via-black/45 to-black/70 shadow-[0_18px_40px_rgba(0,0,0,0.16)]'
+      }`}
+    >
+      <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${lightMode ? 'text-amber-700/80' : 'text-yellow-400/75'}`}>
+        {eyebrow}
+      </p>
+      <h3 className={`mt-3 text-2xl font-serif font-semibold ${lightMode ? 'text-amber-700' : 'text-yellow-300'}`}>
+        {title}
+      </h3>
+      <p className={`mt-2 text-sm ${lightMode ? 'text-[#8d7758]' : 'text-gray-400'}`}>{description}</p>
+      <div className="mt-6">{children}</div>
+    </div>
+  );
+}
+
+function TrustRow({
+  icon,
+  title,
+  text,
+  accent,
+  bg,
+  lightMode,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  accent: string;
+  bg: string;
+  lightMode: boolean;
+}) {
+  return (
+    <div className={`flex gap-4 rounded-[1.4rem] border p-4 ${lightMode ? 'border-black/8 bg-white/70' : 'border-white/8 bg-black/20'}`}>
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${bg} ${accent}`}>
+        {icon}
+      </div>
+      <div>
+        <p className={`font-semibold ${lightMode ? 'text-[#241b10]' : 'text-white'}`}>{title}</p>
+        <p className={`mt-1 text-sm leading-6 ${lightMode ? 'text-[#8d7758]' : 'text-gray-400'}`}>{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({
+  icon,
+  label,
+  danger = false,
+  subtle = false,
+  lightMode,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  danger?: boolean;
+  subtle?: boolean;
+  lightMode: boolean;
+}) {
+  const tone = danger
+    ? lightMode
+      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+      : 'border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/15'
+    : subtle
+      ? lightMode
+        ? 'border-black/8 bg-white/75 text-[#6b5539] hover:bg-white'
+        : 'border-white/8 bg-white/[0.03] text-gray-300 hover:bg-white/[0.05]'
+      : lightMode
+        ? 'border-black/8 bg-white/75 text-[#241b10] hover:bg-white'
+        : 'border-white/8 bg-white/[0.03] text-white hover:bg-white/[0.05]';
+
+  return (
+    <button className={`flex w-full items-center gap-3 rounded-[1.25rem] border px-4 py-4 text-left transition ${tone}`}>
+      {icon}
+      <span className="text-sm font-medium">{label}</span>
+      <ChevronRight size={16} className="ml-auto text-current opacity-50" />
+    </button>
+  );
+}
+
+export default Profile;

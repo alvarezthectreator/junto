@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Plus, MoreVertical, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAppContext } from '../App';
+import { useAppContext } from '../context/AppContext';
 
 interface TopHeaderProps {
   showHamburger?: boolean;
