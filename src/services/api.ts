@@ -1,7 +1,7 @@
 // Junto API Service
 // Handles all backend API communication
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 // Session token storage
 let sessionToken: string | null = null;
