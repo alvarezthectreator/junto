@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bell, Plus, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
@@ -104,11 +104,6 @@ export function App() {
     setCurrentPage('main');
     setActiveNav('Discover');
     setIsAuthenticated(true);
-    setHasEntered(true);
-  };
-
-  const handleEnterApp = (userData: any) => {
-    setCurrentUser(userData);
     setHasEntered(true);
   };
 
@@ -227,9 +222,9 @@ export function App() {
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
     if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
-    if (currentPage === 'premium') return <Premium onNavigate={setCurrentPage} />;
+    if (currentPage === 'premium') return <Premium />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
-    if (currentPage === 'travel') return <TravelMode onNavigate={setCurrentPage} isLightMode={isLightMode} />;
+    if (currentPage === 'travel') return <TravelMode />;
     if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
 
     return (

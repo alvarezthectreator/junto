@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User } from "lucide-react";
+import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
 interface NearbyProps {
@@ -191,7 +192,7 @@ export const Nearby: React.FC<NearbyProps> = ({
       }}
       className="font-sans"
     >
-      <main className="mobile-page-main mx-auto max-w-7xl px-4 py-5 pb-24 sm:px-6 lg:px-8">
+      <main className="mobile-page-main mx-auto max-w-7xl px-4 py-5 pb-32 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -261,7 +262,10 @@ export const Nearby: React.FC<NearbyProps> = ({
                   <h2 className="text-lg font-bold">People close to you</h2>
                 </div>
                 <button
-                  onClick={() => onNavigate("discover")}
+                  onClick={() => {
+                    setActiveNav("Discover");
+                    onNavigate("main");
+                  }}
                   className="rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
                   style={{ background: "#F59E0B", color: "#111" }}
                 >
@@ -279,15 +283,23 @@ export const Nearby: React.FC<NearbyProps> = ({
                   {filteredPeople.map((person) => {
                     const selected = selectedPerson?.id === person.id;
                     return (
-                      <button
-                        key={person.id}
-                        onClick={() => setSelectedPersonId(person.id)}
-                        className="w-full rounded-[1.5rem] border p-4 text-left transition hover:translate-y-[-1px]"
-                        style={{
-                          borderColor: selected ? "rgba(245,158,11,0.45)" : borderColor,
-                          background: selected ? "rgba(245,158,11,0.10)" : panelBg,
-                        }}
-                      >
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      key={person.id}
+                      onClick={() => setSelectedPersonId(person.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedPersonId(person.id);
+                        }
+                      }}
+                      className="w-full rounded-[1.5rem] border p-4 text-left transition hover:translate-y-[-1px]"
+                      style={{
+                        borderColor: selected ? "rgba(245,158,11,0.45)" : borderColor,
+                        background: selected ? "rgba(245,158,11,0.10)" : panelBg,
+                      }}
+                    >
                         <div className="flex items-start gap-4">
                           <div
                             className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-black"
@@ -316,6 +328,7 @@ export const Nearby: React.FC<NearbyProps> = ({
                                   {person.proximityLabel}
                                 </span>
                               <button
+                                type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   openMessages();
@@ -350,11 +363,11 @@ export const Nearby: React.FC<NearbyProps> = ({
                                 </span>
                               ))}
                             </div>
-                          </div>
+                            </div>
                         </div>
-                      </button>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
                 </div>
               )}
             </div>
@@ -434,7 +447,10 @@ export const Nearby: React.FC<NearbyProps> = ({
                         Message
                       </button>
                       <button
-                        onClick={() => setActiveNav("Discover")}
+                        onClick={() => {
+                          setActiveNav("Discover");
+                          onNavigate("main");
+                        }}
                         className="flex-1 rounded-full border px-4 py-3 text-sm font-bold transition hover:bg-white/5"
                         style={{ borderColor, color: pageText }}
                       >
@@ -452,6 +468,8 @@ export const Nearby: React.FC<NearbyProps> = ({
           </section>
         </motion.div>
       </main>
+
+      <Sidebar activeNav="Nearby" onNavigate={onNavigate} setActiveNav={setActiveNav} />
     </div>
   );
 };

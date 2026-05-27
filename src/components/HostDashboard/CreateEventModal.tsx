@@ -82,7 +82,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ isOpen, onClose, is
         billing_tier: parseInt(formData.billingTier)
       });
 
-      onEventCreated?.(newEvent);
+      onEventCreated?.(newEvent.event);
       
       // Reset form
       setFormData({

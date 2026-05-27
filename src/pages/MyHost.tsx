@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
@@ -921,7 +920,6 @@ function CreateEventModal({
 }
 
 export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateModal: initialOpenModal = false, onNavigate = () => {}, handleLogout = () => {} }) => {
-  const navigate = useNavigate();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("active");
   const [headerVisible, setHeaderVisible] = useState(false);
@@ -996,11 +994,11 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
       };
 
       // Send to backend API
-      const response = await API.createEvent(eventPayload);
+      const { event: createdEventResponse } = await API.createEvent(eventPayload);
 
       // Add the new event to local state
       const createdEvent = {
-        id: response?.event?.id || eventData.id,
+        id: createdEventResponse?.id || eventData.id,
         host_id: userId,
         userInitial: 'Y',
         userName: 'You',
@@ -1048,7 +1046,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
 
       const newEventWithId = {
         ...eventData,
-        id: response?.event?.id || eventData.id,
+        id: createdEventResponse?.id || eventData.id,
       };
       
       setEvents(prev => [newEventWithId, ...prev]);
@@ -1116,7 +1114,8 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => navigate('/hosting')}
+              type="button"
+              onClick={() => onNavigate?.('dashboard')}
               style={{
                 display: "flex",
                 alignItems: "center",

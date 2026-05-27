@@ -3,9 +3,6 @@ import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, Check, Crown, Sparkles, Star, Menu, Plus, X, Bell } from 'lucide-react';
 
 interface PremiumProps {
-  onNavigate?: (page: string) => void;
-  setActiveNav?: (nav: string) => void;
-  onCloseSidebar?: () => void;
 }
 
 type BillingCycle = 'monthly' | 'annual';
@@ -63,8 +60,7 @@ const featureRows = [
   ['Support priority', 'Basic', 'Standard', 'Fast', 'Priority'],
 ];
 
-export const Premium: React.FC<PremiumProps> = ({ onNavigate = () => {}, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+export const Premium: React.FC<PremiumProps> = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PlanId>('premium');
   const [isPurchasing, setIsPurchasing] = useState(false);

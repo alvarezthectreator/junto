@@ -20,9 +20,12 @@ export interface UserProfile {
   id: string;
   user_id: string;
   name: string;
+  display_name?: string;
   bio?: string;
   profile_photo?: string;
+  profile_photos?: string[];
   interests?: string[];
+  location?: string;
   travel_mode_enabled?: boolean;
   travel_destination_city?: string;
 }
@@ -185,7 +188,7 @@ export async function getEventById(eventId: string): Promise<Event> {
   return apiCall(`/events/${eventId}`);
 }
 
-export async function createEvent(event: Partial<Event>): Promise<Event> {
+export async function createEvent(event: Partial<Event>): Promise<{ event: Event; message?: string }> {
   return apiCall('/events', 'POST', event);
 }
 
@@ -268,7 +271,7 @@ export async function markMessagesAsRead(conversationId: string): Promise<void> 
 
 // ==================== NEARBY ====================
 
-export async function getNearbyUsers(userId: string, latitude: number, longitude: number): Promise<User[]> {
+export async function getNearbyUsers(userId: string, latitude: number, longitude: number): Promise<{ nearby_users: User[] }> {
   return apiCall(`/nearby/${userId}?lat=${latitude}&lon=${longitude}`);
 }
 

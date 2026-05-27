@@ -64,6 +64,8 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={() => onNavigate?.('myhost')}
                 className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
               >
                 <Plus className="w-5 h-5" />

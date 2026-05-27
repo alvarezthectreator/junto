@@ -17,9 +17,10 @@ interface SidebarProps {
   handleLogout?: () => void;
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
+  onCloseSidebar?: () => void;
 }
 
-export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar }: SidebarProps) {
   const navigate = useNavigate();
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
   const logoutMenuRef = useRef<HTMLDivElement>(null);
@@ -42,6 +43,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
       if (setActiveNav) {
         setActiveNav(navLabel);
       }
+      onCloseSidebar?.();
     } else {
       navigate(`/${page}`);
     }
