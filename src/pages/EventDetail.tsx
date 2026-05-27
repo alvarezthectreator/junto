@@ -1093,10 +1093,10 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
             }
           }}
         >
-          <form
-            onSubmit={handleSaveEdit}
-            className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#111115] p-5 shadow-2xl shadow-black/40 sm:p-6"
-          >
+      <form
+        onSubmit={handleSaveEdit}
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#111115] p-5 shadow-2xl shadow-black/40 sm:p-6"
+      >
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-white">Edit event</h3>
@@ -1117,7 +1117,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               </div>
             )}
 
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 flex-1 overflow-y-auto pr-1 grid gap-4">
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-300">Title</label>
                 <input
@@ -1196,7 +1196,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               </div>
             </div>
 
-            <div className="mt-5 flex gap-3">
+            <div className="mt-5 flex shrink-0 gap-3">
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
