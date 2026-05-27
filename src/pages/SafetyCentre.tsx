@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Sidebar } from '../components/Sidebar';
 import {
   AlertTriangle,
   Copy,
@@ -123,7 +124,11 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
 
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
-      <main className="mobile-page-main flex-1 ml-0 relative overflow-hidden">
+      <div className="relative z-50">
+        <Sidebar activeNav="Safety" onNavigate={onNavigate} setActiveNav={setActiveNav} onCloseSidebar={onCloseSidebar} />
+      </div>
+
+      <main className="mobile-page-main flex-1 ml-0 relative overflow-hidden pb-24">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.14),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(245,158,11,0.10),transparent_24%),#0F0F13]" />
 
         <motion.div

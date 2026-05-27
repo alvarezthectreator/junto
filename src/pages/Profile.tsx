@@ -39,6 +39,7 @@ interface ProfileProps {
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
   currentUser?: any;
+  handleLogout?: () => void;
 }
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
@@ -128,7 +129,8 @@ export const Profile: React.FC<ProfileProps> = ({
   onToggleLightMode = () => {},
   setActiveNav = () => {},
   onCloseSidebar = () => {},
-  currentUser
+  currentUser,
+  handleLogout
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
@@ -298,7 +300,13 @@ export const Profile: React.FC<ProfileProps> = ({
     <div className={`flex min-h-screen transition-colors duration-500 font-sans antialiased ${pageBg}`}>
       {/* Sidebar Layout Alignment */}
       <div className="relative z-50">
-        <Sidebar activeNav="Profile" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
+        <Sidebar
+          activeNav="Profile"
+          setActiveNav={setActiveNav}
+          onNavigate={onNavigate}
+          onCloseSidebar={onCloseSidebar}
+          handleLogout={handleLogout}
+        />
       </div>
 
       {/* Main Container */}

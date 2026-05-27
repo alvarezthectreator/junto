@@ -86,6 +86,8 @@ export function App() {
     // Store session token and user data
     localStorage.setItem('sessionToken', token);
     localStorage.setItem('currentUser', JSON.stringify(userData));
+    setCurrentPage('main');
+    setActiveNav('Discover');
     setIsAuthenticated(true);
     setHasEntered(true);
   };
@@ -100,6 +102,8 @@ export function App() {
     setIsAuthenticated(false);
     setCurrentUser(null);
     setCurrentPage('main');
+    setActiveNav('Discover');
+    setShowMenu(false);
     localStorage.removeItem('sessionToken');
     localStorage.removeItem('currentUser');
   };
@@ -133,6 +137,8 @@ export function App() {
         setCurrentUser(user);
         setIsAuthenticated(true);
         setHasEntered(true);
+        setCurrentPage('main');
+        setActiveNav('Discover');
       } catch (e) {
         console.error('Failed to restore session:', e);
       }
@@ -188,13 +194,14 @@ export function App() {
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
           onToggleLightMode={() => setIsLightMode((current) => !current)}
+          handleLogout={handleLogout}
         />
       );
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
     if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium onNavigate={setCurrentPage} />;
-    if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} />;
+    if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode onNavigate={setCurrentPage} isLightMode={isLightMode} />;
     if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
 
@@ -266,7 +273,7 @@ export function App() {
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
-            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} />}
+            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
             {activeNav === 'Nearby' && <Nearby onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} />}
           </div>
         </main>
