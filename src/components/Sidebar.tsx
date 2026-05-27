@@ -63,7 +63,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/5 bg-[#0F0F13] px-2 md:px-4 py-2 md:py-3 rounded-t-2xl">
+    <div className="fixed inset-x-0 bottom-0 z-[9999] border-t border-white/5 bg-[#0F0F13]/98 px-2 md:px-4 py-2 md:py-3 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md">
       {/* Bottom Navbar */}
       <nav className="flex items-center justify-between gap-0.5 md:gap-3 max-w-7xl mx-auto">
         <div className="flex items-center justify-center gap-0.5 md:gap-4 flex-1 min-w-0">

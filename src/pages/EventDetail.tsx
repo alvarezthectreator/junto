@@ -13,6 +13,7 @@ import { compressImageDataUrl } from '../utils/imageCompression';
 const LeafletMapContainer = MapContainer as any;
 const LeafletMarker = Marker as any;
 const LeafletPopup = Popup as any;
+const eventApplicationsStorageKey = 'junto-event-applications';
 
 interface Attendee {
   id: string;
@@ -76,6 +77,24 @@ export interface EventDetailData {
   };
 }
 
+interface StoredEventApplication {
+  id: string;
+  event_id: string;
+  event_title: string;
+  host_id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string;
+  message: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+  profile_id?: string;
+  bio?: string;
+  location?: string;
+  backend_id?: string;
+  source?: 'api' | 'local';
+}
+
 interface EventDetailProps {
   eventId?: string;
   eventData?: EventDetailData;
@@ -114,9 +133,66 @@ function createMapIcon(label: string) {
   });
 }
 
+function createApplicationId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `app-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readStoredEventApplications(): StoredEventApplication[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(eventApplicationsStorageKey);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredEventApplications(applications: StoredEventApplication[]) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(eventApplicationsStorageKey, JSON.stringify(applications));
+}
+
+function readCurrentUserSnapshot() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem('currentUser');
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    return {
+      id: String(parsed.id || ''),
+      name: String(parsed.name || parsed.username || 'You'),
+      profile_id: String(parsed.profile_id || ''),
+      avatar: String(parsed.avatar || parsed.photo || '👤'),
+      bio: String(parsed.bio || ''),
+      location: String(parsed.location || ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate, setActiveNav, onOpenMessages }) => {
   const navigate = useNavigate();
-  const { setSelectedUser = () => {} } = useAppContext();
+  const { setSelectedUser } = useAppContext();
   const [isJoined, setIsJoined] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'attendees' | 'host' | 'reviews'>('overview');
@@ -323,6 +399,24 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   };
 
   const handleSubmitApplication = () => {
+    const currentUser = readCurrentUserSnapshot();
+    const localApplication: StoredEventApplication = {
+      id: createApplicationId(),
+      event_id: event.id,
+      event_title: event.title,
+      host_id: event.host_id || '',
+      user_id: currentUser?.id || window.localStorage.getItem('userId') || 'guest',
+      user_name: currentUser?.name || 'Guest',
+      user_avatar: currentUser?.avatar || '👤',
+      message: applicationText.trim(),
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      profile_id: currentUser?.profile_id,
+      bio: currentUser?.bio,
+      location: currentUser?.location,
+      source: 'local',
+    };
+
     setShowApplicationModal(false);
     setApplicationStatus('pending');
     setApplicationNote(applicationText.trim());
@@ -341,6 +435,51 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       ];
     });
     setShareState('Application sent');
+
+    try {
+      const existingApplications = readStoredEventApplications();
+      const nextApplications = [
+        ...existingApplications.filter(
+          (application) =>
+            !(
+              String(application.event_id) === String(localApplication.event_id) &&
+              String(application.user_id) === String(localApplication.user_id)
+            )
+        ),
+        localApplication,
+      ];
+      writeStoredEventApplications(nextApplications);
+    } catch (error) {
+      console.error('Failed to store local event application:', error);
+    }
+
+    if (currentUser?.id) {
+      API.applyToEvent(currentUser.id, event.id, applicationText.trim())
+        .then((response) => {
+          try {
+            const backendId = String(response?.id || response?.application_id || '');
+            if (!backendId) return;
+
+            const existingApplications = readStoredEventApplications();
+            const nextApplications = existingApplications.map((application) =>
+              application.id === localApplication.id
+                ? {
+                    ...application,
+                    backend_id: backendId,
+                    source: 'api',
+                  }
+                : application
+            );
+            writeStoredEventApplications(nextApplications);
+          } catch (storageError) {
+            console.error('Failed to sync backend application id locally:', storageError);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to submit application to API:', error);
+        });
+    }
+
     window.setTimeout(() => setShareState(''), 2200);
   };
 

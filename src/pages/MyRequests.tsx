@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TopHeader } from '../components/TopHeader';
+import { useAppContext } from '../context/AppContext';
 import {
   Calendar,
   Users,
@@ -9,7 +10,6 @@ import {
   Edit3,
   Eye,
   Image as ImageIcon,
-  MessageCircle,
   Check,
   X,
   Clock,
@@ -32,12 +32,20 @@ interface MyRequestsProps {
 
 interface InterestedPerson {
   id: string;
+  eventId?: string;
   name: string;
   avatar: string;
   joinedAt: string;
+  joinedAtRaw?: string;
   message?: string;
   status: 'interested' | 'accepted' | 'declined';
   userId?: string;
+  applicationId?: string;
+  backendId?: string;
+  profileId?: string;
+  bio?: string;
+  location?: string;
+  reliabilityScore?: number;
 }
 
 interface HostedEvent {
@@ -59,6 +67,7 @@ interface HostedEvent {
 
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
 const deletedEventsKey = 'junto-deleted-events';
+const eventApplicationsKey = 'junto-event-applications';
 
 interface DeletedEventTombstone {
   id: string;
@@ -68,6 +77,8 @@ interface DeletedEventTombstone {
   event_time: string;
   location_city: string;
 }
+
+type NoticeTone = 'success' | 'error';
 
 function parseEventDateTime(eventDate?: string, eventTime?: string) {
   if (!eventDate) return null;
@@ -111,6 +122,98 @@ function normalizeEventSignature(event: {
     (event.event_time || '').trim(),
     (event.location_city || '').trim().toLowerCase(),
   ].join('|');
+}
+
+function isBenignEventResponse(message?: string) {
+  if (!message) return false;
+  return /404|not found|success|ok|deleted|updated/i.test(message);
+}
+
+function getNoticeTone(message?: string): NoticeTone {
+  return isBenignEventResponse(message) ? 'success' : 'error';
+}
+
+function formatRelativeTime(dateString?: string) {
+  if (!dateString) return 'just now';
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return 'just now';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+function normalizeApplicationStatus(status?: string): 'interested' | 'accepted' | 'declined' {
+  if (status === 'accepted') return 'accepted';
+  if (status === 'declined' || status === 'rejected') return 'declined';
+  return 'interested';
+}
+
+function readStoredEventApplications() {
+  try {
+    const raw = localStorage.getItem(eventApplicationsKey);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredEventApplications(applications: any[]) {
+  localStorage.setItem(eventApplicationsKey, JSON.stringify(applications));
+}
+
+function mapApplicationToPerson(application: any): InterestedPerson {
+  const rawJoinedAt = application.created_at || application.joinedAt || application.applied_at || new Date().toISOString();
+  const applicationId = String(application.id || application.application_id || application.backend_id || `${application.event_id}-${application.user_id}-${rawJoinedAt}`);
+
+  return {
+    id: applicationId,
+    eventId: application.event_id ? String(application.event_id) : undefined,
+    applicationId: String(application.id || application.application_id || ''),
+    backendId: application.backend_id ? String(application.backend_id) : undefined,
+    name: application.user_name || application.name || 'Guest',
+    avatar: application.user_avatar || '👤',
+    joinedAt: formatRelativeTime(rawJoinedAt),
+    joinedAtRaw: rawJoinedAt,
+    message: application.message || application.note || '',
+    status: normalizeApplicationStatus(application.status),
+    userId: application.user_id ? String(application.user_id) : undefined,
+    profileId: application.profile_id ? String(application.profile_id) : undefined,
+    bio: application.bio || '',
+    location: application.location || '',
+    reliabilityScore: Number(application.reliability_score || application.reliabilityScore || 90),
+  };
+}
+
+function mergeApplicationLists(primary: InterestedPerson[], secondary: InterestedPerson[]) {
+  const merged = new Map<string, InterestedPerson>();
+
+  [...primary, ...secondary].forEach((application) => {
+    const key = application.userId
+      ? `${application.eventId || 'event'}-${application.userId}-${application.message || ''}`
+      : application.applicationId || application.backendId || application.id;
+
+    merged.set(String(key), application);
+  });
+
+  return Array.from(merged.values()).sort((a, b) => {
+    const aTime = a.joinedAtRaw ? new Date(a.joinedAtRaw).getTime() : 0;
+    const bTime = b.joinedAtRaw ? new Date(b.joinedAtRaw).getTime() : 0;
+    return bTime - aTime;
+  });
 }
 
 function readDeletedEventTombstones(): DeletedEventTombstone[] {
@@ -411,8 +514,9 @@ function EditEventModalForm({
   );
 }
 
-export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onCloseSidebar = () => {} }: MyRequestsProps) {
+export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyRequestsProps) {
   const navigate = useNavigate();
+  const { setSelectedUser } = useAppContext();
   const [activeTab, setActiveTab] = useState('Active');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
@@ -422,6 +526,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState('');
+  const [showMessageTone, setShowMessageTone] = useState<NoticeTone>('success');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<HostedEvent | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -433,6 +538,29 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
   const getCurrentUserId = () => {
     const userStr = localStorage.getItem('userId');
     return userStr ? userStr.replace(/"/g, '') : null;
+  };
+
+  const openPersonProfile = (person: InterestedPerson) => {
+    setSelectedUser({
+      id: person.userId || person.profileId || person.id,
+      name: person.name,
+      avatar: person.avatar,
+      bio: person.bio || `Hey! I'm ${person.name}. Let's connect!`,
+      interests: [],
+      location: person.location || 'Lagos, Nigeria',
+      reliabilityScore: person.reliabilityScore || 90,
+      isVerified: true,
+    });
+    navigate('/profile');
+  };
+
+  const showNotice = (message: string, tone: NoticeTone = getNoticeTone(message), duration = 2000) => {
+    setShowMessage(message);
+    setShowMessageTone(tone);
+    setTimeout(() => {
+      setShowMessage('');
+      setShowMessageTone('success');
+    }, duration);
   };
 
   // Fetch user's hosted events
@@ -458,22 +586,28 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           events.map(async (event: any) => {
             try {
               const appsResponse = await API.getEventApplications(event.id);
-              return {
-                ...mapHostedEvent(event, appsResponse.applications || [])
-              };
+              return mapHostedEvent(event, (appsResponse.applications || []).map(mapApplicationToPerson));
             } catch (err) {
-              return {
-                ...mapHostedEvent(event, [])
-              };
+              return mapHostedEvent(event, []);
             }
           })
         );
 
+        const localApplications = readStoredEventApplications().map(mapApplicationToPerson);
+
+        const eventsWithMergedApps = eventsWithApps.map((event) => ({
+          ...event,
+          applications: mergeApplicationLists(
+            event.applications || [],
+            localApplications.filter((application) => String(application.eventId || '') === String(event.id))
+          ),
+        }));
+
         try {
           const deletedEvents = readDeletedEventTombstones();
-          setHostedEvents(eventsWithApps.filter((event) => !isDeletedEvent(event, deletedEvents)));
+          setHostedEvents(eventsWithMergedApps.filter((event) => !isDeletedEvent(event, deletedEvents)));
         } catch {
-          setHostedEvents(eventsWithApps);
+          setHostedEvents(eventsWithMergedApps);
         }
       } catch (err: any) {
         console.error('Failed to fetch hosted events:', err);
@@ -486,18 +620,64 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     fetchHostedEvents();
   }, []);
 
-  const handleAccept = (personId: string) => {
-    setShowMessage('Application accepted! 🎉');
-    setTimeout(() => setShowMessage(''), 2000);
+  const updateApplicationStatusLocal = (eventId: string, applicationKey: string, nextStatus: 'accepted' | 'declined') => {
+    setHostedEvents((current) =>
+      current.map((event) =>
+        event.id === eventId
+          ? {
+              ...event,
+              applications: event.applications.map((person) =>
+                String(person.id) === String(applicationKey) ||
+                String(person.applicationId || '') === String(applicationKey) ||
+                String(person.backendId || '') === String(applicationKey)
+                  ? { ...person, status: nextStatus }
+                  : person
+              ),
+            }
+          : event
+      )
+    );
+
+    try {
+      const storedApplications = readStoredEventApplications();
+      const nextStoredApplications = storedApplications.map((application: any) => {
+        const matchesEvent = String(application.event_id || '') === String(eventId);
+        const matchesApplication =
+          String(application.id || application.application_id || application.backend_id || '') === String(applicationKey);
+
+        if (!matchesEvent || !matchesApplication) {
+          return application;
+        }
+
+        return {
+          ...application,
+          status: nextStatus === 'accepted' ? 'accepted' : 'declined',
+        };
+      });
+
+      writeStoredEventApplications(nextStoredApplications);
+    } catch (storageError) {
+      console.error('Failed to persist application status locally:', storageError);
+    }
   };
 
-  const handleDecline = (personId: string) => {
-    setShowMessage('Application declined');
-    setTimeout(() => setShowMessage(''), 2000);
-  };
+  const handleApplicationDecision = async (
+    eventId: string,
+    person: InterestedPerson,
+    nextStatus: 'accepted' | 'declined'
+  ) => {
+    updateApplicationStatusLocal(eventId, person.id, nextStatus);
 
-  const handleUserClick = (userId: string) => {
-    navigate(`/profile`);
+    const backendId = person.backendId || person.applicationId;
+    if (backendId) {
+      try {
+        await API.updateApplicationStatus(backendId, nextStatus === 'accepted' ? 'accepted' : 'rejected');
+      } catch (error) {
+        console.error('Failed to update application status on the backend:', error);
+      }
+    }
+
+    showNotice(nextStatus === 'accepted' ? 'Application accepted! 🎉' : 'Application declined', 'success');
   };
 
   const removeEventFromLocalState = (eventId: string) => {
@@ -567,26 +747,66 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     }
   };
 
+  const syncUpdatedEventLocally = (eventId: string, updatedFields: Record<string, any>) => {
+    setHostedEvents((previous) =>
+      previous.map((event) =>
+        event.id === eventId
+          ? {
+              ...event,
+              ...mapHostedEvent({ ...event, ...updatedFields, id: eventId }, event.applications),
+            }
+          : event
+      )
+    );
+
+    try {
+      const storedEventsRaw = localStorage.getItem('junto-created-events');
+      const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+      const nextStoredEvents = Array.isArray(storedEvents) ? [...storedEvents] : [];
+      const existingIndex = nextStoredEvents.findIndex((event: any) => String(event.id) === String(eventId));
+      const nextStoredEvent = {
+        ...(existingIndex >= 0 ? nextStoredEvents[existingIndex] : {}),
+        ...updatedFields,
+        id: eventId,
+        title: updatedFields.title,
+        description: updatedFields.description,
+        date: updatedFields.event_date,
+        event_date: updatedFields.event_date,
+        event_time: updatedFields.event_time,
+        location_city: updatedFields.location_city,
+        max_guests: updatedFields.max_guests,
+        coverImage: updatedFields.cover_photo_url || fallbackCoverImage,
+        cover_photo_url: updatedFields.cover_photo_url || undefined,
+        status: updatedFields.status,
+      };
+
+      if (existingIndex >= 0) {
+        nextStoredEvents[existingIndex] = nextStoredEvent;
+      } else {
+        nextStoredEvents.unshift(nextStoredEvent);
+      }
+
+      localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
+    } catch (storageError) {
+      console.error('Failed to update stored event:', storageError);
+    }
+  };
+
   const handleWithdrawEvent = async (eventId: string) => {
     try {
       await API.deleteEvent(eventId);
       removeEventFromLocalState(eventId);
-      setShowMessage('Event deleted');
+      showNotice('Event deleted', 'success');
     } catch (err) {
       console.error('Failed to delete event:', err);
       const message = err instanceof Error ? err.message : 'Could not delete event';
-      if (/404|not found/i.test(message)) {
+      if (isBenignEventResponse(message)) {
         removeEventFromLocalState(eventId);
-        setShowMessage('Event deleted');
-      } else if (/success|ok|deleted/i.test(message)) {
-        removeEventFromLocalState(eventId);
-        setShowMessage('Event deleted');
+        showNotice('Event deleted', 'success');
       } else {
-        setShowMessage(message || 'Could not delete event');
+        showNotice(message || 'Could not delete event', 'error');
       }
     }
-
-    setTimeout(() => setShowMessage(''), 2000);
   };
 
   const activeRequests = hostedEvents.filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
@@ -707,11 +927,31 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
         console.error('Failed to update stored event:', storageError);
       }
 
-      setShowMessage('Event updated successfully');
+      showNotice('Event updated successfully', 'success');
       closeEditModal();
     } catch (err: any) {
       console.error('Failed to update event:', err);
-      setEditError(err.message || 'Failed to update your event');
+      const message = err?.message || 'Failed to update your event';
+
+      if (isBenignEventResponse(message)) {
+        syncUpdatedEventLocally(editingEvent.id, {
+          ...payload,
+          title: payload.title,
+          description: payload.description,
+          date: payload.event_date,
+          event_date: payload.event_date,
+          event_time: payload.event_time,
+          location_city: payload.location_city,
+          max_guests: payload.max_guests,
+          coverImage: payload.cover_photo_url || fallbackCoverImage,
+          cover_photo_url: payload.cover_photo_url || undefined,
+          status: normalizedStatus,
+        });
+        showNotice('Event updated successfully', 'success');
+        closeEditModal();
+      } else {
+        setEditError(message);
+      }
     } finally {
       setEditSaving(false);
     }
@@ -733,7 +973,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           exit={{ scale: 0.95, opacity: 0 }}
           className="bg-[#1A1A21] border border-white/10 rounded-3xl max-w-md w-full max-h-[80vh] flex flex-col"
         >
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
+        <div className="flex items-center justify-between p-6 border-b border-white/5">
             <div>
               <h3 className="text-xl font-semibold text-white">{selectedEvent.applications?.length || 0} requests</h3>
               <p className="text-sm text-gray-400 mt-1">{selectedEvent.title}</p>
@@ -753,7 +993,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                   <div className="flex items-start gap-3 mb-3">
                     <div className="text-3xl flex-shrink-0 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => {
                       setShowInterestedModal(false);
-                      handleUserClick(person.userId || person.id);
+                      openPersonProfile(person);
                     }}>
                       {person.avatar || '👤'}
                     </div>
@@ -762,7 +1002,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                         className="font-semibold text-white truncate cursor-pointer hover:text-[#F59E0B] transition-colors"
                         onClick={() => {
                           setShowInterestedModal(false);
-                          handleUserClick(person.userId || person.id);
+                          openPersonProfile(person);
                         }}>
                         {person.name}
                       </p>
@@ -782,18 +1022,18 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                     <p className="text-sm text-gray-300 mb-3 italic">"{person.message}"</p>
                   )}
                   <div className="flex gap-2">
-                    <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 text-[#FBBF24] rounded-xl text-sm font-medium transition-colors">
-                      <MessageCircle size={14} /> Message
+                    <button onClick={() => openPersonProfile(person)} className="flex-1 flex items-center justify-center gap-2 py-2 bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 text-[#FBBF24] rounded-xl text-sm font-medium transition-colors">
+                      <Eye size={14} /> View profile
                     </button>
                     {person.status === 'interested' && (
                       <>
-                        <button 
-                          onClick={() => handleAccept(person.id)}
+                        <button
+                          onClick={() => handleApplicationDecision(selectedEvent.id, person, 'accepted')}
                           className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-xl text-sm font-medium transition-colors">
                           <Check size={14} /> Accept
                         </button>
-                        <button 
-                          onClick={() => handleDecline(person.id)}
+                        <button
+                          onClick={() => handleApplicationDecision(selectedEvent.id, person, 'declined')}
                           className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl text-sm font-medium transition-colors">
                           <X size={14} /> Decline
                         </button>
@@ -881,7 +1121,13 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
 
           <form onSubmit={handleSubmit} className="p-6 space-y-5">
             {editError && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <div
+                className={`rounded-2xl px-4 py-3 text-sm ${
+                  getNoticeTone(editError) === 'success'
+                    ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                    : 'border border-red-500/20 bg-red-500/10 text-red-300'
+                }`}
+              >
                 {editError}
               </div>
             )}
@@ -1020,8 +1266,20 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed top-6 right-6 bg-[#1A1A21] border border-[#F59E0B]/50 rounded-2xl px-6 py-3 text-white font-medium shadow-lg z-50">
-          {showMessage}
+          className={`fixed top-6 right-6 rounded-2xl px-6 py-3 font-medium shadow-lg z-50 ${
+            showMessageTone === 'success'
+              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-200'
+              : 'bg-rose-500/10 border border-rose-500/20 text-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {showMessageTone === 'success' ? (
+              <CheckCircle2 size={18} className="text-emerald-400" />
+            ) : (
+              <AlertCircle size={18} className="text-rose-400" />
+            )}
+            <span>{showMessage}</span>
+          </div>
         </motion.div>
       )}
       

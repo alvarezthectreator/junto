@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 
 interface AppContextType {
   selectedEvent: any;
+  selectedUser?: any;
   setSelectedUser?: (user: any) => void;
   handleLogout: () => void;
 }

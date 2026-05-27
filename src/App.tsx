@@ -50,6 +50,7 @@ export function App() {
     return window.localStorage.getItem('junto-current-page') || 'main';
   });
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -107,6 +108,7 @@ export function App() {
       profile_id: user.profile_id
     };
     setCurrentUser(userData);
+    setSelectedUser(null);
     // Store session token and user data
     localStorage.setItem('sessionToken', token);
     localStorage.setItem('currentUser', JSON.stringify(userData));
@@ -121,6 +123,7 @@ export function App() {
     setHasEntered(false);
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setSelectedUser(null);
     setCurrentPage('main');
     setActiveNav('Discover');
     setShowMenu(false);
@@ -281,6 +284,7 @@ export function App() {
     if (currentPage === 'profile') {
       return (
         <Profile
+          selectedUser={selectedUser}
           onNavigate={setCurrentPage}
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
@@ -306,7 +310,7 @@ export function App() {
         />
 
         <main className="flex-1 ml-0 md:ml-64">
-          <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-8">
+          <div className="max-w-5xl mx-auto px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-32">
             {/* Top Header with Action Buttons */}
             <header className="flex items-center justify-end gap-3 mb-8">
               <button 
@@ -378,7 +382,8 @@ export function App() {
     <ThemeProvider attribute="class" defaultTheme="dark">
       <AppProvider value={{
         selectedEvent,
-        setSelectedUser: setCurrentUser,
+        selectedUser,
+        setSelectedUser,
         handleLogout,
       }}>
         <ErrorBoundary>
