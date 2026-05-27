@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink, Edit3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
@@ -7,6 +7,7 @@ import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
 import { useAppContext } from '../context/AppContext';
+import * as API from '../services/api';
 
 const LeafletMapContainer = MapContainer as any;
 const LeafletMarker = Marker as any;
@@ -34,6 +35,7 @@ export interface EventAttendee extends Attendee {
 
 export interface EventDetailData {
   id: string;
+  host_id?: string;
   title: string;
   host: {
     name: string;
@@ -62,6 +64,7 @@ export interface EventDetailData {
     venue: string[];
     host: string[];
   };
+  coverImage?: string;
   coords?: [number, number];
   attendees?: EventAttendee[];
   reviews?: EventReview[];
@@ -123,8 +126,20 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationText, setApplicationText] = useState('');
   const [applicationLoaded, setApplicationLoaded] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editDraft, setEditDraft] = useState({
+    title: '',
+    description: '',
+    date: '',
+    time: '',
+    location: '',
+    maxSpots: '',
+    coverImage: '',
+  });
 
-  const defaultEvent: EventDetailData = {
+  const defaultEvent = useMemo<EventDetailData>(() => ({
     id: eventId || '1',
     title: 'Beach Volleyball at Lekki',
     host: {
@@ -170,7 +185,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       end: '2026-05-25T19:00:00+01:00',
       timezone: 'Africa/Lagos',
     },
-  };
+  }), [eventId]);
 
   const eventFromCatalog = useMemo(() => {
     if (!eventId) {
@@ -182,16 +197,35 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   }, [eventId]);
 
   // Merge eventData with defaultEvent to ensure all properties exist
-  const event = {
+  const baseEvent = useMemo(() => ({
     ...defaultEvent,
     ...(eventData ?? eventFromCatalog)
-  };
+  }), [defaultEvent, eventData, eventFromCatalog]);
+  const [event, setEvent] = useState<EventDetailData>(baseEvent);
+  const currentUserId = typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null;
+  const canEditEvent = Boolean(event.host_id && currentUserId && event.host_id === currentUserId);
   const eventCoords = event.coords ?? [6.4281, 3.4219];
   const mapUrl = `https://www.google.com/maps?q=${eventCoords[0]},${eventCoords[1]}`;
   const currentAttendees = event.attendees ?? [];
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
   const reviews = event.reviews ?? [];
   const applicationStorageKey = `junto-event-application-${event.id}`;
+
+  useEffect(() => {
+    setEvent(baseEvent);
+  }, [baseEvent.id]);
+
+  useEffect(() => {
+    setEditDraft({
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      time: event.time,
+      location: event.location,
+      maxSpots: String(event.totalSpots || 0),
+      coverImage: event.coverImage || event.media?.venue?.[0] || '',
+    });
+  }, [event.id]);
 
   useEffect(() => {
     setApplicationLoaded(false);
@@ -343,6 +377,121 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     window.setTimeout(() => setShareState(''), 2200);
   };
 
+  const handleOpenEdit = () => {
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleEditImageUpload = (file: File | null) => {
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setEditError('Image must be less than 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setEditDraft((current) => ({
+        ...current,
+        coverImage: String(event.target?.result || ''),
+      }));
+      setEditError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEdit = async (submitEvent: React.FormEvent) => {
+    submitEvent.preventDefault();
+
+    if (!canEditEvent) {
+      setEditError('You can only edit your own event.');
+      return;
+    }
+
+    if (!editDraft.title.trim() || !editDraft.date || !editDraft.time || !editDraft.location.trim()) {
+      setEditError('Please fill in title, date, time, and location.');
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError('');
+
+    const payload = {
+      title: editDraft.title.trim(),
+      description: editDraft.description.trim(),
+      location_city: editDraft.location.trim(),
+      event_date: editDraft.date,
+      event_time: editDraft.time,
+      max_guests: Number(editDraft.maxSpots) || event.totalSpots,
+      cover_photo_url: editDraft.coverImage || undefined,
+      status: 'active',
+    };
+
+    try {
+      await API.updateEvent(event.id, payload);
+
+      const nextEvent: EventDetailData = {
+        ...event,
+        title: payload.title,
+        description: payload.description,
+        location: payload.location_city,
+        date: payload.event_date,
+        time: payload.event_time,
+        totalSpots: payload.max_guests,
+        spots: `${Math.max(0, payload.max_guests - event.currentAttendees)} left`,
+        currentAttendees: Math.min(event.currentAttendees, payload.max_guests),
+        media: {
+          ...event.media,
+          venue: [payload.cover_photo_url || event.media?.venue?.[0] || ''],
+        },
+        coverImage: payload.cover_photo_url || event.coverImage || event.media?.venue?.[0] || '',
+      };
+      setEvent(nextEvent);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const storedEventsRaw = window.localStorage.getItem('junto-created-events');
+          const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+          if (Array.isArray(storedEvents)) {
+            const nextStoredEvents = storedEvents.map((stored: any) =>
+              String(stored.id) === String(event.id)
+                ? {
+                    ...stored,
+                    title: payload.title,
+                    description: payload.description,
+                    location_city: payload.location_city,
+                    event_date: payload.event_date,
+                    event_time: payload.event_time,
+                    max_guests: payload.max_guests,
+                    coverImage: payload.cover_photo_url || stored.coverImage || '',
+                    cover_photo_url: payload.cover_photo_url || stored.cover_photo_url,
+                    status: 'active',
+                  }
+                : stored
+            );
+            window.localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
+          }
+        } catch (storageError) {
+          console.error('Failed to sync updated event locally:', storageError);
+        }
+      }
+
+      setEditDraft((current) => ({
+        ...current,
+        coverImage: payload.cover_photo_url || current.coverImage,
+      }));
+      setShareState('Event updated');
+      window.setTimeout(() => setShareState(''), 2200);
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Failed to update event from detail page:', error);
+      setEditError('Failed to update event. Please try again.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const paymentStatusColors = {
     host_covers: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400', label: 'Host Covers' },
     paid: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400', label: 'Paid' },
@@ -394,6 +543,15 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 >
                   <Share2 size={20} className="sm:h-6 sm:w-6 text-white" />
                 </button>
+                {canEditEvent && (
+                  <button
+                    onClick={handleOpenEdit}
+                    className="rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-black/70"
+                    aria-label="Edit event"
+                  >
+                    <Edit3 size={20} className="sm:h-6 sm:w-6 text-white" />
+                  </button>
+                )}
               </div>
               {shareState && (
                 <div className="absolute right-4 top-16 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs text-gray-200 backdrop-blur">
@@ -925,6 +1083,139 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
           </div>
         </div>
       </div>
+
+      {showEditModal && (
+        <div
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowEditModal(false);
+            }
+          }}
+        >
+          <form
+            onSubmit={handleSaveEdit}
+            className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#111115] p-5 shadow-2xl shadow-black/40 sm:p-6"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Edit event</h3>
+                <p className="text-sm text-gray-400">Update the details, image, and date from here.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 transition hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            {editError && (
+              <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {editError}
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">Title</label>
+                <input
+                  value={editDraft.title}
+                  onChange={(e) => setEditDraft((current) => ({ ...current, title: e.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">Description</label>
+                <textarea
+                  value={editDraft.description}
+                  onChange={(e) => setEditDraft((current) => ({ ...current, description: e.target.value }))}
+                  className="min-h-28 w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-300">Date</label>
+                  <input
+                    type="date"
+                    value={editDraft.date}
+                    onChange={(e) => setEditDraft((current) => ({ ...current, date: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-300">Time</label>
+                  <input
+                    type="time"
+                    value={editDraft.time}
+                    onChange={(e) => setEditDraft((current) => ({ ...current, time: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-300">Location</label>
+                  <input
+                    value={editDraft.location}
+                    onChange={(e) => setEditDraft((current) => ({ ...current, location: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-300">Max Guests</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editDraft.maxSpots}
+                    onChange={(e) => setEditDraft((current) => ({ ...current, maxSpots: e.target.value }))}
+                    className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">Cover image URL</label>
+                <input
+                  value={editDraft.coverImage}
+                  onChange={(e) => setEditDraft((current) => ({ ...current, coverImage: e.target.value }))}
+                  className="mb-3 w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+                  placeholder="Paste image URL or upload a new image"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleEditImageUpload(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-full file:border-0 file:bg-[#F59E0B] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#F59E0B]/90"
+                />
+                {editDraft.coverImage && (
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
+                    <img src={editDraft.coverImage} alt="Cover preview" className="h-48 w-full object-cover" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10"
+                disabled={editSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editSaving}
+                className="w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-70"
+              >
+                {editSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showApplicationModal && (
         <div

@@ -33,6 +33,7 @@ export interface UserProfile {
 export interface Event {
   id: string;
   host_id: string;
+  display_name?: string;
   title: string;
   description?: string;
   location_city: string;
@@ -44,6 +45,7 @@ export interface Event {
   host_fee: number;
   guest_fee: number;
   created_at: string;
+  status?: string;
 }
 
 export interface Message {

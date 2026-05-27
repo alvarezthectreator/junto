@@ -33,6 +33,29 @@ type FeedEvent = DiscoverEventSeed & {
 const storedEventsKey = 'junto-created-events';
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
 
+function parseEventDateTime(eventDate?: string, eventTime?: string) {
+  if (!eventDate) return null;
+
+  const normalizedDate = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+  const normalizedTime = eventTime || '23:59';
+  const [year, month, day] = normalizedDate.split('-').map(Number);
+  const [hour, minute] = normalizedTime.split(':').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
+}
+
+function isEventExpired(eventDate?: string, eventTime?: string, status?: string) {
+  if (status === 'cancelled') return true;
+  if (status === 'completed') return true;
+
+  const eventDateTime = parseEventDateTime(eventDate, eventTime);
+  if (!eventDateTime) return false;
+
+  return eventDateTime.getTime() < Date.now();
+}
+
 function loadStoredCreatedEvents(): FeedEvent[] {
   try {
     const stored = localStorage.getItem(storedEventsKey);
@@ -210,7 +233,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       deduped.set(String(event.id), event);
     });
 
-    return Array.from(deduped.values());
+    return Array.from(deduped.values()).filter(
+      (event) => !isEventExpired(event.event_date, event.event_time, event.status)
+    );
   }, [apiEvents, hostEvents, localEvents, useBackend, currentUser?.name, currentUser?.username]);
 
   // Filter events based on active filter and search
@@ -253,6 +278,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     if (event.userName && event.actionText && event.coords) {
       detailEvent = {
         id: event.id,
+        host_id: event.host_id,
         title: `${event.userName}'s ${event.actionText}`,
         host: {
           name: event.userName,

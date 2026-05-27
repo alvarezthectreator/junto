@@ -51,7 +51,59 @@ interface HostedEvent {
   status: string;
   host_id: string;
   display_name: string;
+  cover_photo_url?: string;
+  coverImage?: string;
   applications: InterestedPerson[];
+}
+
+const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
+
+function parseEventDateTime(eventDate?: string, eventTime?: string) {
+  if (!eventDate) return null;
+
+  const normalizedDate = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+  const normalizedTime = eventTime || '23:59';
+  const [year, month, day] = normalizedDate.split('-').map(Number);
+  const [hour, minute] = normalizedTime.split(':').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
+}
+
+function isEventExpired(eventDate?: string, eventTime?: string, status?: string) {
+  if (status === 'cancelled') return true;
+  if (status === 'completed') return true;
+
+  const eventDateTime = parseEventDateTime(eventDate, eventTime);
+  if (!eventDateTime) return false;
+
+  return eventDateTime.getTime() < Date.now();
+}
+
+function formatDateForInput(eventDate?: string) {
+  if (!eventDate) return '';
+  return eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+}
+
+function mapHostedEvent(event: any, applications: InterestedPerson[] = []): HostedEvent {
+  const expired = isEventExpired(event.event_date, event.event_time, event.status);
+  return {
+    id: event.id,
+    title: event.title || 'Untitled event',
+    event_date: formatDateForInput(event.event_date),
+    event_time: event.event_time || '18:00',
+    location_city: event.location_city || 'Unknown',
+    description: event.description || '',
+    max_guests: Number(event.max_guests || 0),
+    current_guests_count: Number(event.current_guests_count || 0),
+    status: expired ? 'completed' : (event.status || 'active'),
+    host_id: event.host_id || '',
+    display_name: event.display_name || 'You',
+    cover_photo_url: event.cover_photo_url || event.coverImage || fallbackCoverImage,
+    coverImage: event.cover_photo_url || event.coverImage || fallbackCoverImage,
+    applications,
+  };
 }
 
 export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onCloseSidebar = () => {} }: MyRequestsProps) {
@@ -66,6 +118,10 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
   const [error, setError] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState('');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<HostedEvent | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editImagePreview, setEditImagePreview] = useState('');
   const tabs = ['Active', 'Past', 'Drafts'];
 
   // Get current user ID from localStorage
@@ -98,13 +154,11 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
             try {
               const appsResponse = await API.getEventApplications(event.id);
               return {
-                ...event,
-                applications: appsResponse.applications || []
+                ...mapHostedEvent(event, appsResponse.applications || [])
               };
             } catch (err) {
               return {
-                ...event,
-                applications: []
+                ...mapHostedEvent(event, [])
               };
             }
           })
@@ -132,10 +186,6 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     setTimeout(() => setShowMessage(''), 2000);
   };
 
-  const handleEventClick = (eventId: string) => {
-    navigate(`/event/${eventId}`);
-  };
-
   const handleUserClick = (userId: string) => {
     navigate(`/profile`);
   };
@@ -145,7 +195,8 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     setTimeout(() => setShowMessage(''), 2000);
   };
 
-  const activeRequests = hostedEvents.filter(e => e.status === 'active');
+  const activeRequests = hostedEvents.filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
+  const pastRequests = hostedEvents.filter((event) => isEventExpired(event.event_date, event.event_time, event.status));
 
   const sortedRequests = [...activeRequests].sort((a, b) => {
     if (sortBy === 'most-interested') {
@@ -160,6 +211,117 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
   };
 
   const selectedEvent = selectedEventId ? hostedEvents.find(e => e.id === selectedEventId) : null;
+
+  const openEditModal = (event: HostedEvent) => {
+    setEditingEvent(event);
+    setEditImagePreview(event.cover_photo_url || event.coverImage || '');
+    setEditError('');
+  };
+
+  const closeEditModal = () => {
+    setEditingEvent(null);
+    setEditImagePreview('');
+    setEditError('');
+    setEditSaving(false);
+  };
+
+  const handleEditImageUpload = (file: File | null) => {
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setEditError('Image must be less than 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setEditImagePreview(String(event.target?.result || ''));
+      setEditError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEdit = async (formData: {
+    title: string;
+    description: string;
+    event_date: string;
+    event_time: string;
+    location_city: string;
+    max_guests: number;
+    cover_photo_url: string;
+  }) => {
+    if (!editingEvent) return;
+
+    setEditSaving(true);
+    setEditError('');
+
+    const normalizedStatus = isEventExpired(formData.event_date, formData.event_time) ? 'completed' : 'active';
+    const payload = {
+      title: formData.title,
+      description: formData.description,
+      location_city: formData.location_city,
+      event_date: formData.event_date,
+      event_time: formData.event_time,
+      max_guests: formData.max_guests,
+      cover_photo_url: formData.cover_photo_url || undefined,
+      status: normalizedStatus,
+    };
+
+    try {
+      const updatedEvent = await API.updateEvent(editingEvent.id, payload);
+
+      setHostedEvents((previous) =>
+        previous.map((event) =>
+          event.id === editingEvent.id
+            ? {
+                ...event,
+                ...mapHostedEvent({ ...event, ...updatedEvent, ...payload }, event.applications),
+              }
+            : event
+        )
+      );
+
+      try {
+        const storedEventsRaw = localStorage.getItem('junto-created-events');
+        const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+        const nextStoredEvents = Array.isArray(storedEvents) ? [...storedEvents] : [];
+        const existingIndex = nextStoredEvents.findIndex((event: any) => String(event.id) === String(editingEvent.id));
+        const nextStoredEvent = {
+          ...(existingIndex >= 0 ? nextStoredEvents[existingIndex] : {}),
+          ...payload,
+          id: editingEvent.id,
+          title: payload.title,
+          description: payload.description,
+          date: payload.event_date,
+          event_date: payload.event_date,
+          event_time: payload.event_time,
+          location_city: payload.location_city,
+          max_guests: payload.max_guests,
+          coverImage: payload.cover_photo_url || fallbackCoverImage,
+          cover_photo_url: payload.cover_photo_url || undefined,
+          status: normalizedStatus,
+        };
+
+        if (existingIndex >= 0) {
+          nextStoredEvents[existingIndex] = nextStoredEvent;
+        } else {
+          nextStoredEvents.unshift(nextStoredEvent);
+        }
+
+        localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
+      } catch (storageError) {
+        console.error('Failed to update stored event:', storageError);
+      }
+
+      setShowMessage('Event updated successfully');
+      closeEditModal();
+    } catch (err: any) {
+      console.error('Failed to update event:', err);
+      setEditError(err.message || 'Failed to update your event');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const InterestedModal = () => {
     if (!showInterestedModal || !selectedEvent) return null;
@@ -258,6 +420,205 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     );
   };
 
+  const EditEventModal = () => {
+    const [title, setTitle] = useState(editingEvent?.title || '');
+    const [description, setDescription] = useState(editingEvent?.description || '');
+    const [eventDate, setEventDate] = useState(editingEvent?.event_date || '');
+    const [eventTime, setEventTime] = useState(editingEvent?.event_time || '');
+    const [locationCity, setLocationCity] = useState(editingEvent?.location_city || '');
+    const [maxGuests, setMaxGuests] = useState(String(editingEvent?.max_guests || 0));
+
+    useEffect(() => {
+      setTitle(editingEvent?.title || '');
+      setDescription(editingEvent?.description || '');
+      setEventDate(editingEvent?.event_date || '');
+      setEventTime(editingEvent?.event_time || '');
+      setLocationCity(editingEvent?.location_city || '');
+      setMaxGuests(String(editingEvent?.max_guests || 0));
+      setEditImagePreview(editingEvent?.cover_photo_url || editingEvent?.coverImage || '');
+      setEditError('');
+    }, [editingEvent]);
+
+    if (!editingEvent) return null;
+
+    const handleSubmit = async (event: React.FormEvent) => {
+      event.preventDefault();
+      if (!title.trim() || !eventDate || !eventTime || !locationCity.trim()) {
+        setEditError('Please fill in title, date, time, and location');
+        return;
+      }
+
+      await handleSaveEdit({
+        title: title.trim(),
+        description: description.trim(),
+        event_date: eventDate,
+        event_time: eventTime,
+        location_city: locationCity.trim(),
+        max_guests: Number(maxGuests) || 0,
+        cover_photo_url: editImagePreview || '',
+      });
+    };
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      >
+        <motion.div
+          initial={{ scale: 0.96, opacity: 0, y: 12 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 12 }}
+          className="bg-[#1A1A21] border border-white/10 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-center justify-between p-6 border-b border-white/5">
+            <div>
+              <h3 className="text-xl font-semibold text-white">Edit Event</h3>
+              <p className="text-sm text-gray-400 mt-1">Update details, date, and cover image.</p>
+            </div>
+            <button
+              onClick={closeEditModal}
+              className="text-gray-400 hover:text-white transition-colors p-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            {editError && (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {editError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Title</label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  placeholder="Event title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  placeholder="Tell guests what to expect"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Time</label>
+                  <input
+                    type="time"
+                    value={eventTime}
+                    onChange={(e) => setEventTime(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                  <input
+                    value={locationCity}
+                    onChange={(e) => setLocationCity(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                    placeholder="City or venue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Max Guests</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={maxGuests}
+                    onChange={(e) => setMaxGuests(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image</label>
+                {editImagePreview ? (
+                  <div className="relative mb-3 overflow-hidden rounded-2xl border border-white/10">
+                    <img
+                      src={editImagePreview}
+                      alt="Event cover preview"
+                      className="h-52 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditImagePreview('')}
+                      className="absolute right-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mb-3 rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-gray-400">
+                    Upload a new event image or paste an image URL below.
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  value={editImagePreview}
+                  onChange={(e) => setEditImagePreview(e.target.value)}
+                  className="mb-3 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-[#F59E0B]/50"
+                  placeholder="Image URL or data URL"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleEditImageUpload(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-full file:border-0 file:bg-[#F59E0B] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#F59E0B]/90"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-gray-300 hover:bg-white/10"
+                disabled={editSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editSaving}
+                className="flex-1 rounded-2xl bg-[#F59E0B] px-4 py-3 text-sm font-semibold text-white hover:bg-[#F59E0B]/90 disabled:opacity-70"
+              >
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </motion.div>
+    );
+  };
+
   return (
     <div className="flex min-h-screen bg-[#0F0F13]">
       {showMessage && (
@@ -323,7 +684,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                 </div>
                 <div>
                   <p className="text-sm text-gray-400">Completed hangouts</p>
-                  <p className="text-xl font-bold text-white">0</p>
+                  <p className="text-xl font-bold text-white">{pastRequests.length}</p>
                 </div>
               </div>
             </div>
@@ -385,84 +746,91 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                 </div>
               )}
 
-              {activeTab === 'Active' && !loading &&
+              {activeTab === 'Active' && !loading && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {sortedRequests.length > 0 ? (
-                    sortedRequests.map((req) =>
-                <div
-                  key={req.id}
-                  className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col">
-                  
-                      <div className="h-32 w-full relative overflow-hidden bg-gradient-to-br from-[#F59E0B]/20 to-[#4ECDC4]/20">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Calendar className="text-white/20" size={48} />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A21] to-transparent opacity-90"></div>
-                      </div>
-                      <div className="p-6 flex flex-col flex-1 relative z-10 -mt-6">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="text-xl font-semibold text-white">
-                            {req.title}
-                          </h3>
-                          <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          req.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                        }`}>
-                        
-                            {req.status}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
-                          <Calendar size={14} />
-                          {req.event_date}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500 mb-6">
-                          <MapPin size={12} /> {req.location_city}
-                        </div>
-
-                      <div className="flex items-center justify-between mb-6 mt-auto">
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-2">
-                            {(req.applications || []).slice(0, 3).map((app, i) => (
-                          <div
-                            key={i}
-                            className={`w-8 h-8 rounded-full border-2 border-[#1A1A21] bg-gradient-to-br from-[#F59E0B] to-[#4ECDC4] flex items-center justify-center text-[10px] font-bold text-white`}>
-                            
-                                  {app.name?.charAt(0).toUpperCase() || '?'}
-                                </div>
-
-                        ))}
+                    sortedRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col"
+                      >
+                        <div
+                          className="h-36 w-full relative overflow-hidden bg-cover bg-center"
+                          style={{
+                            backgroundImage: `linear-gradient(to top, rgba(26,26,33,0.95), rgba(26,26,33,0.2)), url(${req.cover_photo_url || req.coverImage || fallbackCoverImage})`,
+                          }}
+                        >
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Calendar className="text-white/20" size={48} />
                           </div>
-                          <span className="text-sm text-gray-300 font-medium ml-2">
-                            <span className="text-white">
-                              {req.applications?.length || 0}
-                            </span>{' '}
-                            interested
-                          </span>
+                        </div>
+                        <div className="p-6 flex flex-col flex-1 relative z-10 -mt-6">
+                          <div className="flex justify-between items-start mb-2 gap-3">
+                            <h3 className="text-xl font-semibold text-white leading-tight">
+                              {req.title}
+                            </h3>
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                req.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                              }`}
+                            >
+                              {req.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                            <Calendar size={14} />
+                            {req.event_date} {req.event_time && `· ${req.event_time}`}
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mb-6">
+                            <MapPin size={12} /> {req.location_city}
+                          </div>
+
+                          <div className="flex items-center justify-between mb-6 mt-auto">
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-2">
+                                {(req.applications || []).slice(0, 3).map((app, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-8 h-8 rounded-full border-2 border-[#1A1A21] bg-gradient-to-br from-[#F59E0B] to-[#4ECDC4] flex items-center justify-center text-[10px] font-bold text-white"
+                                  >
+                                    {app.name?.charAt(0).toUpperCase() || '?'}
+                                  </div>
+                                ))}
+                              </div>
+                              <span className="text-sm text-gray-300 font-medium ml-2">
+                                <span className="text-white">
+                                  {req.applications?.length || 0}
+                                </span>{' '}
+                                interested
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => openInterestedModal(req.id)}
+                              className="flex-1 py-3 rounded-2xl bg-[#F59E0B] text-white font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+                            >
+                              <Eye size={16} /> View interested
+                            </button>
+                            <button
+                              onClick={() => openEditModal(req)}
+                              className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                              title="Edit event"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleWithdrawEvent(req.id)}
+                              className="p-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                              title="Withdraw event"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-3">
-                        <button 
-                          onClick={() => openInterestedModal(req.id)}
-                          className="flex-1 py-3 rounded-2xl bg-[#F59E0B] text-white font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2">
-                          <Eye size={16} /> View interested
-                        </button>
-                        <button 
-                          onClick={() => handleEventClick(req.id)}
-                          className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
-                          <Edit3 size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleWithdrawEvent(req.id)}
-                          className="p-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-                          title="Withdraw event">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                    )
+                    ))
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
                       <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
@@ -477,21 +845,67 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
                     </div>
                   )}
               </div>
-            }
+            )}
 
-            {activeTab === 'Past' &&
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                  <ImageIcon className="text-gray-500" size={24} />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  No past hangouts yet 👀
-                </h3>
-                <p className="text-gray-400 max-w-sm">
-                  When you complete a hangout, it will show up here as a memory.
-                </p>
+            {activeTab === 'Past' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {pastRequests.length > 0 ? (
+                  pastRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col opacity-90"
+                    >
+                      <div
+                        className="h-36 w-full relative overflow-hidden bg-cover bg-center grayscale-[15%]"
+                        style={{
+                          backgroundImage: `linear-gradient(to top, rgba(26,26,33,0.96), rgba(26,26,33,0.25)), url(${req.cover_photo_url || req.coverImage || fallbackCoverImage})`,
+                        }}
+                      />
+                      <div className="p-6 flex flex-col flex-1 relative z-10 -mt-6">
+                        <div className="flex justify-between items-start mb-2 gap-3">
+                          <h3 className="text-xl font-semibold text-white leading-tight">
+                            {req.title}
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-500/20 text-gray-300">
+                            expired
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                          <Calendar size={14} />
+                          {req.event_date} {req.event_time && `· ${req.event_time}`}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500 mb-6">
+                          <MapPin size={12} /> {req.location_city}
+                        </div>
+                        <p className="text-sm text-gray-400 mb-6">
+                          This event is no longer visible on Discover, but you can update the date, time, or image and republish it here.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => openEditModal(req)}
+                            className="flex-1 py-3 rounded-2xl bg-[#F59E0B] text-white font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+                          >
+                            <Edit3 size={16} /> Edit and republish
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                      <ImageIcon className="text-gray-500" size={24} />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No past hangouts yet 👀
+                    </h3>
+                    <p className="text-gray-400 max-w-sm">
+                      When an event expires, it will move here and you can bring it back by changing the date.
+                    </p>
+                  </div>
+                )}
               </div>
-            }
+            )}
 
             {activeTab === 'Drafts' &&
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -510,6 +924,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
             </div>
 
             <InterestedModal />
+            <EditEventModal />
           </motion.div>
         </div>
       </main>
