@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Bell, Plus, MoreVertical } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
@@ -37,6 +39,7 @@ export function App() {
 
     return window.localStorage.getItem('junto-light-mode') === 'true';
   });
+  const [showMenu, setShowMenu] = useState(false);
 
   // Track route changes and update activeNav
   useEffect(() => {
@@ -165,6 +168,57 @@ export function App() {
 
         <main className="flex-1 ml-0 md:ml-64">
           <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-8">
+            {/* Top Header with Action Buttons */}
+            <header className="flex items-center justify-end gap-3 mb-8">
+              <button 
+                onClick={() => setCurrentPage('myhost')}
+                className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-4 py-2 rounded-full font-semibold text-sm transition-colors"
+              >
+                <Plus size={18} />
+                <span>Post</span>
+              </button>
+              <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors relative"
+                onClick={() => setCurrentPage('notifications')}>
+                <Bell size={18} />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors">
+                  <MoreVertical size={18} />
+                </button>
+                {showMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-48 rounded-xl bg-[#1A1A21] border border-white/10 shadow-lg overflow-hidden"
+                  >
+                    <button
+                      onClick={() => {
+                        setCurrentPage('main');
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      Help
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
+                    >
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </header>
+
             {/* Page Content */}
             {activeNav === 'Discover' && <Discover onNavigate={setCurrentPage} />}
             {activeNav === 'My Requests' && <MyRequests />}
