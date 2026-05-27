@@ -61,14 +61,16 @@ export function App() {
   
   const handleLogin = (user: any, token: string) => {
     // Set current user with provided user data
-    setCurrentUser({ 
+    const userData = { 
       id: user.id,
       username: user.username || user.display_name || 'User',
       name: user.display_name || user.username || 'User',
       profile_id: user.profile_id
-    });
-    // Store session token
+    };
+    setCurrentUser(userData);
+    // Store session token and user data
     localStorage.setItem('sessionToken', token);
+    localStorage.setItem('currentUser', JSON.stringify(userData));
     setIsAuthenticated(true);
     setHasEntered(true);
   };
@@ -82,6 +84,8 @@ export function App() {
     setHasEntered(false);
     setIsAuthenticated(false);
     setCurrentUser(null);
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('currentUser');
   };
   
   useEffect(() => {
@@ -100,6 +104,23 @@ export function App() {
     return () => {
       window.removeEventListener('resize', syncSidebarToViewport);
     };
+  }, []);
+
+  // Restore session from localStorage on app mount
+  useEffect(() => {
+    const sessionToken = localStorage.getItem('sessionToken');
+    const userData = localStorage.getItem('currentUser');
+    
+    if (sessionToken && userData) {
+      try {
+        const user = JSON.parse(userData);
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        setHasEntered(true);
+      } catch (e) {
+        console.error('Failed to restore session:', e);
+      }
+    }
   }, []);
 
   const content = (() => {
@@ -224,6 +245,8 @@ export function App() {
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
+            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} />}
+            {activeNav === 'Nearby' && <Nearby onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} />}
           </div>
         </main>
       </div>
