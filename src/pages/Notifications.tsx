@@ -329,7 +329,7 @@ export function Notifications({
           </motion.div>
         </div>
       </div>
-      <Sidebar activeNav="Notifications" onNavigate={onNavigate} />
+      <Sidebar activeNav={activeNav} onNavigate={onNavigate} setActiveNav={setActiveNav} onCloseSidebar={onCloseSidebar} />
     </div>
   );
 }

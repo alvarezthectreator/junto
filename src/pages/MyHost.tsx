@@ -997,11 +997,58 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
 
       // Send to backend API
       const response = await API.createEvent(eventPayload);
-      
+
       // Add the new event to local state
+      const createdEvent = {
+        id: response?.event?.id || eventData.id,
+        host_id: userId,
+        userInitial: 'Y',
+        userName: 'You',
+        actionText: eventData.title,
+        emoji: '🎉',
+        description: eventData.description,
+        date: eventData.date,
+        audience: 'Open to all',
+        interestedCount: 0,
+        isVerified: true,
+        reliabilityScore: 100,
+        averageRating: 5,
+        reviewCount: 0,
+        accentColor: 'bg-[#F59E0B]',
+        audienceColor: 'bg-emerald-500/10 text-emerald-400',
+        coverImage: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+        coords: [3.4219, 6.4281],
+        title: eventData.title,
+        location_city: eventData.location,
+        event_date: eventData.date,
+        event_time: eventData.time,
+        max_guests: eventData.capacity,
+        billing_tier: 1,
+        host_fee: 0,
+        guest_fee: 0,
+        created_at: new Date().toISOString(),
+        status: 'active',
+      };
+
+      try {
+        const storedUserRaw = localStorage.getItem('currentUser');
+        const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+        const localFeedEvent = {
+          ...createdEvent,
+          userInitial: (storedUser?.name || storedUser?.username || 'Y').charAt(0).toUpperCase(),
+          userName: storedUser?.name || storedUser?.username || 'You',
+        };
+
+        const storedEventsRaw = localStorage.getItem('junto-created-events');
+        const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+        localStorage.setItem('junto-created-events', JSON.stringify([localFeedEvent, ...storedEvents]));
+      } catch (storageError) {
+        console.error('Failed to store created event locally:', storageError);
+      }
+
       const newEventWithId = {
         ...eventData,
-        id: response.event.id,
+        id: response?.event?.id || eventData.id,
       };
       
       setEvents(prev => [newEventWithId, ...prev]);

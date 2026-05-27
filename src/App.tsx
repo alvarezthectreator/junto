@@ -20,12 +20,26 @@ import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
 import { Notifications } from './pages/Notifications';
 import { ToastProvider } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AppProvider } from './context/AppContext';
 export function App() {
   const location = useLocation();
   const [hasEntered, setHasEntered] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeNav, setActiveNav] = useState('Discover');
-  const [currentPage, setCurrentPage] = useState<string>('main');
+  const [activeNav, setActiveNav] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 'Discover';
+    }
+
+    return window.localStorage.getItem('junto-active-nav') || 'Discover';
+  });
+  const [currentPage, setCurrentPage] = useState<string>(() => {
+    if (typeof window === 'undefined') {
+      return 'main';
+    }
+
+    return window.localStorage.getItem('junto-current-page') || 'main';
+  });
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
@@ -43,6 +57,7 @@ export function App() {
   });
   const [showMenu, setShowMenu] = useState(false);
   const [openCreateModal, setOpenCreateModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
 
   // Track route changes and update activeNav
   useEffect(() => {
@@ -106,12 +121,23 @@ export function App() {
     setShowMenu(false);
     localStorage.removeItem('sessionToken');
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('junto-current-page');
+    localStorage.removeItem('junto-active-nav');
   };
   
   useEffect(() => {
     document.body.classList.toggle('theme-light-body', isLightMode);
     window.localStorage.setItem('junto-light-mode', String(isLightMode));
   }, [isLightMode]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasEntered) {
+      return;
+    }
+
+    window.localStorage.setItem('junto-current-page', currentPage);
+    window.localStorage.setItem('junto-active-nav', activeNav);
+  }, [activeNav, currentPage, hasEntered, isAuthenticated]);
 
   useEffect(() => {
     const syncSidebarToViewport = () => {
@@ -176,7 +202,7 @@ export function App() {
     }
 
     // Full-screen pages (no sidebar)
-    if (currentPage === 'event') return <EventDetail onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'event') return <EventDetail eventData={selectedEvent || undefined} onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'notifications') return <Notifications onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'nearby') {
       return (
@@ -184,6 +210,7 @@ export function App() {
           onNavigate={setCurrentPage}
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
+          currentUser={currentUser}
         />
       );
     }
@@ -269,12 +296,12 @@ export function App() {
             </header>
 
             {/* Page Content */}
-            {activeNav === 'Discover' && <Discover onNavigate={setCurrentPage} />}
+            {activeNav === 'Discover' && <Discover onNavigate={setCurrentPage} onOpenEvent={setSelectedEvent} currentUser={currentUser} />}
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
-            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
-            {activeNav === 'Nearby' && <Nearby onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} />}
+            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
+            {activeNav === 'Nearby' && <Nearby onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}
           </div>
         </main>
       </div>
@@ -283,9 +310,17 @@ export function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark">
-      <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
-        {content}
-      </div>
+      <AppProvider value={{
+        selectedEvent,
+        setSelectedUser: setCurrentUser,
+        handleLogout,
+      }}>
+        <ErrorBoundary>
+          <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
+            {content}
+          </div>
+        </ErrorBoundary>
+      </AppProvider>
     </ThemeProvider>
   );
 }

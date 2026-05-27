@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
@@ -7,12 +7,125 @@ import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
 import * as API from '../services/api';
+import type { DiscoverEventSeed } from '../data/discoverEvents';
 
 interface DiscoverProps {
   onNavigate?: (page: string) => void;
   onOpenEvent?: (event: EventDetailData) => void;
   currentUser?: any;
   selectedLocation?: string;
+}
+
+type FeedEvent = DiscoverEventSeed & {
+  location_city?: string;
+  event_date?: string;
+  event_time?: string;
+  max_guests?: number;
+  host_id?: string;
+  billing_tier?: number;
+  host_fee?: number;
+  guest_fee?: number;
+  created_at?: string;
+  status?: string;
+  title?: string;
+};
+
+const storedEventsKey = 'junto-created-events';
+
+function loadStoredCreatedEvents(): FeedEvent[] {
+  try {
+    const stored = localStorage.getItem(storedEventsKey);
+    const parsed = stored ? JSON.parse(stored) : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((event: any, index: number) => ({
+      id: event.id || `local-${index}`,
+      userInitial: event.userInitial || (event.userName || 'U').charAt(0).toUpperCase(),
+      userName: event.userName || 'You',
+      actionText: event.actionText || event.title || 'host a hangout',
+      emoji: event.emoji || '🎉',
+      description: event.description || '',
+      date: event.date || event.event_date || new Date().toISOString().split('T')[0],
+      audience: event.audience || 'Open to all',
+      interestedCount: event.interestedCount || event.max_guests || 0,
+      isVerified: event.isVerified ?? true,
+      reliabilityScore: event.reliabilityScore ?? 100,
+      averageRating: event.averageRating ?? 5,
+      reviewCount: event.reviewCount ?? 0,
+      accentColor: event.accentColor || 'bg-[#F59E0B]',
+      audienceColor: event.audienceColor || 'bg-emerald-500/10 text-emerald-400',
+      coverImage: event.coverImage || 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+      coords: event.coords || [3.4219, 6.4281],
+      location_city: event.location_city || 'Lagos',
+      event_date: event.event_date || event.date,
+      event_time: event.event_time || '18:00',
+      max_guests: event.max_guests || 0,
+      host_id: event.host_id || '',
+      billing_tier: event.billing_tier || 1,
+      host_fee: event.host_fee || 0,
+      guest_fee: event.guest_fee || 0,
+      created_at: event.created_at || new Date().toISOString(),
+      status: event.status || 'active',
+      title: event.title || `${event.userName || 'You'}'s ${event.actionText || 'event'}`,
+    }));
+  } catch (error) {
+    console.error('Failed to load locally created events:', error);
+    return [];
+  }
+}
+
+function toFeedEventFromApi(event: API.Event, index: number): FeedEvent {
+  const hostName = (event as any).display_name || 'Host';
+  const actionText = event.title || 'host a hangout';
+  return {
+    id: event.id,
+    userInitial: hostName.charAt(0).toUpperCase(),
+    userName: hostName,
+    actionText,
+    emoji: '🎉',
+    description: event.description || `${event.location_city || 'Nearby'} · ${event.event_date || ''}`.trim(),
+    date: event.event_date || new Date().toISOString().split('T')[0],
+    audience: 'Open to all',
+    interestedCount: event.max_guests || 0,
+    isVerified: true,
+    reliabilityScore: 100,
+    averageRating: 5,
+    reviewCount: 0,
+    accentColor: 'bg-[#F59E0B]',
+    audienceColor: 'bg-emerald-500/10 text-emerald-400',
+    coverImage: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+    coords: [3.4219 + (index * 0.01), 6.4281 + (index * 0.01)],
+    location_city: event.location_city,
+    event_date: event.event_date,
+    event_time: event.event_time,
+    max_guests: event.max_guests,
+    host_id: event.host_id,
+    billing_tier: event.billing_tier,
+    host_fee: event.host_fee,
+    guest_fee: event.guest_fee,
+    created_at: event.created_at,
+    status: (event as any).status || 'active',
+    title: event.title,
+  };
+}
+
+function toFeedEventFromSeed(event: DiscoverEventSeed): FeedEvent {
+  return {
+    ...event,
+    location_city: 'Lagos',
+    event_date: event.date,
+    event_time: '18:00',
+    max_guests: event.interestedCount,
+    host_id: event.id,
+    billing_tier: 1,
+    host_fee: 0,
+    guest_fee: 0,
+    created_at: new Date().toISOString(),
+    status: 'active',
+    title: `${event.userName}'s ${event.actionText}`,
+  };
 }
 
 export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
@@ -25,6 +138,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
+  const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
   
   const filters = [
   'All vibes',
@@ -54,7 +168,23 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     fetchEvents();
   }, [selectedLocation]);
 
-  const events = useBackend && apiEvents.length > 0 ? apiEvents : discoverEvents;
+  useEffect(() => {
+    setLocalEvents(loadStoredCreatedEvents());
+  }, []);
+
+  const events = useMemo<FeedEvent[]>(() => {
+    const backendEvents = useBackend && apiEvents.length > 0
+      ? apiEvents.map((event, index) => toFeedEventFromApi(event, index))
+      : discoverEvents.map(toFeedEventFromSeed);
+
+    const merged = [...localEvents, ...backendEvents];
+    const deduped = new Map<string, FeedEvent>();
+    merged.forEach((event) => {
+      deduped.set(String(event.id), event);
+    });
+
+    return Array.from(deduped.values());
+  }, [apiEvents, localEvents, useBackend]);
 
   // Filter events based on active filter and search
   let filteredEvents = events.filter((event: any) => {
@@ -90,27 +220,44 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     );
   };
 
-  const openEventDetail = (event: any, index: number) => {
+  const openEventDetail = (event: FeedEvent, index: number) => {
     let detailEvent: EventDetailData;
-    
-    if (useBackend && apiEvents.length > 0) {
-      // Convert API event to EventDetailData format
+
+    if (event.userName && event.actionText && event.coords) {
       detailEvent = {
         id: event.id,
-        actionText: event.title,
-        description: event.description || '',
-        date: event.event_date || new Date().toISOString().split('T')[0],
+        title: `${event.userName}'s ${event.actionText}`,
+        host: {
+          name: event.userName,
+          avatar: event.userInitial,
+          reliabilityScore: event.reliabilityScore,
+          isVerified: event.isVerified,
+          reviews: event.reviewCount,
+          averageRating: event.averageRating,
+        },
+        category: 'Social',
+        date: event.event_date || event.date,
         time: event.event_time || '18:00',
-        location: event.location_city || 'Unknown',
-        image: '', // API doesn't provide image
-        userName: 'Host',
-        userImage: '',
-        interestedCount: event.max_guests || 0,
-        audience: 'Open to all',
-        guestFee: event.guest_fee || 0,
+        location: event.location_city || 'Lagos',
+        description: event.description,
+        billingTier: 'HOST_ME',
+        genderFilter: 'Everyone',
+        interested: event.interestedCount,
+        spots: `${event.max_guests || 0} spots`,
+        totalSpots: event.max_guests || 0,
+        currentAttendees: Math.max((event.max_guests || 0) - 1, 0),
+        estimatedCost: 'Free',
+        duration: '2 hours',
+        ageRestriction: '18+',
+        rules: ['Be respectful', 'Keep it friendly'],
+        media: {
+          venue: [event.coverImage],
+          host: [event.userInitial],
+        },
+        coords: event.coords,
       };
     } else {
-      detailEvent = toEventDetail(event, index);
+      detailEvent = toEventDetail(event as any, index);
     }
 
     onOpenEvent?.(detailEvent);

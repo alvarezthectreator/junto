@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
@@ -106,6 +107,7 @@ function createMapIcon(label: string) {
 }
 
 export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, onNavigate, onOpenMessages }) => {
+  const navigate = useNavigate();
   const { selectedEvent, setSelectedUser } = useAppContext();
   const [isJoined, setIsJoined] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
