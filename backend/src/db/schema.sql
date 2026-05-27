@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   notification_type VARCHAR(50), -- match, message, event_accepted, etc.
   related_user_id UUID REFERENCES users(id),
-  related_event_id UUID REFERENCES events(id),
+  related_event_id UUID REFERENCES events(id) ON DELETE CASCADE,
   title VARCHAR(255),
   body TEXT,
   is_read BOOLEAN DEFAULT false,

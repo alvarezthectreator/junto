@@ -147,13 +147,23 @@ export async function deleteEvent(req, res) {
   try {
     const { eventId } = req.params;
 
-    const result = await query('DELETE FROM events WHERE id = $1 RETURNING id', [eventId]);
+    await query('BEGIN TRANSACTION');
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+    try {
+      await query('DELETE FROM notifications WHERE related_event_id = $1', [eventId]);
+      const result = await query('DELETE FROM events WHERE id = $1 RETURNING id', [eventId]);
+
+      if (result.rows.length === 0) {
+        await query('ROLLBACK');
+        return res.status(404).json({ error: 'Event not found' });
+      }
+
+      await query('COMMIT');
+      res.json({ success: true, message: '✅ Event deleted' });
+    } catch (innerError) {
+      await query('ROLLBACK');
+      throw innerError;
     }
-
-    res.json({ success: true, message: '✅ Event deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

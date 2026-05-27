@@ -452,7 +452,8 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
       setTimeout(() => setShowMessage(''), 2000);
     } catch (err) {
       console.error('Failed to delete event:', err);
-      setShowMessage('Could not delete event');
+      const message = err instanceof Error ? err.message : 'Could not delete event';
+      setShowMessage(message || 'Could not delete event');
       setTimeout(() => setShowMessage(''), 2200);
     }
   };
