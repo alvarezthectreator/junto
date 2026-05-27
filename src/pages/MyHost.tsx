@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast";
+import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
@@ -314,6 +315,8 @@ function PastEventCard({ event, index, isLightMode = false }: { event: any; inde
 interface MyHostProps {
   isLightMode?: boolean;
   openCreateModal?: boolean;
+  onNavigate?: (page: string) => void;
+  handleLogout?: () => void;
 }
 
 function CreateEventModal({
@@ -917,7 +920,7 @@ function CreateEventModal({
   );
 }
 
-export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateModal: initialOpenModal = false }) => {
+export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateModal: initialOpenModal = false, onNavigate = () => {}, handleLogout = () => {} }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("active");
@@ -1190,6 +1193,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         onSubmit={handleCreateEvent}
         isLightMode={isLightMode}
       />
+      <Sidebar activeNav="MyHost" handleLogout={handleLogout} />
     </div>
   );
 };

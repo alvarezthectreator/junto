@@ -185,7 +185,7 @@ export function App() {
       );
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
-    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} /></ToastProvider>;
+    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium onNavigate={setCurrentPage} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} />;
     if (currentPage === 'travel') return <TravelMode onNavigate={setCurrentPage} isLightMode={isLightMode} />;
