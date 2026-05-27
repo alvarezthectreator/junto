@@ -115,6 +115,7 @@ export async function login(username: string, password: string): Promise<{ sessi
   const response = await apiCall('/auth/login', 'POST', { username, password });
   sessionToken = response.session_token;
   localStorage.setItem('sessionToken', response.session_token);
+  localStorage.setItem('userId', response.user.id);
   return response;
 }
 
@@ -122,6 +123,7 @@ export async function signup(username: string, fullName: string, password: strin
   const response = await apiCall('/auth/signup', 'POST', { username, fullName, password });
   sessionToken = response.session_token;
   localStorage.setItem('sessionToken', response.session_token);
+  localStorage.setItem('userId', response.user.id);
   return response;
 }
 
@@ -132,6 +134,7 @@ export async function verifySession(): Promise<{ valid: boolean; user: User }> {
 export function logout(): void {
   sessionToken = null;
   localStorage.removeItem('sessionToken');
+  localStorage.removeItem('userId');
 }
 
 export function getSessionToken(): string | null {
@@ -139,6 +142,10 @@ export function getSessionToken(): string | null {
     sessionToken = localStorage.getItem('sessionToken');
   }
   return sessionToken;
+}
+
+export function getUserId(): string | null {
+  return localStorage.getItem('userId');
 }
 
 // ==================== USERS ====================
@@ -210,6 +217,10 @@ export async function applyToEvent(
 
 export async function getEventApplications(eventId: string): Promise<any[]> {
   return apiCall(`/applications/event/${eventId}`);
+}
+
+export async function getUserApplications(userId: string): Promise<{ applications: any[] }> {
+  return apiCall(`/applications/user/${userId}`);
 }
 
 export async function updateApplicationStatus(
