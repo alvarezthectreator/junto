@@ -15,13 +15,18 @@ interface SidebarProps {
   activeNav: string;
   onLogout?: () => void;
   handleLogout?: () => void;
+  onNavigate?: (page: string) => void;
 }
 
-export function Sidebar({ activeNav, onLogout, handleLogout }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate }: SidebarProps) {
   const navigate = useNavigate();
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
+  const handleNavigate = (page: string) => {
+    if (onNavigate) {
+      onNavigate(page);
+    } else {
+      navigate(`/${page}`);
+    }
   };
 
   const handleLogoutClick = () => {
@@ -42,21 +47,21 @@ export function Sidebar({ activeNav, onLogout, handleLogout }: SidebarProps) {
             icon={<Compass size={18} />}
             label="Discover"
             isActive={activeNav === 'Discover'}
-            onClick={() => handleNavigate('/discover')}
+            onClick={() => handleNavigate('discover')}
           />
           
           <NavItem
             icon={<Heart size={18} />}
             label="Nearby"
             isActive={activeNav === 'Nearby'}
-            onClick={() => handleNavigate('/nearby')}
+            onClick={() => handleNavigate('nearby')}
           />
           
           <NavItem
             icon={<ClipboardList size={18} />}
             label="Requests"
             isActive={activeNav === 'My Requests'}
-            onClick={() => handleNavigate('/requests')}
+            onClick={() => handleNavigate('requests')}
           />
 
           {/* Personal Section */}
@@ -64,7 +69,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout }: SidebarProps) {
             icon={<MessageCircle size={18} />}
             label="Messages"
             isActive={activeNav === 'Messages'}
-            onClick={() => handleNavigate('/messages')}
+            onClick={() => handleNavigate('messages')}
           />
           
           <NavItem
@@ -72,14 +77,14 @@ export function Sidebar({ activeNav, onLogout, handleLogout }: SidebarProps) {
             label="Safety"
             badge="2"
             isActive={activeNav === 'Safety'}
-            onClick={() => handleNavigate('/safety')}
+            onClick={() => handleNavigate('safety')}
           />
 
           <NavItem
             icon={<User size={18} />}
             label="Profile"
             isActive={activeNav === 'Profile'}
-            onClick={() => handleNavigate('/profile')}
+            onClick={() => handleNavigate('profile')}
           />
         </div>
 

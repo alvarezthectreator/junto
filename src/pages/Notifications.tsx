@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Sidebar } from '../components/Sidebar';
 import {
   Bell,
   Heart,
@@ -136,7 +137,7 @@ export function Notifications({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white pb-24">
       <div className="pt-24 pb-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
           {/* Header */}
@@ -328,6 +329,7 @@ export function Notifications({
           </motion.div>
         </div>
       </div>
+      <Sidebar activeNav="Notifications" onNavigate={onNavigate} />
     </div>
   );
 }

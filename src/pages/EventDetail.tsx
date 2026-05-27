@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Sidebar } from '../components/Sidebar';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
@@ -358,7 +359,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const inactiveTabButton = 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10';
 
   return (
-    <div className="min-h-screen bg-[#0F0F13] text-white">
+    <div className="min-h-screen bg-[#0F0F13] text-white pb-24">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="sticky top-0 z-50 -mx-4 mb-4 border-b border-white/5 bg-[#0F0F13]/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <button
@@ -1032,6 +1033,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
           )}
         </div>
       </div>
+      <Sidebar activeNav="Discover" onNavigate={onNavigate} />
     </div>
   );
 };

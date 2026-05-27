@@ -69,6 +69,11 @@ export function App() {
     }
   }, [currentPage]);
   
+  // Scroll to top and add padding when page changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+  
   const handleLogin = (user: any, token: string) => {
     // Set current user with provided user data
     const userData = { 
@@ -94,6 +99,7 @@ export function App() {
     setHasEntered(false);
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setCurrentPage('main');
     localStorage.removeItem('sessionToken');
     localStorage.removeItem('currentUser');
   };

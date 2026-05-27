@@ -1193,7 +1193,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         onSubmit={handleCreateEvent}
         isLightMode={isLightMode}
       />
-      <Sidebar activeNav="MyHost" handleLogout={handleLogout} />
+      <Sidebar activeNav="MyHost" handleLogout={handleLogout} onNavigate={onNavigate} />
     </div>
   );
 };
