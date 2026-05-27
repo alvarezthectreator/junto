@@ -18,6 +18,8 @@ import { Premium } from './pages/Premium';
 import { SafetyCentre } from './pages/SafetyCentre';
 import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
+import { Notifications } from './pages/Notifications';
+import { ToastProvider } from './components/Toast';
 export function App() {
   const location = useLocation();
   const [hasEntered, setHasEntered] = useState(false);
@@ -155,6 +157,7 @@ export function App() {
 
     // Full-screen pages (no sidebar)
     if (currentPage === 'event') return <EventDetail onNavigate={setCurrentPage} />;
+    if (currentPage === 'notifications') return <Notifications onNavigate={setCurrentPage} />;
     if (currentPage === 'nearby') {
       return (
         <Nearby
@@ -174,7 +177,7 @@ export function App() {
       );
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
-    if (currentPage === 'myhost') return <MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} />;
+    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium onNavigate={setCurrentPage} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} />;
     if (currentPage === 'travel') return <TravelMode onNavigate={setCurrentPage} isLightMode={isLightMode} />;
