@@ -106,6 +106,235 @@ function mapHostedEvent(event: any, applications: InterestedPerson[] = []): Host
   };
 }
 
+interface EditEventModalProps {
+  event: HostedEvent | null;
+  isOpen: boolean;
+  isSaving: boolean;
+  error: string;
+  onClose: () => void;
+  onSave: (formData: {
+    title: string;
+    description: string;
+    event_date: string;
+    event_time: string;
+    location_city: string;
+    max_guests: number;
+    cover_photo_url: string;
+  }) => Promise<void>;
+}
+
+function EditEventModalForm({
+  event,
+  isOpen,
+  isSaving,
+  error,
+  onClose,
+  onSave,
+}: EditEventModalProps) {
+  const [title, setTitle] = useState(event?.title || '');
+  const [description, setDescription] = useState(event?.description || '');
+  const [eventDate, setEventDate] = useState(event?.event_date || '');
+  const [eventTime, setEventTime] = useState(event?.event_time || '');
+  const [locationCity, setLocationCity] = useState(event?.location_city || '');
+  const [maxGuests, setMaxGuests] = useState(String(event?.max_guests || 0));
+  const [imagePreview, setImagePreview] = useState(event?.cover_photo_url || event?.coverImage || '');
+  const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    if (!event) return;
+
+    setTitle(event.title || '');
+    setDescription(event.description || '');
+    setEventDate(event.event_date || '');
+    setEventTime(event.event_time || '');
+    setLocationCity(event.location_city || '');
+    setMaxGuests(String(event.max_guests || 0));
+    setImagePreview(event.cover_photo_url || event.coverImage || '');
+    setLocalError('');
+  }, [event]);
+
+  const handleEditImageUpload = (file: File | null) => {
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLocalError('Image must be less than 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      setImagePreview(String(readerEvent.target?.result || ''));
+      setLocalError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (submitEvent: React.FormEvent) => {
+    submitEvent.preventDefault();
+    setLocalError('');
+
+    if (!title.trim() || !eventDate || !eventTime || !locationCity.trim()) {
+      setLocalError('Please fill in title, date, time, and location');
+      return;
+    }
+
+    await onSave({
+      title: title.trim(),
+      description: description.trim(),
+      event_date: eventDate,
+      event_time: eventTime,
+      location_city: locationCity.trim(),
+      max_guests: Number(maxGuests) || 0,
+      cover_photo_url: imagePreview || '',
+    });
+  };
+
+  if (!isOpen || !event) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[75] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#111115] p-5 shadow-2xl shadow-black/40 sm:p-6"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Edit event</h3>
+            <p className="text-sm text-gray-400">Update the details, image, and date from here.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 transition hover:bg-white/10"
+          >
+            Close
+          </button>
+        </div>
+
+        {(error || localError) && (
+          <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {error || localError}
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300">Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              placeholder="Event title"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              placeholder="Tell guests what to expect"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">Date</label>
+              <input
+                type="date"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">Time</label>
+              <input
+                type="time"
+                value={eventTime}
+                onChange={(e) => setEventTime(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">Location</label>
+              <input
+                value={locationCity}
+                onChange={(e) => setLocationCity(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">Max Guests</label>
+              <input
+                type="number"
+                min="1"
+                value={maxGuests}
+                onChange={(e) => setMaxGuests(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-300">Cover image URL</label>
+            <input
+              value={imagePreview}
+              onChange={(e) => setImagePreview(e.target.value)}
+              className="mb-3 w-full rounded-2xl border border-white/10 bg-[#0F0F13] px-4 py-3 text-white outline-none transition focus:border-[#F59E0B]/50"
+              placeholder="Paste image URL or upload a new image"
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleEditImageUpload(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-full file:border-0 file:bg-[#F59E0B] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#F59E0B]/90"
+            />
+            {imagePreview && (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
+                <img src={imagePreview} alt="Cover preview" className="h-48 w-full object-cover" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10"
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-70"
+          >
+            {isSaving ? 'Saving...' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </motion.div>
+  );
+}
+
 export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onCloseSidebar = () => {} }: MyRequestsProps) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Active');
@@ -924,7 +1153,14 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
             </div>
 
             <InterestedModal />
-            <EditEventModal />
+            <EditEventModalForm
+              event={editingEvent}
+              isOpen={showEditModal}
+              isSaving={editSaving}
+              error={editError}
+              onClose={closeEditModal}
+              onSave={handleSaveEdit}
+            />
           </motion.div>
         </div>
       </main>
