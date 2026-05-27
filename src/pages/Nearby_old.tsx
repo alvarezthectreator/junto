@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Compass, Flame, MapPin, X, Heart, Menu, MessageCircle, Plus, Calendar } from "lucide-react";
-import { Sidebar } from "../components/Sidebar";
 import {
   InteractiveMap,
   MapControls,
@@ -345,13 +344,11 @@ export const Nearby: React.FC<NearbyProps> = ({
         fontFamily: "'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      <Sidebar activeNav="Nearby" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <main
         className="mobile-page-main"
         style={{
           flex: 1,
-          marginLeft: 256,
+          marginLeft: 0,
           minHeight: "100dvh",
           overflowY: "auto",
           position: "relative",
@@ -646,41 +643,6 @@ export const Nearby: React.FC<NearbyProps> = ({
 
         {isMobile && (
           <div style={{ padding: "14px 14px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                style={{
-                  border: "none",
-                  borderRadius: 8,
-                  background: "rgba(255, 255, 255, 0.05)",
-                  padding: "10px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: pageText,
-                }}
-                aria-label="Toggle menu"
-              >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-              <button
-                onClick={() => onNavigate?.("hosting")}
-                style={{
-                  border: "none",
-                  borderRadius: 999,
-                  background: "#F59E0B",
-                  color: "#000",
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Plus size={18} />
                 <span>Post</span>
               </button>
               <button

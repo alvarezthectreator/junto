@@ -217,21 +217,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         </motion.div>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6 sm:mb-8">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search by activity, location, or person..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-[#1A1A21] border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
-          />
-          <svg className="absolute right-4 sm:right-5 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
-      </div>
+
 
       {/* Travel Mode Toggle */}
       <div className="group relative mb-8 sm:mb-10">

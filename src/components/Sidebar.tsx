@@ -10,23 +10,26 @@ import {
   LogOut,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAppContext } from '../context/AppContext';
 
 interface SidebarProps {
   activeNav: string;
   onLogout?: () => void;
+  handleLogout?: () => void;
 }
 
-export function Sidebar({ activeNav, onLogout }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout }: SidebarProps) {
   const navigate = useNavigate();
-  const { handleLogout } = useAppContext();
 
   const handleNavigate = (path: string) => {
     navigate(path);
   };
 
   const handleLogoutClick = () => {
-    handleLogout();
+    if (handleLogout) {
+      handleLogout();
+    } else if (onLogout) {
+      onLogout();
+    }
   };
 
   return (

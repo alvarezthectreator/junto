@@ -1,12 +1,12 @@
-import pool from './connection.js';
+import db from './connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const MOCK_USERS = [
-  { phone: '+2348123456789', name: 'Chioma Okonkwo', display: 'Chioma', gender: 'Female', city: 'Lagos', occupation: 'Product Manager', bio: 'Love art, food, and good conversations', interests: ['art', 'food', 'travel'] },
-  { phone: '+2348187654321', name: 'Tunde Adebayo', display: 'Tunde', gender: 'Male', city: 'Lagos', occupation: 'Software Engineer', bio: 'Tech enthusiast, gym lover', interests: ['tech', 'fitness', 'music'] },
-  { phone: '+2348165432198', name: 'Zainab Hassan', display: 'Zainab', gender: 'Female', city: 'Abuja', occupation: 'Lawyer', bio: 'Exploring new experiences', interests: ['travel', 'fitness', 'reading'] },
-  { phone: '+2348145678901', name: 'Amara Nwosu', display: 'Amara', gender: 'Female', city: 'Lagos', occupation: 'Designer', bio: 'Creative soul, coffee addict', interests: ['art', 'design', 'food'] },
-  { phone: '+2348134567890', name: 'Olajide Okafor', display: 'Olajide', gender: 'Male', city: 'Lagos', occupation: 'Entrepreneur', bio: 'Building startups and friendships', interests: ['business', 'travel', 'networking'] },
+  { id: uuidv4(), phone: '+2348123456789', name: 'Chioma Okonkwo', display: 'Chioma', gender: 'Female', city: 'Lagos', occupation: 'Product Manager', bio: 'Love art, food, and good conversations', interests: ['art', 'food', 'travel'], username: 'chioma01', password: 'password123' },
+  { id: uuidv4(), phone: '+2348187654321', name: 'Tunde Adebayo', display: 'Tunde', gender: 'Male', city: 'Lagos', occupation: 'Software Engineer', bio: 'Tech enthusiast, gym lover', interests: ['tech', 'fitness', 'music'], username: 'tunde01', password: 'password123' },
+  { id: uuidv4(), phone: '+2348165432198', name: 'Zainab Hassan', display: 'Zainab', gender: 'Female', city: 'Abuja', occupation: 'Lawyer', bio: 'Exploring new experiences', interests: ['travel', 'fitness', 'reading'], username: 'zainab01', password: 'password123' },
+  { id: uuidv4(), phone: '+2348145678901', name: 'Amara Nwosu', display: 'Amara', gender: 'Female', city: 'Lagos', occupation: 'Designer', bio: 'Creative soul, coffee addict', interests: ['art', 'design', 'food'], username: 'amara01', password: 'password123' },
+  { id: uuidv4(), phone: '+2348134567890', name: 'Olajide Okafor', display: 'Olajide', gender: 'Male', city: 'Lagos', occupation: 'Entrepreneur', bio: 'Building startups and friendships', interests: ['business', 'travel', 'networking'], username: 'olajide01', password: 'password123' },
 ];
 
 const MOCK_EVENTS = [
@@ -24,34 +24,66 @@ const BILLING_TIERS = {
   4: { name: 'Elite', hostFee: 500000, guestFee: 250000 }
 };
 
+// Hash password - simple implementation for SQLite
+import crypto from 'crypto';
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
 export async function seedDatabase() {
-  const client = await pool.connect();
   try {
     // Check if already seeded
-    const userCheck = await client.query('SELECT COUNT(*) FROM users');
-    if (userCheck.rows[0].count > 0) {
+    const checkResult = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (checkResult.count > 0) {
       console.log('✅ Database already seeded, skipping...');
       return;
     }
 
     console.log('🌱 Seeding database with mock data...');
 
+    // Helper function to execute queries with promises
+    const runQuery = (sql, params = []) => {
+      return new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+          if (err) reject(err);
+          else resolve(this);
+        });
+      });
+    };
+
+    const getQuery = (sql, params = []) => {
+      return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+    };
+
     // Seed Users
     const userIds = [];
     for (const mockUser of MOCK_USERS) {
       const profileId = `JNT-2024-${String(userIds.length + 1).padStart(5, '0')}`;
-      const result = await client.query(
-        `INSERT INTO users (phone_number, full_name, display_name, gender, city, occupation, bio, profile_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [mockUser.phone, mockUser.name, mockUser.display, mockUser.gender, mockUser.city, mockUser.occupation, mockUser.bio, profileId]
+      const passwordHash = hashPassword(mockUser.password);
+      
+      await runQuery(
+        `INSERT INTO users (id, phone_number, full_name, display_name, gender, city, occupation, bio, profile_id, username, password_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [mockUser.id, mockUser.phone, mockUser.name, mockUser.display, mockUser.gender, mockUser.city, mockUser.occupation, mockUser.bio, profileId, mockUser.username, passwordHash]
       );
-      userIds.push(result.rows[0].id);
+      userIds.push(mockUser.id);
 
       // Create user profile
-      await client.query(
-        `INSERT INTO user_profiles (user_id, interests, last_active)
-         VALUES ($1, $2, NOW())`,
-        [result.rows[0].id, JSON.stringify(mockUser.interests)]
+      await runQuery(
+        `INSERT INTO user_profiles (id, user_id, interests, last_active, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'))`,
+        [uuidv4(), mockUser.id, JSON.stringify(mockUser.interests)]
       );
     }
     console.log(`✅ Created ${userIds.length} users`);
@@ -63,10 +95,11 @@ export async function seedDatabase() {
       const eventDate = new Date();
       eventDate.setDate(eventDate.getDate() + Math.floor(Math.random() * 30) + 1);
 
-      await client.query(
-        `INSERT INTO events (host_id, title, description, event_type, location_city, location_address, event_date, event_time, billing_tier, host_fee, guest_fee, max_guests, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      await runQuery(
+        `INSERT INTO events (id, host_id, title, description, event_type, location_city, location_address, event_date, event_time, billing_tier, host_fee, guest_fee, max_guests, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
         [
+          uuidv4(),
           userIds[mockEvent.hostIndex],
           mockEvent.title,
           mockEvent.description,
@@ -90,10 +123,10 @@ export async function seedDatabase() {
       for (let j = 0; j < userIds.length; j++) {
         if (i !== j && Math.random() > 0.6) {
           const direction = Math.random() > 0.5 ? 'right' : 'left';
-          await client.query(
-            `INSERT INTO swipes (swiper_id, swiped_user_id, direction)
-             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-            [userIds[i], userIds[j], direction]
+          await runQuery(
+            `INSERT OR IGNORE INTO swipes (id, swiper_id, swiped_user_id, direction, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`,
+            [uuidv4(), userIds[i], userIds[j], direction]
           );
         }
       }
@@ -101,20 +134,20 @@ export async function seedDatabase() {
 
     // Seed some matches
     for (let i = 0; i < Math.min(3, userIds.length - 1); i++) {
-      await client.query(
-        `INSERT INTO matches (user1_id, user2_id, matched_at)
-         VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING`,
-        [userIds[i], userIds[i + 1]]
+      await runQuery(
+        `INSERT OR IGNORE INTO matches (id, user1_id, user2_id, matched_at)
+         VALUES (?, ?, ?, datetime('now'))`,
+        [uuidv4(), userIds[i], userIds[i + 1]]
       );
     }
     console.log('✅ Created swipes and matches');
 
     // Seed trusted contacts
     for (let i = 0; i < userIds.length; i++) {
-      await client.query(
-        `INSERT INTO trusted_contacts (user_id, contact_name, contact_phone, is_primary)
-         VALUES ($1, $2, $3, $4)`,
-        [userIds[i], 'Emergency Contact', '+2349000000000', true]
+      await runQuery(
+        `INSERT INTO trusted_contacts (id, user_id, contact_name, contact_phone, is_primary, created_at)
+         VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+        [uuidv4(), userIds[i], 'Emergency Contact', '+2349000000000', true]
       );
     }
     console.log('✅ Created trusted contacts');
@@ -123,8 +156,6 @@ export async function seedDatabase() {
   } catch (error) {
     console.error('❌ Error seeding database:', error);
     throw error;
-  } finally {
-    client.release();
   }
 }
 

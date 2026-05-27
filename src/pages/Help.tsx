@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Sidebar } from "../components/Sidebar";
 
 interface HelpProps {
   onNavigate?: (page: string) => void;
@@ -249,9 +248,7 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
       `}</style>
 
-      <Sidebar activeNav="Help" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
-      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 256, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
+      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 0, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
         <div
           style={{
             position: "sticky",
@@ -281,33 +278,6 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
         </div>
 
         <div style={{ padding: "24px 28px", maxWidth: 720, width: "100%", flex: 1, overflowY: "auto" }}>
-          {/* Search Bar */}
-          <div style={{ marginBottom: 28 }}>
-            <input
-              type="text"
-              placeholder="Search help articles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                borderRadius: 10,
-                color: isLightMode ? "#241b10" : "#fff",
-                fontSize: 14,
-                outline: "none",
-                transition: "all 0.2s ease",
-              }}
-              onFocus={(e) => {
-                (e.currentTarget as any).style.borderColor = "#F69D11";
-              }}
-              onBlur={(e) => {
-                (e.currentTarget as any).style.borderColor = isLightMode ? "rgba(36,27,16,0.1)" : "#1a1a1a";
-              }}
-            />
-          </div>
-
           {/* Contact Support Card */}
           <div
             style={{

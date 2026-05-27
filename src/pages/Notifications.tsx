@@ -13,7 +13,6 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
-import { Sidebar } from '../components/Sidebar';
 
 interface NotificationItem {
   id: string;
@@ -138,8 +137,6 @@ export function Notifications({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
-      <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <div className="pt-24 pb-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
           {/* Header */}

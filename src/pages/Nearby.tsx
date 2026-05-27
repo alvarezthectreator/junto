@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Compass, Flame, MapPin, X, Heart } from "lucide-react";
-import { Sidebar } from "../components/Sidebar";
 import {
   InteractiveMap,
   MapControls,
@@ -266,13 +265,11 @@ export const Nearby: React.FC<NearbyProps> = ({
         fontFamily: "'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      <Sidebar activeNav="Nearby" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <main
         className="mobile-page-main"
         style={{
           flex: 1,
-          marginLeft: 256,
+          marginLeft: 0,
           minHeight: "100dvh",
           overflowY: isMobile ? "auto" : "hidden",
           position: "relative",

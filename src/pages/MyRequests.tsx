@@ -1,7 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sidebar } from '../components/Sidebar';
 import { TopHeader } from '../components/TopHeader';
 import {
   Calendar,
@@ -261,8 +260,6 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
 
   return (
     <div className="flex min-h-screen bg-[#0F0F13]">
-      <Sidebar activeNav="My Requests" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-      
       {showMessage && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -273,7 +270,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
         </motion.div>
       )}
       
-      <main className="flex-1 ml-64 md:ml-64 lg:ml-64 overflow-auto">
+      <main className="flex-1 ml-0 md:ml-0 lg:ml-0 overflow-auto">
         <div className="p-6 md:p-8 max-w-6xl mx-auto">
           <motion.div
             initial={{
@@ -288,32 +285,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
               duration: 0.3
             }}>
             
-            {/* Header with Navigation and Post Button */}
-            <div className="flex items-center justify-between gap-4 mb-8 md:mb-6">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                aria-label="Toggle menu"
-              >
-                {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onNavigate?.('hosting')}
-                  className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 md:px-4 py-2 rounded-full font-semibold text-sm transition-colors"
-                >
-                  <Plus size={18} />
-                  <span className="hidden sm:inline">Post</span>
-                </button>
-                <button
-                  onClick={() => onNavigate?.('notifications')}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                  title="View notifications"
-                >
-                  <Bell size={18} />
-                </button>
-              </div>
-            </div>
+
 
             {/* Header */}
             <div className="mb-10">

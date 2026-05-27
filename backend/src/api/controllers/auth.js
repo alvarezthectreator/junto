@@ -1,5 +1,10 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 export async function dummyLogin(req, res) {
   try {
@@ -68,7 +73,8 @@ export async function login(req, res) {
     // For demo purposes, just check password matches
     // In production, use bcrypt to compare password hashes
     const userData = user.rows[0];
-    if (userData.password !== password) {
+    const passwordHash = hashPassword(password);
+    if (userData.password_hash !== passwordHash) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
@@ -107,17 +113,19 @@ export async function signup(req, res) {
     // Create new user
     const userId = uuidv4();
     const profileId = `JNT-2024-${Date.now().toString().slice(-5)}`;
+    const passwordHash = hashPassword(password);
 
     await query(
-      `INSERT INTO users (id, username, full_name, display_name, profile_id, password)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, password]
+      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash]
     );
 
     // Create profile
     await query(
-      `INSERT INTO user_profiles (user_id, last_active) VALUES (?, NOW())`,
-      [userId]
+      `INSERT INTO user_profiles (id, user_id, last_active, created_at, updated_at)
+       VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))`,
+      [uuidv4(), userId]
     );
 
     res.json({

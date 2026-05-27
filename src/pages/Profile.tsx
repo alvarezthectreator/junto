@@ -17,7 +17,6 @@ import {
   Trash2,
   Loader,
 } from 'lucide-react';
-import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
 
 interface ProfileProps {
@@ -199,11 +198,7 @@ export const Profile: React.FC<ProfileProps> = ({
 
   return (
     <div className={`flex min-h-screen transition-colors duration-300 ${pageClass}`}>
-      <div className="relative z-50">
-        <Sidebar activeNav="" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-      </div>
-
-      <main className="mobile-page-main relative ml-64 flex-1 overflow-hidden">
+      <main className="mobile-page-main relative ml-0 flex-1 overflow-hidden">
         <div className={`absolute inset-0 transition-colors duration-300 ${mainGlowClass}`} />
 
         <motion.div

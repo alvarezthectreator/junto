@@ -17,7 +17,6 @@ import {
   User,
   AlertCircle,
 } from 'lucide-react';
-import { Sidebar } from '../components/Sidebar';
 
 interface SettingsProps {
   onNavigate?: (page: string) => void;
@@ -133,8 +132,6 @@ export function Settings({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
-      <Sidebar activeNav="Settings" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <div className="pt-24 pb-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           {/* Header */}

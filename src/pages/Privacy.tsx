@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Shield } from 'lucide-react';
-import { Sidebar } from '../components/Sidebar';
 
 interface PrivacyProps {
   onNavigate?: (page: string) => void;
@@ -110,8 +109,6 @@ We may use analytics tools to understand how users interact with our service.`,
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white">
-      <Sidebar activeNav="Settings" setActiveNav={setActiveNav} onNavigate={onNavigate} onCloseSidebar={onCloseSidebar} />
-
       <div className="pt-24 pb-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           {/* Header */}
