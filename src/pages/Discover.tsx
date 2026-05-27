@@ -31,6 +31,7 @@ type FeedEvent = DiscoverEventSeed & {
 };
 
 const storedEventsKey = 'junto-created-events';
+const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
 
 function loadStoredCreatedEvents(): FeedEvent[] {
   try {
@@ -56,7 +57,7 @@ function loadStoredCreatedEvents(): FeedEvent[] {
       reviewCount: event.reviewCount ?? 0,
       accentColor: event.accentColor || 'bg-[#F59E0B]',
       audienceColor: event.audienceColor || 'bg-emerald-500/10 text-emerald-400',
-      coverImage: event.coverImage || 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+      coverImage: event.coverImage || event.cover_photo_url || fallbackCoverImage,
       coords: event.coords || [3.4219, 6.4281],
       location_city: event.location_city || 'Lagos',
       event_date: event.event_date || event.date,
@@ -95,7 +96,7 @@ function toFeedEventFromApi(event: API.Event, index: number): FeedEvent {
     reviewCount: 0,
     accentColor: 'bg-[#F59E0B]',
     audienceColor: 'bg-emerald-500/10 text-emerald-400',
-    coverImage: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+    coverImage: event.cover_photo_url || event.coverImage || fallbackCoverImage,
     coords: [3.4219 + (index * 0.01), 6.4281 + (index * 0.01)],
     location_city: event.location_city,
     event_date: event.event_date,
@@ -136,6 +137,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
+  const [hostEvents, setHostEvents] = useState<API.Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
   const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
@@ -149,13 +151,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   'Males only',
   'Trending 🔥'];
 
-  // Fetch events from API on component mount or location change
+  // Fetch events from API on component mount
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        const events = await API.getEvents({ city: selectedLocation });
-        setApiEvents(events);
+        const response = await API.getEvents();
+        setApiEvents(response.events || []);
       } catch (error) {
         console.error('Failed to fetch events:', error);
         // Fall back to mock data if API fails
@@ -166,7 +168,26 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     };
 
     fetchEvents();
-  }, [selectedLocation]);
+  }, []);
+
+  useEffect(() => {
+    const fetchHostEvents = async () => {
+      try {
+        if (!currentUser?.id) {
+          setHostEvents([]);
+          return;
+        }
+
+        const response = await API.getHostEvents(currentUser.id);
+        setHostEvents(response.events || []);
+      } catch (error) {
+        console.error('Failed to fetch host events for Discover:', error);
+        setHostEvents([]);
+      }
+    };
+
+    fetchHostEvents();
+  }, [currentUser?.id]);
 
   useEffect(() => {
     setLocalEvents(loadStoredCreatedEvents());
@@ -177,14 +198,20 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       ? apiEvents.map((event, index) => toFeedEventFromApi(event, index))
       : discoverEvents.map(toFeedEventFromSeed);
 
-    const merged = [...localEvents, ...backendEvents];
+    const personalHostEvents = hostEvents.map((event, index) => ({
+      ...toFeedEventFromApi(event, index + 1000),
+      userName: currentUser?.name || currentUser?.username || (event as any).display_name || 'You',
+      userInitial: (currentUser?.name || currentUser?.username || (event as any).display_name || 'Y').charAt(0).toUpperCase(),
+    }));
+
+    const merged = [...localEvents, ...personalHostEvents, ...backendEvents];
     const deduped = new Map<string, FeedEvent>();
     merged.forEach((event) => {
       deduped.set(String(event.id), event);
     });
 
     return Array.from(deduped.values());
-  }, [apiEvents, localEvents, useBackend]);
+  }, [apiEvents, hostEvents, localEvents, useBackend, currentUser?.name, currentUser?.username]);
 
   // Filter events based on active filter and search
   let filteredEvents = events.filter((event: any) => {

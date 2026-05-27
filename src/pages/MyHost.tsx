@@ -979,6 +979,10 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         return;
       }
 
+      const uploadedImage = typeof eventData.imagePreview === 'string' && /^https?:\/\//i.test(eventData.imagePreview)
+        ? eventData.imagePreview
+        : undefined;
+
       // Prepare event data for backend API
       const eventPayload = {
         title: eventData.title,
@@ -986,6 +990,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         location_city: eventData.location,
         event_date: eventData.date, // Format: YYYY-MM-DD
         event_time: eventData.time, // Format: HH:MM
+        cover_photo_url: uploadedImage || eventData.cover_photo_url,
         max_guests: eventData.capacity,
         host_id: userId,
         billing_tier: 1, // Default tier
@@ -1014,7 +1019,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         reviewCount: 0,
         accentColor: 'bg-[#F59E0B]',
         audienceColor: 'bg-emerald-500/10 text-emerald-400',
-        coverImage: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
+        coverImage: eventData.imagePreview || createdEventResponse?.cover_photo_url || 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800',
         coords: [3.4219, 6.4281],
         title: eventData.title,
         location_city: eventData.location,
@@ -1047,6 +1052,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
       const newEventWithId = {
         ...eventData,
         id: createdEventResponse?.id || eventData.id,
+        coverImage: eventData.imagePreview || createdEventResponse?.cover_photo_url || eventData.coverImage,
       };
       
       setEvents(prev => [newEventWithId, ...prev]);

@@ -38,6 +38,7 @@ export interface Event {
   location_city: string;
   event_date: string;
   event_time: string;
+  cover_photo_url?: string;
   max_guests?: number;
   billing_tier: number;
   host_fee: number;
@@ -175,7 +176,7 @@ export async function getTravelModeUsers(city: string): Promise<User[]> {
 
 // ==================== EVENTS ====================
 
-export async function getEvents(filters?: { city?: string; date?: string }): Promise<Event[]> {
+export async function getEvents(filters?: { city?: string; date?: string }): Promise<{ events: Event[] }> {
   let endpoint = '/events';
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
@@ -200,7 +201,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
   return apiCall(`/events/${eventId}`, 'DELETE');
 }
 
-export async function getHostEvents(hostId: string): Promise<Event[]> {
+export async function getHostEvents(hostId: string): Promise<{ events: Event[] }> {
   return apiCall(`/events/host/${hostId}`);
 }
 
