@@ -16,14 +16,18 @@ interface SidebarProps {
   onLogout?: () => void;
   handleLogout?: () => void;
   onNavigate?: (page: string) => void;
+  setActiveNav?: (nav: string) => void;
 }
 
-export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav }: SidebarProps) {
   const navigate = useNavigate();
 
-  const handleNavigate = (page: string) => {
+  const handleNavigate = (page: string, navLabel: string) => {
     if (onNavigate) {
       onNavigate(page);
+      if (setActiveNav) {
+        setActiveNav(navLabel);
+      }
     } else {
       navigate(`/${page}`);
     }
@@ -47,21 +51,21 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate }: Sideb
             icon={<Compass size={18} />}
             label="Discover"
             isActive={activeNav === 'Discover'}
-            onClick={() => handleNavigate('discover')}
+            onClick={() => handleNavigate('discover', 'Discover')}
           />
           
           <NavItem
             icon={<Heart size={18} />}
             label="Nearby"
             isActive={activeNav === 'Nearby'}
-            onClick={() => handleNavigate('nearby')}
+            onClick={() => handleNavigate('nearby', 'Nearby')}
           />
           
           <NavItem
             icon={<ClipboardList size={18} />}
             label="Requests"
             isActive={activeNav === 'My Requests'}
-            onClick={() => handleNavigate('requests')}
+            onClick={() => handleNavigate('requests', 'My Requests')}
           />
 
           {/* Personal Section */}
@@ -69,7 +73,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate }: Sideb
             icon={<MessageCircle size={18} />}
             label="Messages"
             isActive={activeNav === 'Messages'}
-            onClick={() => handleNavigate('messages')}
+            onClick={() => handleNavigate('messages', 'Messages')}
           />
           
           <NavItem
@@ -77,14 +81,14 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate }: Sideb
             label="Safety"
             badge="2"
             isActive={activeNav === 'Safety'}
-            onClick={() => handleNavigate('safety')}
+            onClick={() => handleNavigate('safety', 'Safety')}
           />
 
           <NavItem
             icon={<User size={18} />}
             label="Profile"
             isActive={activeNav === 'Profile'}
-            onClick={() => handleNavigate('profile')}
+            onClick={() => handleNavigate('profile', 'Profile')}
           />
         </div>
 

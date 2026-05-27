@@ -170,8 +170,8 @@ export function App() {
     }
 
     // Full-screen pages (no sidebar)
-    if (currentPage === 'event') return <EventDetail onNavigate={setCurrentPage} />;
-    if (currentPage === 'notifications') return <Notifications onNavigate={setCurrentPage} />;
+    if (currentPage === 'event') return <EventDetail onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'notifications') return <Notifications onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'nearby') {
       return (
         <Nearby
@@ -185,6 +185,7 @@ export function App() {
       return (
         <Profile
           onNavigate={setCurrentPage}
+          setActiveNav={setActiveNav}
           isLightMode={isLightMode}
           onToggleLightMode={() => setIsLightMode((current) => !current)}
         />

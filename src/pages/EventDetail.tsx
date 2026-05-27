@@ -71,6 +71,7 @@ interface EventDetailProps {
   eventId?: string;
   eventData?: EventDetailData;
   onNavigate?: (page: string) => void;
+  setActiveNav?: (nav: string) => void;
   onOpenMessages?: () => void;
 }
 
@@ -1033,7 +1034,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
           )}
         </div>
       </div>
-      <Sidebar activeNav="Discover" onNavigate={onNavigate} />
+      <Sidebar activeNav="Discover" onNavigate={onNavigate} setActiveNav={setActiveNav} />
     </div>
   );
 };
