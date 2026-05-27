@@ -8,6 +8,7 @@ import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
 import { useAppContext } from '../context/AppContext';
 import * as API from '../services/api';
+import { compressImageDataUrl } from '../utils/imageCompression';
 
 const LeafletMapContainer = MapContainer as any;
 const LeafletMarker = Marker as any;
@@ -417,6 +418,8 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     setEditSaving(true);
     setEditError('');
 
+    const compressedCoverImage = await compressImageDataUrl(editDraft.coverImage || '');
+
     const payload = {
       title: editDraft.title.trim(),
       description: editDraft.description.trim(),
@@ -424,7 +427,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       event_date: editDraft.date,
       event_time: editDraft.time,
       max_guests: Number(editDraft.maxSpots) || event.totalSpots,
-      cover_photo_url: editDraft.coverImage || undefined,
+      cover_photo_url: compressedCoverImage || undefined,
       status: 'active',
     };
 

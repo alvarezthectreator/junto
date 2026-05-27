@@ -22,6 +22,7 @@ import {
   Loader2
 } from 'lucide-react';
 import * as API from '../services/api';
+import { compressImageDataUrl } from '../utils/imageCompression';
 
 interface MyRequestsProps {
   onNavigate?: (page: string) => void;
@@ -178,6 +179,8 @@ function EditEventModalForm({
       return;
     }
 
+    const compressedImage = await compressImageDataUrl(imagePreview || '');
+
     await onSave({
       title: title.trim(),
       description: description.trim(),
@@ -185,7 +188,7 @@ function EditEventModalForm({
       event_time: eventTime,
       location_city: locationCity.trim(),
       max_guests: Number(maxGuests) || 0,
-      cover_photo_url: imagePreview || '',
+      cover_photo_url: compressedImage || '',
     });
   };
 
@@ -419,9 +422,39 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     navigate(`/profile`);
   };
 
-  const handleWithdrawEvent = (eventId: string) => {
-    setShowMessage('Event withdrawn');
-    setTimeout(() => setShowMessage(''), 2000);
+  const handleWithdrawEvent = async (eventId: string) => {
+    try {
+      await API.deleteEvent(eventId);
+
+      setHostedEvents((current) => current.filter((event) => event.id !== eventId));
+
+      try {
+        const storedEventsRaw = localStorage.getItem('junto-created-events');
+        const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+        if (Array.isArray(storedEvents)) {
+          const nextStoredEvents = storedEvents.filter((event: any) => String(event.id) !== String(eventId));
+          localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
+        }
+      } catch (storageError) {
+        console.error('Failed to remove deleted event from local storage:', storageError);
+      }
+
+      if (selectedEventId === eventId) {
+        setSelectedEventId(null);
+        setShowInterestedModal(false);
+      }
+
+      if (editingEvent?.id === eventId) {
+        closeEditModal();
+      }
+
+      setShowMessage('Event deleted');
+      setTimeout(() => setShowMessage(''), 2000);
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+      setShowMessage('Could not delete event');
+      setTimeout(() => setShowMessage(''), 2200);
+    }
   };
 
   const activeRequests = hostedEvents.filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));

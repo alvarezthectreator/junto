@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useToast } from "../components/Toast";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
+import { compressImageDataUrl } from "../utils/imageCompression";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -980,7 +981,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
       }
 
       const uploadedImage = typeof eventData.imagePreview === 'string' && eventData.imagePreview.trim()
-        ? eventData.imagePreview.trim()
+        ? await compressImageDataUrl(eventData.imagePreview.trim())
         : undefined;
 
       // Prepare event data for backend API

@@ -232,6 +232,8 @@ export function App() {
         <Sidebar 
           activeNav={activeNav} 
           handleLogout={handleLogout}
+          onNavigate={setCurrentPage}
+          setActiveNav={setActiveNav}
         />
 
         <main className="flex-1 ml-0 md:ml-64">
