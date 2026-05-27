@@ -62,6 +62,7 @@ const deletedEventsKey = 'junto-deleted-events';
 
 interface DeletedEventTombstone {
   id: string;
+  host_id: string;
   title: string;
   event_date: string;
   event_time: string;
@@ -97,12 +98,14 @@ function formatDateForInput(eventDate?: string) {
 }
 
 function normalizeEventSignature(event: {
+  host_id?: string;
   title?: string;
   event_date?: string;
   event_time?: string;
   location_city?: string;
 }) {
   return [
+    (event.host_id || '').trim().toLowerCase(),
     (event.title || '').trim().toLowerCase(),
     formatDateForInput(event.event_date || '').trim(),
     (event.event_time || '').trim(),
@@ -123,6 +126,7 @@ function readDeletedEventTombstones(): DeletedEventTombstone[] {
         if (typeof entry === 'string' || typeof entry === 'number') {
           return {
             id: String(entry),
+            host_id: '',
             title: '',
             event_date: '',
             event_time: '',
@@ -132,6 +136,7 @@ function readDeletedEventTombstones(): DeletedEventTombstone[] {
 
         return {
           id: String(entry?.id || ''),
+          host_id: String(entry?.host_id || ''),
           title: String(entry?.title || ''),
           event_date: String(entry?.event_date || ''),
           event_time: String(entry?.event_time || ''),
@@ -529,6 +534,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
       const tombstone = removedEvent
         ? {
             id: String(eventId),
+            host_id: String(removedEvent.host_id || ''),
             title: removedEvent.title || '',
             event_date: removedEvent.event_date || '',
             event_time: removedEvent.event_time || '',
@@ -536,6 +542,7 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           }
         : {
             id: String(eventId),
+            host_id: '',
             title: '',
             event_date: '',
             event_time: '',

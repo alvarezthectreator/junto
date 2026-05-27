@@ -63,12 +63,14 @@ function formatDateForInput(eventDate?: string) {
 }
 
 function normalizeEventSignature(event: {
+  host_id?: string;
   title?: string;
   event_date?: string;
   event_time?: string;
   location_city?: string;
 }) {
   return [
+    (event.host_id || '').trim().toLowerCase(),
     (event.title || '').trim().toLowerCase(),
     formatDateForInput(event.event_date || '').trim(),
     (event.event_time || '').trim(),
@@ -95,6 +97,7 @@ function readDeletedEventSignatures(): Set<string> {
         }
 
         return normalizeEventSignature({
+          host_id: entry?.host_id,
           title: entry?.title,
           event_date: entry?.event_date,
           event_time: entry?.event_time,
