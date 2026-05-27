@@ -42,6 +42,7 @@ export function App() {
     return window.localStorage.getItem('junto-light-mode') === 'true';
   });
   const [showMenu, setShowMenu] = useState(false);
+  const [openCreateModal, setOpenCreateModal] = useState(false);
 
   // Track route changes and update activeNav
   useEffect(() => {
@@ -60,6 +61,13 @@ export function App() {
       setActiveNav('Profile');
     }
   }, [location.pathname]);
+  
+  // Reset openCreateModal when leaving myhost page
+  useEffect(() => {
+    if (currentPage !== 'myhost') {
+      setOpenCreateModal(false);
+    }
+  }, [currentPage]);
   
   const handleLogin = (user: any, token: string) => {
     // Set current user with provided user data
@@ -177,7 +185,7 @@ export function App() {
       );
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
-    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} /></ToastProvider>;
+    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium onNavigate={setCurrentPage} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} />;
     if (currentPage === 'travel') return <TravelMode onNavigate={setCurrentPage} isLightMode={isLightMode} />;
@@ -195,7 +203,10 @@ export function App() {
             {/* Top Header with Action Buttons */}
             <header className="flex items-center justify-end gap-3 mb-8">
               <button 
-                onClick={() => setCurrentPage('myhost')}
+                onClick={() => {
+                  setCurrentPage('myhost');
+                  setOpenCreateModal(true);
+                }}
                 className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-4 py-2 rounded-full font-semibold text-sm transition-colors"
               >
                 <Plus size={18} />

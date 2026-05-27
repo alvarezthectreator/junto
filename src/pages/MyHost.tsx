@@ -313,6 +313,7 @@ function PastEventCard({ event, index, isLightMode = false }: { event: any; inde
 
 interface MyHostProps {
   isLightMode?: boolean;
+  openCreateModal?: boolean;
 }
 
 function CreateEventModal({
@@ -916,12 +917,12 @@ function CreateEventModal({
   );
 }
 
-export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false }) => {
+export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateModal: initialOpenModal = false }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("active");
   const [headerVisible, setHeaderVisible] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(initialOpenModal);
   const [events, setEvents] = useState([
     {
       id: "1",
