@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS events (
   location_longitude FLOAT,
   event_date DATE NOT NULL,
   event_time TIME NOT NULL,
-  cover_photo_url VARCHAR(500),
+  cover_photo_url TEXT,
   billing_tier INT DEFAULT 1,
   host_fee INT,
   guest_fee INT,

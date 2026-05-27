@@ -117,7 +117,7 @@ export async function createEvent(req, res) {
 export async function updateEvent(req, res) {
   try {
     const { eventId } = req.params;
-    const { title, description, location_city, event_date, event_time, status } = req.body;
+    const { title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests } = req.body;
 
     const result = await query(
       `UPDATE events SET title = COALESCE($1, title),
@@ -126,9 +126,11 @@ export async function updateEvent(req, res) {
                         event_date = COALESCE($4, event_date),
                         event_time = COALESCE($5, event_time),
                         status = COALESCE($6, status),
-                        updated_at = NOW()
-       WHERE id = $7 RETURNING *`,
-      [title, description, location_city, event_date, event_time, status, eventId]
+                        cover_photo_url = COALESCE($7, cover_photo_url),
+                        max_guests = COALESCE($8, max_guests),
+                        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9 RETURNING *`,
+      [title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests, eventId]
     );
 
     if (result.rows.length === 0) {

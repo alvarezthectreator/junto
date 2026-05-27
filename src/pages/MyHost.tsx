@@ -979,8 +979,8 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         return;
       }
 
-      const uploadedImage = typeof eventData.imagePreview === 'string' && /^https?:\/\//i.test(eventData.imagePreview)
-        ? eventData.imagePreview
+      const uploadedImage = typeof eventData.imagePreview === 'string' && eventData.imagePreview.trim()
+        ? eventData.imagePreview.trim()
         : undefined;
 
       // Prepare event data for backend API

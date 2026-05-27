@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS events (
   location_coordinates POINT, -- latitude, longitude
   event_date DATE NOT NULL,
   event_time TIME NOT NULL,
-  cover_photo_url VARCHAR(500),
+  cover_photo_url TEXT,
   billing_tier INT DEFAULT 1, -- 1-4 for Starter, Social, Premium, Elite
   host_fee INT, -- in naira
   guest_fee INT, -- in naira
