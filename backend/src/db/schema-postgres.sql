@@ -151,6 +151,20 @@ CREATE TABLE IF NOT EXISTS blocked_users (
   UNIQUE(blocker_id, blocked_user_id)
 );
 
+-- Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_type VARCHAR(50),
+  related_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  related_event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+  title VARCHAR(255),
+  body TEXT,
+  is_read BOOLEAN DEFAULT false,
+  read_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
 CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
@@ -162,3 +176,5 @@ CREATE INDEX IF NOT EXISTS idx_applications_event ON event_applications(event_id
 CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user1_id);
 CREATE INDEX IF NOT EXISTS idx_swipes_user ON swipes(swiper_id);
 CREATE INDEX IF NOT EXISTS idx_matches_user ON matches(user1_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
