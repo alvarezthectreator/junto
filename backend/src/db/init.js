@@ -53,6 +53,8 @@ export async function initializeDatabase() {
       
       if (total === 0) {
         console.log('✅ Database tables created successfully');
+        // Run additional initialization for production
+        ensureProductionTables();
         resolve();
         return;
       }
@@ -72,6 +74,8 @@ export async function initializeDatabase() {
             completed++;
             if (completed === total) {
               console.log('✅ Database tables created successfully');
+              // Run additional initialization for production
+              ensureProductionTables();
               resolve();
             }
           });
@@ -82,6 +86,46 @@ export async function initializeDatabase() {
     console.error('❌ Error initializing database:', error);
     throw error;
   }
+}
+
+// Ensure notifications table exists (for production databases that were created without it)
+function ensureProductionTables() {
+  const createNotificationsTable = `
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      notification_type VARCHAR(50),
+      related_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      related_event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+      title VARCHAR(255),
+      body TEXT,
+      is_read BOOLEAN DEFAULT false,
+      read_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  
+  db.run(createNotificationsTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create notifications table:', err.message);
+    } else {
+      console.log('✅ Ensured notifications table exists');
+    }
+    
+    // Create indexes
+    const createIndexes = [
+      'CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);'
+    ];
+    
+    createIndexes.forEach(indexSql => {
+      db.run(indexSql, (err) => {
+        if (err && !err.message.includes('already exists')) {
+          console.warn('⚠️  Index creation warning:', err.message);
+        }
+      });
+    });
+  });
 }
 
 // Run if called directly
