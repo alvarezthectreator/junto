@@ -105,7 +105,7 @@ async function apiCall(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `API Error: ${response.status}`);
+      throw new Error(error.message || error.error || `API Error: ${response.status}`);
     }
 
     return await response.json();

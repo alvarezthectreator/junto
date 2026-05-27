@@ -422,40 +422,47 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
     navigate(`/profile`);
   };
 
+  const removeEventFromLocalState = (eventId: string) => {
+    setHostedEvents((current) => current.filter((event) => event.id !== eventId));
+
+    try {
+      const storedEventsRaw = localStorage.getItem('junto-created-events');
+      const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
+      if (Array.isArray(storedEvents)) {
+        const nextStoredEvents = storedEvents.filter((event: any) => String(event.id) !== String(eventId));
+        localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
+      }
+    } catch (storageError) {
+      console.error('Failed to remove deleted event from local storage:', storageError);
+    }
+
+    if (selectedEventId === eventId) {
+      setSelectedEventId(null);
+      setShowInterestedModal(false);
+    }
+
+    if (editingEvent?.id === eventId) {
+      closeEditModal();
+    }
+  };
+
   const handleWithdrawEvent = async (eventId: string) => {
     try {
       await API.deleteEvent(eventId);
-
-      setHostedEvents((current) => current.filter((event) => event.id !== eventId));
-
-      try {
-        const storedEventsRaw = localStorage.getItem('junto-created-events');
-        const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
-        if (Array.isArray(storedEvents)) {
-          const nextStoredEvents = storedEvents.filter((event: any) => String(event.id) !== String(eventId));
-          localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
-        }
-      } catch (storageError) {
-        console.error('Failed to remove deleted event from local storage:', storageError);
-      }
-
-      if (selectedEventId === eventId) {
-        setSelectedEventId(null);
-        setShowInterestedModal(false);
-      }
-
-      if (editingEvent?.id === eventId) {
-        closeEditModal();
-      }
-
+      removeEventFromLocalState(eventId);
       setShowMessage('Event deleted');
-      setTimeout(() => setShowMessage(''), 2000);
     } catch (err) {
       console.error('Failed to delete event:', err);
       const message = err instanceof Error ? err.message : 'Could not delete event';
-      setShowMessage(message || 'Could not delete event');
-      setTimeout(() => setShowMessage(''), 2200);
+      if (/404|not found/i.test(message)) {
+        removeEventFromLocalState(eventId);
+        setShowMessage('Event deleted');
+      } else {
+        setShowMessage(message || 'Could not delete event');
+      }
     }
+
+    setTimeout(() => setShowMessage(''), 2000);
   };
 
   const activeRequests = hostedEvents.filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
