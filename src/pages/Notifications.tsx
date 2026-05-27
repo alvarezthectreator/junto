@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
+import {
+  deleteNotification as deleteNotificationApi,
+  getNotifications as getNotificationsApi,
+  getUserId,
+  markNotificationAsRead as markNotificationAsReadApi,
+} from '../services/api';
+import {
+  isBrowserNotificationsSupported,
+  isPushEnabled,
+  showBrowserNotification,
+} from '../services/browserNotifications';
 import {
   Bell,
   Heart,
@@ -12,7 +23,6 @@ import {
   Archive,
   Settings,
   ChevronRight,
-  X,
 } from 'lucide-react';
 
 interface NotificationItem {
@@ -35,105 +45,181 @@ interface NotificationsProps {
   onCloseSidebar?: () => void;
 }
 
+const NOTIFICATION_FILTERS = ['All', 'Unread', 'Messages', 'Events'] as const;
+
+function formatTimestamp(value: string): string {
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) {
+    return 'Just now';
+  }
+
+  const diffMs = Date.now() - createdAt.getTime();
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+}
+
+function getNotificationPresentation(type: string): Pick<NotificationItem, 'icon' | 'color' | 'type' | 'avatar'> {
+  switch (type) {
+    case 'message':
+      return { type: 'message', icon: <MessageCircle className="w-5 h-5" />, color: 'from-blue-500/20 to-cyan-500/10', avatar: '💬' };
+    case 'event_accepted':
+    case 'new_application':
+    case 'application':
+      return { type: 'application', icon: <CheckCircle2 className="w-5 h-5" />, color: 'from-emerald-500/20 to-green-500/10', avatar: '✅' };
+    case 'interest':
+    case 'match':
+      return { type: 'interest', icon: <Heart className="w-5 h-5" />, color: 'from-red-500/20 to-pink-500/10', avatar: '❤️' };
+    case 'event':
+      return { type: 'event', icon: <AlertCircle className="w-5 h-5" />, color: 'from-yellow-500/20 to-orange-500/10' };
+    default:
+      return { type: 'system', icon: <Users className="w-5 h-5" />, color: 'from-purple-500/20 to-violet-500/10' };
+  }
+}
+
 export function Notifications({
   onNavigate = () => {},
   setActiveNav = () => {},
   activeNav = 'Notifications',
   onCloseSidebar = () => {},
 }: NotificationsProps) {
+  const userId = getUserId();
   const [activeFilter, setActiveFilter] = useState<'All' | 'Unread' | 'Messages' | 'Events'>('All');
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: '1',
-      type: 'interest',
-      title: 'Zainab showed interest in your beach day',
-      description: 'Tarkwa Bay • Tomorrow, 10am',
-      timestamp: '5 minutes ago',
-      read: false,
-      avatar: '👩‍🦰',
-      icon: <Heart className="w-5 h-5" />,
-      color: 'from-red-500/20 to-pink-500/10',
-    },
-    {
-      id: '2',
-      type: 'message',
-      title: 'New message from Oge',
-      description: 'Hey! Are you still up for the movie tonight?',
-      timestamp: '32 minutes ago',
-      read: false,
-      avatar: '👨‍🦱',
-      icon: <MessageCircle className="w-5 h-5" />,
-      color: 'from-blue-500/20 to-cyan-500/10',
-    },
-    {
-      id: '3',
-      type: 'application',
-      title: 'Ada accepted your request to join',
-      description: 'Beach volleyball at Victoria Island • Saturday, 4pm',
-      timestamp: '2 hours ago',
-      read: false,
-      avatar: '👩',
-      icon: <CheckCircle2 className="w-5 h-5" />,
-      color: 'from-emerald-500/20 to-green-500/10',
-    },
-    {
-      id: '4',
-      type: 'event',
-      title: 'Event starting soon: Night brunch',
-      description: 'Starts in 3 hours at Lekki Phase 1',
-      timestamp: '3 hours ago',
-      read: true,
-      icon: <AlertCircle className="w-5 h-5" />,
-      color: 'from-yellow-500/20 to-orange-500/10',
-    },
-    {
-      id: '5',
-      type: 'interest',
-      title: 'Marcus showed interest in your hangout',
-      description: 'City exploration • This weekend',
-      timestamp: '5 hours ago',
-      read: true,
-      avatar: '👨',
-      icon: <Heart className="w-5 h-5" />,
-      color: 'from-red-500/20 to-pink-500/10',
-    },
-    {
-      id: '6',
-      type: 'system',
-      title: 'Your profile is 85% complete',
-      description: 'Add a profile photo and bio to increase your chances',
-      timestamp: '1 day ago',
-      read: true,
-      icon: <Users className="w-5 h-5" />,
-      color: 'from-purple-500/20 to-violet-500/10',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+  const hasSyncedRef = useRef(false);
 
-  const filters = ['All', 'Unread', 'Messages', 'Events'] as const;
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((notif) => {
+      if (activeFilter === 'Unread') return !notif.read;
+      if (activeFilter === 'Messages') return notif.type === 'message';
+      if (activeFilter === 'Events') return notif.type === 'event' || notif.type === 'application';
+      return true;
+    });
+  }, [activeFilter, notifications]);
 
-  const filteredNotifications = notifications.filter((notif) => {
-    if (activeFilter === 'Unread') return !notif.read;
-    if (activeFilter === 'Messages') return notif.type === 'message';
-    if (activeFilter === 'Events') return notif.type === 'event' || notif.type === 'application';
-    return true;
-  });
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  useEffect(() => {
+    let active = true;
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    const syncNotifications = async () => {
+      if (!userId) {
+        if (active) {
+          setNotifications([]);
+          setLoading(false);
+          setError('Sign in to view your notifications.');
+        }
+        return;
+      }
+
+      try {
+        const response = await getNotificationsApi(userId);
+        const serverNotifications = response.notifications || [];
+        const nextNotifications = serverNotifications.map((notification: any) => {
+          const presentation = getNotificationPresentation(notification.notification_type || notification.type || 'system');
+          return {
+            id: notification.id,
+            type: presentation.type,
+            title: notification.title || 'Notification',
+            description: notification.body || notification.message || 'You have a new update.',
+            timestamp: formatTimestamp(notification.created_at),
+            read: Boolean(notification.is_read ?? notification.read),
+            avatar: presentation.avatar,
+            icon: presentation.icon,
+            color: presentation.color,
+          } as NotificationItem;
+        });
+
+        if (!active) {
+          return;
+        }
+
+        if (hasSyncedRef.current && isBrowserNotificationsSupported() && isPushEnabled() && Notification.permission === 'granted') {
+          const newUnread = serverNotifications.filter(
+            (notification: any) => !notification.is_read && !seenNotificationIdsRef.current.has(notification.id)
+          );
+
+          newUnread.forEach((notification: any) => {
+            showBrowserNotification(notification.title || 'Junto notification', {
+              body: notification.body || 'You have a new notification.',
+              icon: '/favicon.ico',
+            });
+          });
+        }
+
+        seenNotificationIdsRef.current = new Set(serverNotifications.map((notification: any) => notification.id));
+        hasSyncedRef.current = true;
+        setNotifications(nextNotifications);
+        setError(null);
+      } catch (syncError: any) {
+        if (active) {
+          setError(syncError?.message || 'Could not load notifications right now.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    syncNotifications();
+    const timer = window.setInterval(syncNotifications, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [userId]);
+
+  const markAsRead = async (id: string) => {
+    setNotifications((current) => current.map((n) => (n.id === id ? { ...n, read: true } : n)));
+
+    try {
+      await markNotificationAsReadApi(id);
+    } catch {
+      setNotifications((current) => current.map((n) => (n.id === id ? { ...n, read: false } : n)));
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    setNotifications((current) => current.map((n) => ({ ...n, read: true })));
+
+    await Promise.all(
+      unreadIds.map(async (notificationId) => {
+        try {
+          await markNotificationAsReadApi(notificationId);
+        } catch {
+          // Keep the UI responsive even if a single update fails.
+        }
+      })
+    );
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
+  const deleteNotification = async (id: string) => {
+    setNotifications((current) => current.filter((n) => n.id !== id));
+
+    try {
+      await deleteNotificationApi(id);
+    } catch {
+      // If the backend already removed it, the UI state is still correct.
+    }
   };
 
-  const archiveNotification = (id: string) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
+  const archiveNotification = async (id: string) => {
+    await deleteNotification(id);
   };
 
   return (
@@ -179,7 +265,7 @@ export function Notifications({
             transition={{ delay: 0.1 }}
             className="flex gap-2 mb-6 overflow-x-auto pb-2"
           >
-            {filters.map((filter) => (
+            {NOTIFICATION_FILTERS.map((filter) => (
               <motion.button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
@@ -214,7 +300,23 @@ export function Notifications({
 
           {/* Notifications List */}
           <div className="space-y-3">
-            {filteredNotifications.length > 0 ? (
+            {loading ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-400"
+              >
+                Loading notifications...
+              </motion.div>
+            ) : error ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-6 text-center text-sm text-amber-100"
+              >
+                {error}
+              </motion.div>
+            ) : filteredNotifications.length > 0 ? (
               filteredNotifications.map((notif, index) => (
                 <motion.div
                   key={notif.id}

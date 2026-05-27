@@ -77,6 +77,22 @@ export interface Notification {
   created_at: string;
 }
 
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan_id: 'starter' | 'social' | 'premium' | 'elite';
+  billing_cycle: 'monthly' | 'annual';
+  status: 'active' | 'cancelled' | 'past_due';
+  provider: string;
+  amount: number;
+  currency: string;
+  started_at: string;
+  current_period_end?: string | null;
+  canceled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
@@ -384,6 +400,24 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
 
 export async function deleteNotification(notificationId: string): Promise<void> {
   return apiCall(`/notifications/${notificationId}`, 'DELETE');
+}
+
+// ==================== SUBSCRIPTIONS ====================
+
+export async function getSubscription(userId: string): Promise<{ subscription: Subscription | null }> {
+  return apiCall(`/subscriptions/${userId}`);
+}
+
+export async function activateSubscription(userId: string, planId: Subscription['plan_id'], billingCycle: Subscription['billing_cycle']): Promise<{ subscription: Subscription; message?: string }> {
+  return apiCall('/subscriptions/activate', 'POST', {
+    user_id: userId,
+    plan_id: planId,
+    billing_cycle: billingCycle,
+  });
+}
+
+export async function cancelSubscription(userId: string): Promise<{ subscription: Subscription; message?: string }> {
+  return apiCall(`/subscriptions/${userId}/cancel`, 'PUT');
 }
 
 // ==================== HEALTH CHECK ====================

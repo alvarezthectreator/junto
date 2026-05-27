@@ -104,6 +104,24 @@ function ensureProductionTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+  const createSubscriptionsTable = `
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      plan_id VARCHAR(50) NOT NULL,
+      billing_cycle VARCHAR(20) NOT NULL,
+      status VARCHAR(50) DEFAULT 'active',
+      provider VARCHAR(50) DEFAULT 'manual',
+      amount INT DEFAULT 0,
+      currency VARCHAR(10) DEFAULT 'NGN',
+      started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      current_period_end TIMESTAMP,
+      canceled_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
   
   db.run(createNotificationsTable, (err) => {
     if (err && !err.message.includes('already exists')) {
@@ -124,6 +142,20 @@ function ensureProductionTables() {
           console.warn('⚠️  Index creation warning:', err.message);
         }
       });
+    });
+  });
+
+  db.run(createSubscriptionsTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create subscriptions table:', err.message);
+    } else {
+      console.log('✅ Ensured subscriptions table exists');
+    }
+
+    db.run('CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);', (indexErr) => {
+      if (indexErr && !indexErr.message.includes('already exists')) {
+        console.warn('⚠️  Subscription index creation warning:', indexErr.message);
+      }
     });
   });
 }

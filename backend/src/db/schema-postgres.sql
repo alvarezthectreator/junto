@@ -178,3 +178,22 @@ CREATE INDEX IF NOT EXISTS idx_swipes_user ON swipes(swiper_id);
 CREATE INDEX IF NOT EXISTS idx_matches_user ON matches(user1_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
+
+-- Subscriptions
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  plan_id VARCHAR(50) NOT NULL,
+  billing_cycle VARCHAR(20) NOT NULL,
+  status VARCHAR(50) DEFAULT 'active',
+  provider VARCHAR(50) DEFAULT 'manual',
+  amount INT DEFAULT 0,
+  currency VARCHAR(10) DEFAULT 'NGN',
+  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  current_period_end TIMESTAMP,
+  canceled_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);

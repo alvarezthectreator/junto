@@ -1,6 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, BadgeCheck, Check, Crown, Sparkles, Star, Menu, Plus, X, Bell } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Check, Crown, Sparkles, Star } from 'lucide-react';
+import {
+  activateSubscription,
+  cancelSubscription,
+  getSubscription,
+  getUserId,
+  type Subscription,
+} from '../services/api';
 
 interface PremiumProps {
 }
@@ -64,17 +71,94 @@ export const Premium: React.FC<PremiumProps> = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<PlanId>('premium');
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+  const userId = getUserId();
 
   const currentPlan = useMemo(() => plans.find((plan) => plan.id === selectedPlan) ?? plans[2], [selectedPlan]);
 
-  const handleSubscribe = () => {
+  useEffect(() => {
+    let active = true;
+
+    const loadSubscription = async () => {
+      if (!userId) {
+        if (active) {
+          setIsLoadingSubscription(false);
+        }
+        return;
+      }
+
+      try {
+        const response = await getSubscription(userId);
+        if (!active) {
+          return;
+        }
+
+        if (response.subscription) {
+          setSubscription(response.subscription);
+          setSelectedPlan(response.subscription.plan_id);
+          setBillingCycle(response.subscription.billing_cycle);
+          setStatusMessage('Your plan is active on your account.');
+        }
+      } catch (error: any) {
+        if (active) {
+          setStatusMessage(error?.message || 'Could not load your subscription right now.');
+        }
+      } finally {
+        if (active) {
+          setIsLoadingSubscription(false);
+        }
+      }
+    };
+
+    loadSubscription();
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const handleSubscribe = async () => {
+    if (!userId) {
+      setStatusMessage('Sign in first so we can save your subscription.');
+      return;
+    }
+
     setIsPurchasing(true);
-    window.setTimeout(() => {
+    setStatusMessage(null);
+
+    try {
+      const response = await activateSubscription(userId, selectedPlan, billingCycle);
+      setSubscription(response.subscription);
+      setStatusMessage(response.message || 'Subscription activated.');
+    } catch (error: any) {
+      setStatusMessage(error?.message || 'Subscription activation failed.');
+    } finally {
       setIsPurchasing(false);
-      setIsSubscribed(true);
-    }, 900);
+    }
   };
+
+  const handleCancelSubscription = async () => {
+    if (!userId) {
+      return;
+    }
+
+    setIsPurchasing(true);
+    setStatusMessage(null);
+
+    try {
+      const response = await cancelSubscription(userId);
+      setSubscription(response.subscription);
+      setStatusMessage(response.message || 'Subscription cancelled.');
+    } catch (error: any) {
+      setStatusMessage(error?.message || 'Could not cancel the subscription.');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const isSubscribed = subscription?.status === 'active';
 
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
@@ -93,16 +177,16 @@ export const Premium: React.FC<PremiumProps> = () => {
                     Pick the plan that matches how you use Junto.
                   </h1>
                   <p className="mt-4 max-w-2xl text-base text-gray-300 md:text-lg">
-                    Front-end only for now, but the pricing experience, plan comparison, and premium cues are all here so the demo feels complete.
+                    Your subscription choice now persists to the backend, so the plan you pick is saved to your account instead of living only in the UI.
                   </p>
                 </div>
 
                 <div className="rounded-[1.75rem] border border-yellow-500/20 bg-white/5 p-4 shadow-2xl shadow-black/20">
                   <div className="flex items-center gap-2 text-sm text-gray-300">
                     <Sparkles size={16} className="text-[#FBBF24]" />
-                    Demo upgrade flow
+                    Live subscription flow
                   </div>
-                  <p className="mt-2 text-sm text-gray-400">Choose a plan, preview benefits, and simulate a subscription state.</p>
+                  <p className="mt-2 text-sm text-gray-400">Choose a plan, activate it, and keep the subscription state on your account.</p>
                 </div>
               </div>
             </div>
@@ -227,7 +311,7 @@ export const Premium: React.FC<PremiumProps> = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-yellow-400/80">
-                      Demo checkout
+                      Subscription checkout
                     </p>
                     <h3 className="mt-2 text-2xl font-semibold text-white">{currentPlan.name}</h3>
                   </div>
@@ -244,13 +328,30 @@ export const Premium: React.FC<PremiumProps> = () => {
                   </p>
                 </div>
 
-                {isSubscribed ? (
+                {isLoadingSubscription ? (
+                  <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 text-sm text-gray-300">
+                    Loading subscription...
+                  </div>
+                ) : isSubscribed ? (
                   <div className="mt-5 rounded-[1.5rem] border border-green-500/20 bg-green-500/10 p-4">
                     <div className="flex items-center gap-2 text-green-300">
                       <Check size={16} />
                       <span className="font-semibold">Subscription active</span>
                     </div>
-                    <p className="mt-2 text-sm text-green-100/80">You are now viewing the premium front-end state for demo purposes.</p>
+                    <p className="mt-2 text-sm text-green-100/80">
+                      {subscription?.plan_id?.toUpperCase()} is active on your account.
+                    </p>
+                    <p className="mt-2 text-xs text-green-100/70">
+                      {subscription?.billing_cycle === 'annual' ? 'Annual billing' : 'Monthly billing'}
+                      {subscription?.current_period_end ? ` • Renews ${new Date(subscription.current_period_end).toLocaleDateString()}` : ''}
+                    </p>
+                    <button
+                      onClick={handleCancelSubscription}
+                      disabled={isPurchasing}
+                      className="mt-4 inline-flex items-center gap-2 rounded-full border border-green-300/30 px-4 py-2 text-sm font-medium text-green-100 transition hover:bg-white/5 disabled:cursor-wait disabled:opacity-70"
+                    >
+                      {isPurchasing ? 'Cancelling...' : 'Cancel subscription'}
+                    </button>
                   </div>
                 ) : (
                   <button
@@ -258,13 +359,16 @@ export const Premium: React.FC<PremiumProps> = () => {
                     disabled={isPurchasing}
                     className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-4 font-bold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
                   >
-                    {isPurchasing ? 'Processing...' : 'Subscribe in demo'}
+                    {isPurchasing ? 'Processing...' : 'Activate subscription'}
                     {!isPurchasing && <ArrowRight size={16} />}
                   </button>
                 )}
 
+                {statusMessage && (
+                  <p className="mt-3 text-sm leading-6 text-gray-300">{statusMessage}</p>
+                )}
                 <p className="mt-3 text-xs leading-6 text-gray-400">
-                  No real payment is taken. This is the demo checkout front end only, designed to match the guide while auth and payments stay out of scope.
+                  Subscription state is now stored in the backend. If you want card charging or bank checkout later, we’ll need to plug in a payment provider next.
                 </p>
               </div>
 

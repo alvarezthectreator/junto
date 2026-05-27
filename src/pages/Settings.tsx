@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings as SettingsIcon,
@@ -17,6 +17,12 @@ import {
   User,
   AlertCircle,
 } from 'lucide-react';
+import {
+  isBrowserNotificationsSupported,
+  isPushEnabled,
+  requestPushPermission,
+  setPushEnabled,
+} from '../services/browserNotifications';
 
 interface SettingsProps {
   onNavigate?: (page: string) => void;
@@ -111,9 +117,34 @@ export function Settings({
     },
   ]);
 
-  const toggleNotification = (id: string) => {
-    setNotificationSettings(
-      notificationSettings.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
+  useEffect(() => {
+    const pushAllowed = isBrowserNotificationsSupported() && isPushEnabled() && Notification.permission === 'granted';
+    setNotificationSettings((current) =>
+      current.map((setting) => (setting.id === 'push' ? { ...setting, enabled: pushAllowed } : setting))
+    );
+  }, []);
+
+  const toggleNotification = async (id: string) => {
+    const target = notificationSettings.find((setting) => setting.id === id);
+
+    if (id === 'push' && target && !target.enabled) {
+      const granted = await requestPushPermission();
+      setNotificationSettings((current) =>
+        current.map((setting) => (setting.id === id ? { ...setting, enabled: granted } : setting))
+      );
+      setPushEnabled(granted);
+      return;
+    }
+
+    setNotificationSettings((current) =>
+      current.map((setting) => {
+        if (setting.id !== id) return setting;
+        const nextEnabled = !setting.enabled;
+        if (id === 'push') {
+          setPushEnabled(nextEnabled);
+        }
+        return { ...setting, enabled: nextEnabled };
+      })
     );
   };
 

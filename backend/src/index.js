@@ -13,6 +13,7 @@ import messageRoutes from './api/routes/messages.js';
 import nearbyRoutes from './api/routes/nearby.js';
 import safetyRoutes from './api/routes/safety.js';
 import notificationRoutes from './api/routes/notifications.js';
+import subscriptionRoutes from './api/routes/subscriptions.js';
 
 // Load environment variables
 dotenv.config();
@@ -63,6 +64,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/nearby', nearbyRoutes);
 app.use('/api/safety', safetyRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
