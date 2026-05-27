@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Bell, Plus, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
@@ -22,6 +22,15 @@ import { Notifications } from './pages/Notifications';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
+import { logout as clearApiSession, getLastSessionActivity, markSessionActivity } from './services/api';
+
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const SESSION_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'focus'];
+
+function getStoredSessionActivity() {
+  return getLastSessionActivity();
+}
+
 export function App() {
   const location = useLocation();
   const [hasEntered, setHasEntered] = useState(false);
@@ -89,7 +98,7 @@ export function App() {
     window.scrollTo(0, 0);
   }, [currentPage]);
   
-  const handleLogin = (user: any, token: string) => {
+  const handleLogin = useCallback((user: any, token: string) => {
     // Set current user with provided user data
     const userData = { 
       id: user.id,
@@ -101,24 +110,25 @@ export function App() {
     // Store session token and user data
     localStorage.setItem('sessionToken', token);
     localStorage.setItem('currentUser', JSON.stringify(userData));
+    markSessionActivity();
     setCurrentPage('main');
     setActiveNav('Discover');
     setIsAuthenticated(true);
     setHasEntered(true);
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setHasEntered(false);
     setIsAuthenticated(false);
     setCurrentUser(null);
     setCurrentPage('main');
     setActiveNav('Discover');
     setShowMenu(false);
-    localStorage.removeItem('sessionToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('junto-current-page');
     localStorage.removeItem('junto-active-nav');
-  };
+    clearApiSession();
+  }, []);
   
   useEffect(() => {
     document.body.classList.toggle('theme-light-body', isLightMode);
@@ -133,6 +143,55 @@ export function App() {
     window.localStorage.setItem('junto-current-page', currentPage);
     window.localStorage.setItem('junto-active-nav', activeNav);
   }, [activeNav, currentPage, hasEntered, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const storedActivity = getStoredSessionActivity();
+    if (!storedActivity) {
+      markSessionActivity();
+      return;
+    }
+
+    if (Date.now() - storedActivity >= SESSION_TIMEOUT_MS) {
+      handleLogout();
+      return;
+    }
+
+    const touchSession = () => {
+      const lastActivity = getStoredSessionActivity();
+      if (lastActivity && Date.now() - lastActivity >= SESSION_TIMEOUT_MS) {
+        handleLogout();
+        return;
+      }
+
+      markSessionActivity();
+    };
+
+    const expireSessionIfIdle = () => {
+      touchSession();
+    };
+
+    SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, touchSession, { passive: true });
+    });
+
+    window.addEventListener('mousemove', touchSession, { passive: true });
+    window.addEventListener('visibilitychange', expireSessionIfIdle);
+
+    const timerId = window.setInterval(expireSessionIfIdle, 60 * 1000);
+
+    return () => {
+      SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+        window.removeEventListener(eventName, touchSession);
+      });
+      window.removeEventListener('mousemove', touchSession);
+      window.removeEventListener('visibilitychange', expireSessionIfIdle);
+      window.clearInterval(timerId);
+    };
+  }, [handleLogout, isAuthenticated]);
 
   useEffect(() => {
     const syncSidebarToViewport = () => {
@@ -155,11 +214,21 @@ export function App() {
     if (sessionToken && userData) {
       try {
         const user = JSON.parse(userData);
+        const storedActivity = getStoredSessionActivity();
+
+        if (storedActivity && Date.now() - storedActivity >= SESSION_TIMEOUT_MS) {
+          handleLogout();
+          return;
+        }
+
         setCurrentUser(user);
         setIsAuthenticated(true);
         setHasEntered(true);
         setCurrentPage('main');
         setActiveNav('Discover');
+        if (!storedActivity) {
+          markSessionActivity();
+        }
       } catch (e) {
         console.error('Failed to restore session:', e);
       }

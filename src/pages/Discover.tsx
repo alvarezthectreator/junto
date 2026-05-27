@@ -31,6 +31,7 @@ type FeedEvent = DiscoverEventSeed & {
 };
 
 const storedEventsKey = 'junto-created-events';
+const deletedEventsKey = 'junto-deleted-events';
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
 
 function parseEventDateTime(eventDate?: string, eventTime?: string) {
@@ -56,15 +57,71 @@ function isEventExpired(eventDate?: string, eventTime?: string, status?: string)
   return eventDateTime.getTime() < Date.now();
 }
 
+function formatDateForInput(eventDate?: string) {
+  if (!eventDate) return '';
+  return eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+}
+
+function normalizeEventSignature(event: {
+  title?: string;
+  event_date?: string;
+  event_time?: string;
+  location_city?: string;
+}) {
+  return [
+    (event.title || '').trim().toLowerCase(),
+    formatDateForInput(event.event_date || '').trim(),
+    (event.event_time || '').trim(),
+    (event.location_city || '').trim().toLowerCase(),
+  ].join('|');
+}
+
+function readDeletedEventSignatures(): Set<string> {
+  try {
+    const deletedStored = localStorage.getItem(deletedEventsKey);
+    if (!deletedStored) {
+      return new Set();
+    }
+
+    const parsed = JSON.parse(deletedStored);
+    if (!Array.isArray(parsed)) {
+      return new Set();
+    }
+
+    return new Set(
+      parsed.map((entry: any) => {
+        if (typeof entry === 'string' || typeof entry === 'number') {
+          return String(entry);
+        }
+
+        return normalizeEventSignature({
+          title: entry?.title,
+          event_date: entry?.event_date,
+          event_time: entry?.event_time,
+          location_city: entry?.location_city,
+        });
+      })
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 function loadStoredCreatedEvents(): FeedEvent[] {
   try {
     const stored = localStorage.getItem(storedEventsKey);
     const parsed = stored ? JSON.parse(stored) : [];
+    const deletedSignatures = readDeletedEventSignatures();
     if (!Array.isArray(parsed)) {
       return [];
     }
 
-    return parsed.map((event: any, index: number) => ({
+    return parsed
+      .filter((event: any) => {
+        const eventSignature = normalizeEventSignature(event);
+        return !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(eventSignature);
+      })
+      .map((event: any, index: number) => ({
       id: event.id || `local-${index}`,
       userInitial: event.userInitial || (event.userName || 'U').charAt(0).toUpperCase(),
       userName: event.userName || 'You',
@@ -217,6 +274,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   }, []);
 
   const events = useMemo<FeedEvent[]>(() => {
+    const deletedSignatures = readDeletedEventSignatures();
+
     const backendEvents = useBackend && apiEvents.length > 0
       ? apiEvents.map((event, index) => toFeedEventFromApi(event, index))
       : discoverEvents.map(toFeedEventFromSeed);
@@ -233,9 +292,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       deduped.set(String(event.id), event);
     });
 
-    return Array.from(deduped.values()).filter(
-      (event) => !isEventExpired(event.event_date, event.event_time, event.status)
-    );
+    return Array.from(deduped.values())
+      .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
+      .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
   }, [apiEvents, hostEvents, localEvents, useBackend, currentUser?.name, currentUser?.username]);
 
   // Filter events based on active filter and search

@@ -2,6 +2,7 @@
 // Handles all backend API communication
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const SESSION_ACTIVITY_KEY = 'junto-last-activity';
 
 // Session token storage
 let sessionToken: string | null = null;
@@ -102,13 +103,34 @@ async function apiCall(
 
   try {
     const response = await fetch(url, options);
+    const responseText = await response.text();
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || error.error || `API Error: ${response.status}`);
+      if (!responseText) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      let message = responseText;
+      try {
+        const error = JSON.parse(responseText);
+        message = error.message || error.error || message;
+      } catch {
+        // Keep the raw response text if it isn't JSON.
+      }
+
+      throw new Error(message || `API Error: ${response.status}`);
     }
 
-    return await response.json();
+    if (!responseText) {
+      return {};
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return JSON.parse(responseText);
+    }
+
+    return responseText;
   } catch (error) {
     console.error(`API Error (${method} ${endpoint}):`, error);
     throw error;
@@ -141,6 +163,7 @@ export function logout(): void {
   sessionToken = null;
   localStorage.removeItem('sessionToken');
   localStorage.removeItem('userId');
+  localStorage.removeItem(SESSION_ACTIVITY_KEY);
 }
 
 export function getSessionToken(): string | null {
@@ -152,6 +175,14 @@ export function getSessionToken(): string | null {
 
 export function getUserId(): string | null {
   return localStorage.getItem('userId');
+}
+
+export function markSessionActivity(): void {
+  localStorage.setItem(SESSION_ACTIVITY_KEY, String(Date.now()));
+}
+
+export function getLastSessionActivity(): number {
+  return Number(localStorage.getItem(SESSION_ACTIVITY_KEY) || 0);
 }
 
 // ==================== USERS ====================

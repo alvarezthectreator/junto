@@ -58,6 +58,15 @@ interface HostedEvent {
 }
 
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
+const deletedEventsKey = 'junto-deleted-events';
+
+interface DeletedEventTombstone {
+  id: string;
+  title: string;
+  event_date: string;
+  event_time: string;
+  location_city: string;
+}
 
 function parseEventDateTime(eventDate?: string, eventTime?: string) {
   if (!eventDate) return null;
@@ -85,6 +94,65 @@ function isEventExpired(eventDate?: string, eventTime?: string, status?: string)
 function formatDateForInput(eventDate?: string) {
   if (!eventDate) return '';
   return eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+}
+
+function normalizeEventSignature(event: {
+  title?: string;
+  event_date?: string;
+  event_time?: string;
+  location_city?: string;
+}) {
+  return [
+    (event.title || '').trim().toLowerCase(),
+    formatDateForInput(event.event_date || '').trim(),
+    (event.event_time || '').trim(),
+    (event.location_city || '').trim().toLowerCase(),
+  ].join('|');
+}
+
+function readDeletedEventTombstones(): DeletedEventTombstone[] {
+  try {
+    const deletedRaw = localStorage.getItem(deletedEventsKey);
+    if (!deletedRaw) return [];
+
+    const parsed = JSON.parse(deletedRaw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((entry: any) => {
+        if (typeof entry === 'string' || typeof entry === 'number') {
+          return {
+            id: String(entry),
+            title: '',
+            event_date: '',
+            event_time: '',
+            location_city: '',
+          };
+        }
+
+        return {
+          id: String(entry?.id || ''),
+          title: String(entry?.title || ''),
+          event_date: String(entry?.event_date || ''),
+          event_time: String(entry?.event_time || ''),
+          location_city: String(entry?.location_city || ''),
+        };
+      })
+      .filter((entry) => entry.id || normalizeEventSignature(entry) !== '|||');
+  } catch {
+    return [];
+  }
+}
+
+function isDeletedEvent(event: any, tombstones: DeletedEventTombstone[]) {
+  const eventSignature = normalizeEventSignature(event);
+  return tombstones.some((tombstone) => {
+    const tombstoneSignature = normalizeEventSignature(tombstone);
+    return (
+      (tombstone.id && String(tombstone.id) === String(event.id)) ||
+      (tombstoneSignature !== '|||' && tombstoneSignature === eventSignature)
+    );
+  });
 }
 
 function mapHostedEvent(event: any, applications: InterestedPerson[] = []): HostedEvent {
@@ -396,7 +464,12 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
           })
         );
 
-        setHostedEvents(eventsWithApps);
+        try {
+          const deletedEvents = readDeletedEventTombstones();
+          setHostedEvents(eventsWithApps.filter((event) => !isDeletedEvent(event, deletedEvents)));
+        } catch {
+          setHostedEvents(eventsWithApps);
+        }
       } catch (err: any) {
         console.error('Failed to fetch hosted events:', err);
         setError(err.message || 'Failed to load your events');
@@ -423,17 +496,58 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
   };
 
   const removeEventFromLocalState = (eventId: string) => {
-    setHostedEvents((current) => current.filter((event) => event.id !== eventId));
+    let removedEvent: HostedEvent | undefined;
+    setHostedEvents((current) => {
+      removedEvent = current.find((event) => event.id === eventId);
+      return current.filter((event) => event.id !== eventId);
+    });
 
     try {
       const storedEventsRaw = localStorage.getItem('junto-created-events');
       const storedEvents = storedEventsRaw ? JSON.parse(storedEventsRaw) : [];
       if (Array.isArray(storedEvents)) {
-        const nextStoredEvents = storedEvents.filter((event: any) => String(event.id) !== String(eventId));
+        const nextStoredEvents = storedEvents.filter((event: any) => {
+          if (String(event.id) === String(eventId)) {
+            return false;
+          }
+
+          if (!removedEvent) {
+            return true;
+          }
+
+          return normalizeEventSignature(event) !== normalizeEventSignature(removedEvent);
+        });
         localStorage.setItem('junto-created-events', JSON.stringify(nextStoredEvents));
       }
     } catch (storageError) {
       console.error('Failed to remove deleted event from local storage:', storageError);
+    }
+
+    try {
+      const deletedEvents = readDeletedEventTombstones();
+      const nextDeletedEvents = [...deletedEvents];
+      const tombstone = removedEvent
+        ? {
+            id: String(eventId),
+            title: removedEvent.title || '',
+            event_date: removedEvent.event_date || '',
+            event_time: removedEvent.event_time || '',
+            location_city: removedEvent.location_city || '',
+          }
+        : {
+            id: String(eventId),
+            title: '',
+            event_date: '',
+            event_time: '',
+            location_city: '',
+          };
+
+      if (!nextDeletedEvents.some((entry) => entry.id === tombstone.id || normalizeEventSignature(entry) === normalizeEventSignature(tombstone))) {
+        nextDeletedEvents.push(tombstone);
+      }
+      localStorage.setItem(deletedEventsKey, JSON.stringify(nextDeletedEvents));
+    } catch (deletedStorageError) {
+      console.error('Failed to store deleted event tombstone:', deletedStorageError);
     }
 
     if (selectedEventId === eventId) {
@@ -455,6 +569,9 @@ export function MyRequests({ onNavigate = () => {}, setActiveNav = () => {}, onC
       console.error('Failed to delete event:', err);
       const message = err instanceof Error ? err.message : 'Could not delete event';
       if (/404|not found/i.test(message)) {
+        removeEventFromLocalState(eventId);
+        setShowMessage('Event deleted');
+      } else if (/success|ok|deleted/i.test(message)) {
         removeEventFromLocalState(eventId);
         setShowMessage('Event deleted');
       } else {
