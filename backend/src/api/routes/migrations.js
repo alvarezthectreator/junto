@@ -8,25 +8,7 @@ router.post('/run-migrations', async (req, res) => {
   try {
     console.log('🔄 Running migrations...');
     
-    // Migration 1: Add notifications table if it doesn't exist
-    const checkTable = `
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'notifications'
-      );
-    `;
-    
-    const result = await query(checkTable);
-    
-    if (result.rows[0].exists) {
-      return res.json({ 
-        success: true, 
-        message: 'Notifications table already exists' 
-      });
-    }
-    
-    // Create notifications table
+    // Create notifications table - works with both SQLite and PostgreSQL
     const createNotifications = `
       CREATE TABLE IF NOT EXISTS notifications (
         id TEXT PRIMARY KEY,
@@ -46,9 +28,13 @@ router.post('/run-migrations', async (req, res) => {
     console.log('✅ Created notifications table');
     
     // Create indexes
-    await query('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);');
-    await query('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);');
-    console.log('✅ Created notifications indexes');
+    try {
+      await query('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);');
+      await query('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);');
+      console.log('✅ Created notifications indexes');
+    } catch (indexError) {
+      console.log('ℹ️  Indexes may already exist:', indexError.message);
+    }
     
     res.json({ 
       success: true, 
@@ -57,6 +43,13 @@ router.post('/run-migrations', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Migration error:', error);
+    // If table already exists, still return success
+    if (error.message && error.message.includes('already exists')) {
+      return res.json({ 
+        success: true, 
+        message: 'Notifications table already exists' 
+      });
+    }
     res.status(500).json({ 
       success: false, 
       error: error.message 
