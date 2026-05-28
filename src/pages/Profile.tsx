@@ -139,6 +139,11 @@ export const Profile: React.FC<ProfileProps> = ({
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
+  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [idVerified, setIdVerified] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState(() => {
@@ -744,6 +749,62 @@ export const Profile: React.FC<ProfileProps> = ({
               )}
             </WidgetCard>
 
+            {/* Verification & Safety Section */}
+            <WidgetCard title="Verification & Safety" subtitle="Build trust with verified credentials" icon={<ShieldCheck size={18} />} isLightMode={isLightMode}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Phone Verification */}
+                <motion.div
+                  className={`rounded-2xl border p-4 transition-all ${
+                    isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`rounded-lg p-2 ${phoneVerified ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                        <Phone size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider opacity-60">Phone Verification</p>
+                        <p className={`mt-1 text-sm font-semibold ${phoneVerified ? 'text-green-400' : 'text-yellow-300'}`}>
+                          {phoneVerified ? '✓ Verified' : 'Not verified'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {!phoneVerified && (
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowPhoneVerify(true)}
+                      className="mt-3 w-full rounded-lg bg-yellow-500/20 border border-yellow-500/30 px-3 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500/30 transition-all"
+                    >
+                      Verify Phone
+                    </motion.button>
+                  )}
+                </motion.div>
+
+                {/* ID Verification */}
+                <motion.div
+                  className={`rounded-2xl border p-4 transition-all ${
+                    isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`rounded-lg p-2 ${idVerified ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
+                        <Award size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider opacity-60">ID Verification</p>
+                        <p className={`mt-1 text-sm font-semibold ${idVerified ? 'text-green-400' : 'text-gray-400'}`}>
+                          {idVerified ? '✓ Verified' : 'Coming soon'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </WidgetCard>
+
             {/* Panel Widget: Media Vault Layout */}
             <WidgetCard title="Media Gallery" subtitle="Visual presentation of your lifestyle profile" icon={<Camera size={18} />} isLightMode={isLightMode}>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -926,6 +987,127 @@ export const Profile: React.FC<ProfileProps> = ({
                       <>
                         <Trash2 size={14} />
                         <span>Delete Account</span>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Phone Verification Modal */}
+        <AnimatePresence>
+          {showPhoneVerify && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !phoneVerifyLoading && setShowPhoneVerify(false)}
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              />
+              
+              {/* Modal */}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
+                  isLightMode
+                    ? 'border-amber-900/10 bg-white'
+                    : 'border-white/[0.05] bg-[#0B0B0E]'
+                }`}
+              >
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/20">
+                    <Phone size={20} className="text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Verify Your Phone</h3>
+                    <p className={`text-sm opacity-60 ${isLightMode ? 'text-amber-950' : 'text-gray-400'}`}>
+                      Build trust by verifying your phone number
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={currentUser?.phone || ''}
+                      disabled
+                      placeholder="+234 803 456 7890"
+                      className={`w-full rounded-lg border px-4 py-3 text-sm outline-none opacity-60 cursor-not-allowed ${
+                        isLightMode 
+                          ? 'border-amber-900/10 bg-amber-50' 
+                          : 'border-white/[0.08] bg-white/[0.03]'
+                      }`}
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">From your registered account</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Verification Code</label>
+                    <input
+                      type="text"
+                      value={phoneVerifyOtp}
+                      onChange={(e) => setPhoneVerifyOtp(e.target.value.slice(0, 6))}
+                      placeholder="000000"
+                      maxLength={6}
+                      className={`w-full rounded-lg border px-4 py-3 text-sm text-center tracking-[0.5em] font-mono outline-none transition-all ${
+                        isLightMode 
+                          ? 'border-amber-600/20 focus:border-amber-600/50 bg-white' 
+                          : 'border-white/[0.08] focus:border-yellow-500/50 bg-white/[0.03]'
+                      }`}
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Check your phone for a 6-digit code</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowPhoneVerify(false)}
+                    disabled={phoneVerifyLoading}
+                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-semibold transition-all ${
+                      isLightMode
+                        ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                        : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                    } ${phoneVerifyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={async () => {
+                      if (phoneVerifyOtp.length === 6) {
+                        setPhoneVerifyLoading(true);
+                        // Simulate OTP verification
+                        setTimeout(() => {
+                          setPhoneVerified(true);
+                          setShowPhoneVerify(false);
+                          setPhoneVerifyOtp('');
+                          setShowMessage('✓ Phone verified successfully');
+                          setTimeout(() => setShowMessage(''), 2000);
+                          setPhoneVerifyLoading(false);
+                        }, 1500);
+                      }
+                    }}
+                    disabled={phoneVerifyLoading || phoneVerifyOtp.length !== 6}
+                    className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {phoneVerifyLoading ? (
+                      <>
+                        <Loader size={14} className="animate-spin" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14} />
+                        <span>Verify</span>
                       </>
                     )}
                   </motion.button>

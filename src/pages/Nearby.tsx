@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User } from "lucide-react";
+import { Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User, Heart, X, Toast } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
@@ -108,6 +108,9 @@ export const Nearby: React.FC<NearbyProps> = ({
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<"All" | "Verified" | "Close" | "New">("All");
   const [selectedPersonId, setSelectedPersonId] = useState<string>(mockNearbyPeople[0].id);
+  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
+  const [dislikedUserIds, setDislikedUserIds] = useState<Set<string>>(new Set());
+  const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -149,17 +152,19 @@ export const Nearby: React.FC<NearbyProps> = ({
   }, [currentUser?.id]);
 
   const filteredPeople = useMemo(() => {
+    let filtered = people.filter(person => !dislikedUserIds.has(person.id));
+    
     switch (activeFilter) {
       case "Verified":
-        return people.filter((person) => person.isVerified);
+        return filtered.filter((person) => person.isVerified);
       case "Close":
-        return people.slice(0, 3);
+        return filtered.slice(0, 3);
       case "New":
-        return people.filter((person) => person.badges.includes("Nearby"));
+        return filtered.filter((person) => person.badges.includes("Nearby"));
       default:
-        return people;
+        return filtered;
     }
-  }, [activeFilter, people]);
+  }, [activeFilter, people, dislikedUserIds]);
 
   useEffect(() => {
     if (!filteredPeople.some((person) => person.id === selectedPersonId)) {
@@ -173,6 +178,46 @@ export const Nearby: React.FC<NearbyProps> = ({
   const openMessages = () => {
     setActiveNav("Messages");
     onNavigate("main");
+  };
+
+  const handleLikePerson = async (personId: string) => {
+    if (!currentUser?.id) return;
+    
+    try {
+      const newLiked = new Set(likedUserIds);
+      newLiked.add(personId);
+      setLikedUserIds(newLiked);
+      setSwipeMessage({ text: `❤️ Liked ${people.find(p => p.id === personId)?.name}!`, type: 'like' });
+      
+      await API.swipeUser(currentUser.id, personId, 'right');
+      
+      setTimeout(() => setSwipeMessage(null), 2000);
+    } catch (error) {
+      console.error('Failed to like user:', error);
+      const newLiked = new Set(likedUserIds);
+      newLiked.delete(personId);
+      setLikedUserIds(newLiked);
+    }
+  };
+
+  const handleDislikePerson = async (personId: string) => {
+    if (!currentUser?.id) return;
+    
+    try {
+      const newDisliked = new Set(dislikedUserIds);
+      newDisliked.add(personId);
+      setDislikedUserIds(newDisliked);
+      setSwipeMessage({ text: `Passed`, type: 'dislike' });
+      
+      await API.swipeUser(currentUser.id, personId, 'left');
+      
+      setTimeout(() => setSwipeMessage(null), 1500);
+    } catch (error) {
+      console.error('Failed to dislike user:', error);
+      const newDisliked = new Set(dislikedUserIds);
+      newDisliked.delete(personId);
+      setDislikedUserIds(newDisliked);
+    }
   };
 
   const pageBg = isLightMode ? "#f8f3e8" : "#050505";
@@ -331,6 +376,38 @@ export const Nearby: React.FC<NearbyProps> = ({
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
+                                  handleLikePerson(person.id);
+                                }}
+                                disabled={likedUserIds.has(person.id)}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90 disabled:opacity-50"
+                                style={{ 
+                                  background: likedUserIds.has(person.id) ? "#EF4444" : "#10B981",
+                                  color: "#fff" 
+                                }}
+                              >
+                                <Heart size={12} fill={likedUserIds.has(person.id) ? "#fff" : "none"} />
+                                Like
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDislikePerson(person.id);
+                                }}
+                                disabled={dislikedUserIds.has(person.id)}
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90 disabled:opacity-50"
+                                style={{ 
+                                  background: dislikedUserIds.has(person.id) ? "#6B7280" : "#F59E0B",
+                                  color: "#111" 
+                                }}
+                              >
+                                <X size={12} />
+                                Pass
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
                                   openMessages();
                                 }}
                                 className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90"
@@ -440,21 +517,29 @@ export const Nearby: React.FC<NearbyProps> = ({
 
                     <div className="flex gap-3">
                       <button
+                        onClick={() => handleLikePerson(selectedPerson.id)}
+                        disabled={likedUserIds.has(selectedPerson.id)}
+                        className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                        style={{ background: likedUserIds.has(selectedPerson.id) ? "#EF4444" : "#10B981", color: "#fff" }}
+                      >
+                        <Heart size={16} fill={likedUserIds.has(selectedPerson.id) ? "#fff" : "none"} />
+                        Like
+                      </button>
+                      <button
+                        onClick={() => handleDislikePerson(selectedPerson.id)}
+                        disabled={dislikedUserIds.has(selectedPerson.id)}
+                        className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                        style={{ background: dislikedUserIds.has(selectedPerson.id) ? "#6B7280" : "#F59E0B", color: "#111" }}
+                      >
+                        <X size={16} />
+                        Pass
+                      </button>
+                      <button
                         onClick={openMessages}
                         className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
                         style={{ background: "#F59E0B", color: "#111" }}
                       >
                         Message
-                      </button>
-                      <button
-                        onClick={() => {
-                          setActiveNav("Discover");
-                          onNavigate("main");
-                        }}
-                        className="flex-1 rounded-full border px-4 py-3 text-sm font-bold transition hover:bg-white/5"
-                        style={{ borderColor, color: pageText }}
-                      >
-                        Discover
                       </button>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
+import * as API from '../services/api';
 import {
   AlertTriangle,
   Copy,
@@ -50,7 +51,7 @@ const historyItems = [
   },
 ];
 
-export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiveNav = () => {}, onCloseSidebar = () => {} }) => {
+export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiveNav = () => {}, onCloseSidebar = () => {}, currentUser }) => {
   const [activeTab, setActiveTab] = useState<SafetyTab>('profile');
   const [sosActive, setSosActive] = useState(false);
   const [sosCountdown, setSosCountdown] = useState(0);
@@ -72,47 +73,96 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       relationship: 'Best Friend',
     },
   ]);
+  const [loading, setLoading] = useState(false);
+  const [sosMessage, setSosMessage] = useState('');
 
   const profileId = 'JTO-9201-NG';
   const profilePhone = '+234 803 456 7890';
 
-  const handleSOSActivate = () => {
-    setSosActive(true);
-    setSosCountdown(5);
+  const handleSOSActivate = async () => {
+    if (!currentUser?.id) {
+      setSosMessage('User ID not found');
+      return;
+    }
 
-    const timer = setInterval(() => {
-      setSosCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
+    try {
+      setSosActive(true);
+      setSosCountdown(5);
+      setSosMessage('Sending emergency signal to trusted contacts...');
 
-        return prev - 1;
-      });
-    }, 1000);
+      // Call SOS API
+      await API.triggerSOS(currentUser.id, 'Emergency SOS activated - please contact me immediately');
+
+      const timer = setInterval(() => {
+        setSosCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setSosMessage('Emergency signal sent to all trusted contacts');
+            setTimeout(() => setSosMessage(''), 3000);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to activate SOS:', error);
+      setSosMessage('Failed to send emergency signal. Please try again.');
+      setSosActive(false);
+      setSosCountdown(0);
+    }
   };
 
   const handleSOSCancel = () => {
     setSosActive(false);
     setSosCountdown(0);
+    setSosMessage('');
   };
 
-  const handleAddContact = () => {
+  const handleAddContact = async () => {
     if (!newContactName || !newContactPhone) {
-      alert('Please fill in all fields');
+      setSosMessage('Please fill in all fields');
+      setTimeout(() => setSosMessage(''), 2000);
       return;
     }
-    const newContact = {
-      id: Date.now().toString(),
-      name: newContactName,
-      phone: newContactPhone,
-      relationship: newContactRelationship,
-    };
-    setContacts([...contacts, newContact]);
-    setNewContactName('');
-    setNewContactPhone('');
-    setNewContactRelationship('Friend');
-    setShowAddContactModal(false);
+
+    if (!currentUser?.id) {
+      setSosMessage('User ID not found');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Call API to add contact
+      const response = await API.addTrustedContact(
+        currentUser.id,
+        newContactName,
+        newContactPhone,
+        false
+      );
+
+      // Add to local state
+      const newContact = {
+        id: response?.id || Date.now().toString(),
+        name: newContactName,
+        phone: newContactPhone,
+        relationship: newContactRelationship,
+      };
+      
+      setContacts([...contacts, newContact]);
+      setNewContactName('');
+      setNewContactPhone('');
+      setNewContactRelationship('Friend');
+      setShowAddContactModal(false);
+      setSosMessage('✓ Contact added successfully');
+      setTimeout(() => setSosMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to add contact:', error);
+      setSosMessage('Failed to add contact. Please try again.');
+      setTimeout(() => setSosMessage(''), 2000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const tabButtonClass = (tab: SafetyTab) =>
@@ -122,11 +172,62 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
         : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
     }`;
 
+  const handleDeleteContact = async (contactId: string) => {
+    if (!currentUser?.id) return;
+
+    try {
+      setLoading(true);
+      await API.deleteTrustedContact(contactId);
+      setContacts(contacts.filter(c => c.id !== contactId));
+      setSosMessage('✓ Contact deleted');
+      setTimeout(() => setSosMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to delete contact:', error);
+      setSosMessage('Failed to delete contact');
+      setTimeout(() => setSosMessage(''), 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load contacts on mount
+  useEffect(() => {
+    if (currentUser?.id) {
+      const fetchContacts = async () => {
+        try {
+          const data = await API.getTrustedContacts(currentUser.id);
+          if (data && Array.isArray(data)) {
+            setContacts(data.map((c: any) => ({
+              id: c.id,
+              name: c.contact_name || c.name,
+              phone: c.contact_phone || c.phone,
+              relationship: c.relationship || 'Contact',
+            })));
+          }
+        } catch (error) {
+          console.error('Failed to fetch contacts:', error);
+        }
+      };
+      fetchContacts();
+    }
+  }, [currentUser?.id]);
+
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <div className="relative z-50">
         <Sidebar activeNav="Safety" onNavigate={onNavigate} setActiveNav={setActiveNav} onCloseSidebar={onCloseSidebar} />
       </div>
+
+      {sosMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="fixed top-6 left-1/2 transform -translate-x-1/2 z-40 bg-yellow-500/20 border border-yellow-500/40 rounded-full px-6 py-3 text-yellow-300 text-sm font-medium backdrop-blur-sm"
+        >
+          {sosMessage}
+        </motion.div>
+      )}
 
       <main className="mobile-page-main flex-1 ml-0 relative overflow-hidden pb-24">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.14),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(245,158,11,0.10),transparent_24%),#0F0F13]" />
@@ -324,8 +425,9 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                         </div>
 
                         <button
-                          onClick={() => setContacts(contacts.filter((c) => c.id !== contact.id))}
-                          className="self-end rounded-full border border-red-500/20 bg-red-500/10 p-3 text-red-300 transition hover:bg-red-500/15 sm:self-auto"
+                          onClick={() => handleDeleteContact(contact.id)}
+                          disabled={loading}
+                          className="self-end rounded-full border border-red-500/20 bg-red-500/10 p-3 text-red-300 transition hover:bg-red-500/15 sm:self-auto disabled:opacity-50"
                           aria-label={`Remove ${contact.name}`}
                         >
                           <Trash2 size={18} />
@@ -333,12 +435,12 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                       </div>
                     ))}
 
-                    <button 
-                      onClick={() => setShowAddContactModal(true)}
-                      className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-dashed border-yellow-500/30 bg-yellow-500/5 px-4 py-4 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/10">
-                      <Plus size={18} />
-                      Add trusted contact
-                    </button>
+              <button 
+                onClick={() => setShowAddContactModal(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-dashed border-yellow-500/30 bg-yellow-500/5 px-4 py-4 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/10">
+                <Plus size={18} />
+                Add trusted contact
+              </button>
                   </div>
                 </PanelCard>
               )}
@@ -498,9 +600,10 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
               </button>
               <button
                 onClick={handleAddContact}
-                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-semibold transition-opacity hover:opacity-90"
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                Add Contact
+                {loading ? 'Adding...' : 'Add Contact'}
               </button>
             </div>
           </motion.div>
