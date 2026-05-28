@@ -17,6 +17,7 @@ import {
   User,
   AlertCircle,
 } from 'lucide-react';
+import { Sidebar } from '../components/Sidebar';
 import {
   isBrowserNotificationsSupported,
   isPushEnabled,
@@ -37,6 +38,7 @@ interface SettingsProps {
   onCloseSidebar?: () => void;
   isLightMode?: boolean;
   onToggleLightMode?: () => void;
+  handleLogout?: () => void;
 }
 
 interface SettingToggle {
@@ -53,6 +55,7 @@ export function Settings({
   onCloseSidebar = () => {},
   isLightMode = false,
   onToggleLightMode = () => {},
+  handleLogout = () => {},
 }: SettingsProps) {
   const userId = getUserId();
   const [activeTab, setActiveTab] = useState<'account' | 'notifications' | 'privacy' | 'about'>('account');
@@ -464,6 +467,10 @@ export function Settings({
 
               {/* Logout */}
               <motion.button
+                onClick={() => {
+                  handleLogout();
+                  onNavigate('Landing');
+                }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="w-full p-6 bg-red-500/10 border border-red-500/30 rounded-xl hover:bg-red-500/20 transition-colors flex items-center justify-between group"
@@ -629,6 +636,7 @@ export function Settings({
           )}
         </div>
       </div>
+      <Sidebar activeNav="Settings" handleLogout={handleLogout} onNavigate={onNavigate} setActiveNav={setActiveNav} onCloseSidebar={onCloseSidebar} />
     </div>
   );
 }

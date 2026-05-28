@@ -297,7 +297,7 @@ export function App() {
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
     if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium />;
-    if (currentPage === 'settings') return <Settings onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} />;
+    if (currentPage === 'settings') return <Settings onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode />;
     if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
