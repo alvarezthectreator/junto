@@ -1,10 +1,10 @@
-import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 
 let wss = null;
 const clients = new Set();
 
 export function initWebSocket(server) {
-  wss = new WebSocket.Server({ server });
+  wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws) => {
     console.log('🟢 Client connected. Total:', clients.size + 1);

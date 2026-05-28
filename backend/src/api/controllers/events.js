@@ -175,32 +175,6 @@ export async function deleteEvent(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-    const eventCheck = await query('SELECT id FROM events WHERE id = ?', [eventId]);
-    if (eventCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Start transaction
-    await query('BEGIN TRANSACTION');
-
-    try {
-      // Delete notifications related to this event
-      await query('DELETE FROM notifications WHERE related_event_id = ?', [eventId]);
-      
-      // Delete the event
-      await query('DELETE FROM events WHERE id = ?', [eventId]);
-
-      // Commit transaction
-      await query('COMMIT');
-      res.json({ success: true, message: '✅ Event deleted' });
-    } catch (innerError) {
-      await query('ROLLBACK');
-      throw innerError;
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
 
 export async function getHostEvents(req, res) {
   try {

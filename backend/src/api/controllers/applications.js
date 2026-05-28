@@ -111,7 +111,7 @@ export async function updateApplicationStatus(req, res) {
     }
 
     const result = await query(
-      `UPDATE event_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      `UPDATE event_applications SET status = ?, updated_at = datetime('now') WHERE id = ? RETURNING *`,
       [status, applicationId]
     );
 

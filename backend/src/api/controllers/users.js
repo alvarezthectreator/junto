@@ -77,13 +77,13 @@ export async function updateUserProfile(req, res) {
     // Update user
     if (display_name || bio || gender || city || occupation) {
       await query(
-        `UPDATE users SET display_name = COALESCE($1, display_name),
-                         bio = COALESCE($2, bio),
-                         gender = COALESCE($3, gender),
-                         city = COALESCE($4, city),
-                         occupation = COALESCE($5, occupation),
-                         updated_at = NOW()
-         WHERE id = $6`,
+        `UPDATE users SET display_name = COALESCE(?, display_name),
+                         bio = COALESCE(?, bio),
+                         gender = COALESCE(?, gender),
+                         city = COALESCE(?, city),
+                         occupation = COALESCE(?, occupation),
+                         updated_at = datetime('now')
+         WHERE id = ?`,
         [display_name, bio, gender, city, occupation, userId]
       );
     }
@@ -91,11 +91,11 @@ export async function updateUserProfile(req, res) {
     // Update profile
     if (interests || travel_mode_enabled !== undefined) {
       await query(
-        `UPDATE user_profiles SET interests = COALESCE($1, interests),
-                                  travel_mode_enabled = COALESCE($2, travel_mode_enabled),
-                                  travel_destination_city = COALESCE($3, travel_destination_city),
-                                  updated_at = NOW()
-         WHERE user_id = $4`,
+        `UPDATE user_profiles SET interests = COALESCE(?, interests),
+                                  travel_mode_enabled = COALESCE(?, travel_mode_enabled),
+                                  travel_destination_city = COALESCE(?, travel_destination_city),
+                                  updated_at = datetime('now')
+         WHERE user_id = ?`,
         [interests ? JSON.stringify(interests) : null, travel_mode_enabled, travel_destination_city, userId]
       );
     }
@@ -256,23 +256,23 @@ export async function deleteAccount(req, res) {
   try {
     const { userId } = req.params;
 
-    const existingUser = await query('SELECT id FROM users WHERE id = $1', [userId]);
+    const existingUser = await query('SELECT id FROM users WHERE id = ?', [userId]);
     if (existingUser.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    await query('DELETE FROM notifications WHERE user_id = $1 OR related_user_id = $1', [userId]);
-    await query('DELETE FROM subscriptions WHERE user_id = $1', [userId]);
-    await query('DELETE FROM event_applications WHERE user_id = $1', [userId]);
-    await query('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', [userId]);
-    await query('DELETE FROM conversations WHERE user1_id = $1 OR user2_id = $1', [userId]);
-    await query('DELETE FROM trusted_contacts WHERE user_id = $1', [userId]);
-    await query('DELETE FROM safety_alerts WHERE user_id = $1', [userId]);
-    await query('DELETE FROM blocked_users WHERE blocker_id = $1 OR blocked_user_id = $1', [userId]);
-    await query('DELETE FROM reports WHERE reporter_id = $1 OR reported_user_id = $1', [userId]);
-    await query('UPDATE users SET referred_by_user_id = NULL WHERE referred_by_user_id = $1', [userId]);
-    await query('DELETE FROM user_profiles WHERE user_id = $1', [userId]);
-    await query('DELETE FROM users WHERE id = $1', [userId]);
+    await query('DELETE FROM notifications WHERE user_id = ? OR related_user_id = ?', [userId, userId]);
+    await query('DELETE FROM subscriptions WHERE user_id = ?', [userId]);
+    await query('DELETE FROM event_applications WHERE user_id = ?', [userId]);
+    await query('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
+    await query('DELETE FROM conversations WHERE user1_id = ? OR user2_id = ?', [userId, userId]);
+    await query('DELETE FROM trusted_contacts WHERE user_id = ?', [userId]);
+    await query('DELETE FROM safety_alerts WHERE user_id = ?', [userId]);
+    await query('DELETE FROM blocked_users WHERE blocker_id = ? OR blocked_user_id = ?', [userId, userId]);
+    await query('DELETE FROM reports WHERE reporter_id = ? OR reported_user_id = ?', [userId, userId]);
+    await query('UPDATE users SET referred_by_user_id = NULL WHERE referred_by_user_id = ?', [userId]);
+    await query('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
+    await query('DELETE FROM users WHERE id = ?', [userId]);
 
     res.json({
       success: true,

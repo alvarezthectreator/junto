@@ -39,7 +39,7 @@ export async function sendMessage(req, res) {
 
     // Update conversation timestamp
     await query(
-      `UPDATE conversations SET last_message_id = $1, last_message_at = NOW() WHERE id = $2`,
+      `UPDATE conversations SET last_message_id = ?, last_message_at = datetime('now') WHERE id = ?`,
       [messageId, conversation_id]
     );
 
@@ -106,7 +106,7 @@ export async function markAsRead(req, res) {
     const { messageId } = req.params;
 
     const result = await query(
-      `UPDATE messages SET is_read = true, read_at = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE messages SET is_read = true, read_at = datetime('now') WHERE id = ? RETURNING *`,
       [messageId]
     );
 

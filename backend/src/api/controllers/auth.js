@@ -30,7 +30,7 @@ export async function dummyLogin(req, res) {
 
       // Create profile
       await query(
-        `INSERT INTO user_profiles (user_id, last_active) VALUES ($1, NOW())`,
+        `INSERT INTO user_profiles (user_id, last_active) VALUES (?, datetime('now'))`,
         [userId]
       );
 

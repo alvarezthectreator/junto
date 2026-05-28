@@ -137,6 +137,8 @@ export const Profile: React.FC<ProfileProps> = ({
   const [showMessage, setShowMessage] = useState('');
   const [newInterest, setNewInterest] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState(() => {
@@ -290,6 +292,31 @@ export const Profile: React.FC<ProfileProps> = ({
     setTimeout(() => setShowMessage(''), 2000);
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      const userId = currentUser?.id || API.getUserId();
+      
+      if (!userId) {
+        setShowMessage('Error: User ID not found');
+        return;
+      }
+
+      await API.deleteUserAccount(userId);
+      setShowMessage('Account deleted successfully');
+      setTimeout(() => {
+        handleLogout?.();
+        onNavigate?.('landing');
+      }, 1500);
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      setShowMessage('Failed to delete account. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   // Modern Dynamic Class Mappings
   const pageBg = isLightMode ? 'bg-[#FAF8F5] text-[#1E1915]' : 'bg-[#0B0B0E] text-[#F3F4F6]';
   const inputStyle = isLightMode
@@ -376,6 +403,17 @@ export const Profile: React.FC<ProfileProps> = ({
                   <Edit2 size={13} />
                   <span>{isEditing ? 'Save Changes' : 'Edit Profile'}</span>
                 </motion.button>
+
+                {isEditing && (
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="h-10 flex items-center gap-2 rounded-xl bg-red-600/20 border border-red-500/30 px-5 text-xs font-bold text-red-500 hover:bg-red-600/30 transition-all"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete Account</span>
+                  </motion.button>
+                )}
               </>
             ) : (
               <motion.button
@@ -811,6 +849,91 @@ export const Profile: React.FC<ProfileProps> = ({
 
           </aside>
         </div>
+
+        {/* Delete Account Confirmation Modal */}
+        <AnimatePresence>
+          {showDeleteConfirm && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              />
+              
+              {/* Modal */}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
+                  isLightMode
+                    ? 'border-amber-900/10 bg-white'
+                    : 'border-white/[0.05] bg-[#0B0B0E]'
+                }`}
+              >
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+                    <Trash2 size={20} className="text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Delete Account?</h3>
+                    <p className={`text-sm opacity-60 ${isLightMode ? 'text-amber-950' : 'text-gray-400'}`}>
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`mb-8 rounded-xl p-4 ${isLightMode ? 'bg-red-50 text-red-900' : 'bg-red-500/10 text-red-400'}`}>
+                  <p className="text-sm font-medium">
+                    All your data will be permanently deleted, including:
+                  </p>
+                  <ul className="mt-3 space-y-1 text-xs opacity-80">
+                    <li>• Profile and personal information</li>
+                    <li>• Events and applications</li>
+                    <li>• Messages and conversations</li>
+                    <li>• All account activity</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-3">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeleting}
+                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-semibold transition-all ${
+                      isLightMode
+                        ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                        : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                    } ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting}
+                    className="flex-1 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader size={14} className="animate-spin" />
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        <span>Delete Account</span>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Hidden Form Capture Handlers */}
         <input
