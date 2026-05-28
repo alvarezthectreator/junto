@@ -1,5 +1,6 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { broadcastEventUpdate, broadcastEventCreated, broadcastEventDeleted } from '../../websocket.js';
 
 export async function getEvents(req, res) {
   try {
@@ -107,6 +108,9 @@ export async function createEvent(req, res) {
       [host_id, 'event_created', 'Event Created', `Your event "${title}" is now live!`]
     );
 
+    // Broadcast to all connected clients
+    broadcastEventCreated(eventId);
+
     res.status(201).json({ event: result.rows[0], message: '✅ Event created successfully' });
   } catch (error) {
     console.error('Create event error:', error);
@@ -137,6 +141,9 @@ export async function updateEvent(req, res) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // Broadcast to all connected clients
+    broadcastEventUpdate(eventId);
+
     res.json({ event: result.rows[0], message: '✅ Event updated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -148,6 +155,26 @@ export async function deleteEvent(req, res) {
     const { eventId } = req.params;
 
     // First, check if event exists
+    const checkResult = await query('SELECT id FROM events WHERE id = $1', [eventId]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Delete related records first
+    await query('DELETE FROM event_applications WHERE event_id = $1', [eventId]);
+    await query('DELETE FROM event_saves WHERE event_id = $1', [eventId]);
+
+    // Delete the event
+    await query('DELETE FROM events WHERE id = $1', [eventId]);
+
+    // Broadcast to all connected clients
+    broadcastEventDeleted(eventId);
+
+    res.json({ message: '✅ Event deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
     const eventCheck = await query('SELECT id FROM events WHERE id = ?', [eventId]);
     if (eventCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Event not found' });

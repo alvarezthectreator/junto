@@ -7,6 +7,7 @@ import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
 import * as API from '../services/api';
+import { DiscoverSocket } from '../services/discoverSocket';
 import type { DiscoverEventSeed } from '../data/discoverEvents';
 
 interface DiscoverProps {
@@ -251,6 +252,39 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     };
 
     fetchEvents();
+
+    // Connect to WebSocket for real-time updates
+    const socket = new DiscoverSocket(
+      // On event updated
+      (eventId) => {
+        console.log('🔄 Event updated:', eventId);
+        API.getEventById(eventId)
+          .then((response) => {
+            setApiEvents((prev) =>
+              prev.map((event) => (event.id === eventId ? response.event : event))
+            );
+          })
+          .catch((error) => console.error('Failed to fetch updated event:', error));
+      },
+      // On event created
+      (eventId) => {
+        console.log('➕ Event created:', eventId);
+        API.getEventById(eventId)
+          .then((response) => {
+            setApiEvents((prev) => [response.event, ...prev]);
+          })
+          .catch((error) => console.error('Failed to fetch new event:', error));
+      },
+      // On event deleted
+      (eventId) => {
+        console.log('❌ Event deleted:', eventId);
+        setApiEvents((prev) => prev.filter((event) => event.id !== eventId));
+      }
+    );
+
+    return () => {
+      socket.close();
+    };
   }, []);
 
   useEffect(() => {

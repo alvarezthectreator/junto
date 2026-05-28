@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import http from 'http';
 import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
+import { initWebSocket } from './websocket.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -91,12 +93,19 @@ async function startServer() {
       await seedDatabase();
     }
     
-    app.listen(PORT, () => {
+    // Create HTTP server for both Express and WebSocket
+    const server = http.createServer(app);
+    
+    // Initialize WebSocket
+    initWebSocket(server);
+    
+    server.listen(PORT, () => {
       console.log(`
 ✅ Junto Backend Server Running
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚀 http://localhost:${PORT}
 📚 API: http://localhost:${PORT}/api
+🔌 WebSocket: ws://localhost:${PORT}
 ❤️  Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       `);
