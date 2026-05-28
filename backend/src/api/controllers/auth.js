@@ -98,7 +98,7 @@ export async function login(req, res) {
 
 export async function signup(req, res) {
   try {
-    const { username, fullName, password } = req.body;
+    const { username, fullName, password, referralCode } = req.body;
 
     if (!username || !fullName || !password) {
       return res.status(400).json({ error: 'Username, full name, and password required' });
@@ -114,11 +114,20 @@ export async function signup(req, res) {
     const userId = uuidv4();
     const profileId = `JNT-2024-${Date.now().toString().slice(-5)}`;
     const passwordHash = hashPassword(password);
+    let referredByUserId = null;
+
+    if (referralCode) {
+      const referrer = await query('SELECT id FROM users WHERE profile_id = ?', [referralCode]);
+      if (referrer.rows.length === 0) {
+        return res.status(400).json({ error: 'Referral code not found' });
+      }
+      referredByUserId = referrer.rows[0].id;
+    }
 
     await query(
-      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash]
+      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, referred_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash, referredByUserId]
     );
 
     // Create profile
@@ -134,7 +143,8 @@ export async function signup(req, res) {
         id: userId,
         username: username,
         display_name: fullName,
-        profile_id: profileId
+        profile_id: profileId,
+        referred_by_user_id: referredByUserId
       },
       session_token: `session-${uuidv4()}`,
       message: '✅ Account created successfully'

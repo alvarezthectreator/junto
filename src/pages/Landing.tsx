@@ -19,6 +19,10 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
   const [signupFullName, setSignupFullName] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [signupReferralCode, setSignupReferralCode] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('ref') || '';
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +68,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
     setLoading(true);
 
     try {
-      const response = await API.signup(signupUsername, signupFullName, signupPassword);
+      const response = await API.signup(signupUsername, signupFullName, signupPassword, signupReferralCode || undefined);
       localStorage.setItem('displayName', signupFullName);
       onLogin(response.user, response.session_token);
       setMode('landing');
@@ -436,6 +440,49 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                     }}
                   />
                 </div>
+
+                {/* Referral Code (Signup only) */}
+                {mode === 'signup' && (
+                  <div>
+                    <label style={{
+                      fontSize: 'clamp(10px, 2vw, 11px)',
+                      color: 'rgba(255,255,255,0.35)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                      marginBottom: '6px',
+                      display: 'block',
+                      fontWeight: '600'
+                    }}>
+                      Referral Code
+                    </label>
+                    <input
+                      type="text"
+                      value={signupReferralCode}
+                      onChange={(e) => setSignupReferralCode(e.target.value.toUpperCase())}
+                      placeholder="JNT-2024-12345"
+                      style={{
+                        width: '100%',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.02)',
+                        color: '#fff',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
+                        transition: 'all 0.2s',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                      onFocus={(e) => {
+                        (e.target as HTMLInputElement).style.borderColor = '#F59E0B';
+                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.04)';
+                      }}
+                      onBlur={(e) => {
+                        (e.target as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.1)';
+                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.02)';
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Password */}
                 <div>

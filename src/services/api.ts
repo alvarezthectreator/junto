@@ -14,6 +14,7 @@ export interface User {
   display_name?: string;
   phone_number?: string;
   profile_id: string;
+  referred_by_user_id?: string | null;
   created_at?: string;
 }
 
@@ -163,8 +164,13 @@ export async function login(username: string, password: string): Promise<{ sessi
   return response;
 }
 
-export async function signup(username: string, fullName: string, password: string): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password });
+export async function signup(
+  username: string,
+  fullName: string,
+  password: string,
+  referralCode?: string
+): Promise<{ session_token: string; user: User }> {
+  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, referralCode });
   sessionToken = response.session_token;
   localStorage.setItem('sessionToken', response.session_token);
   localStorage.setItem('userId', response.user.id);
@@ -205,6 +211,25 @@ export function getLastSessionActivity(): number {
 
 export async function getUserById(userId: string): Promise<User> {
   return apiCall(`/users/${userId}`);
+}
+
+export async function deleteUserAccount(userId: string): Promise<{ success: boolean; message?: string }> {
+  return apiCall(`/users/${userId}`, 'DELETE');
+}
+
+export async function exportUserAccountData(userId: string): Promise<any> {
+  return apiCall(`/users/${userId}/export`);
+}
+
+export async function getReferralInfo(userId: string): Promise<{
+  referral: {
+    code: string;
+    link: string;
+    referral_count: number;
+    referred_users: Array<{ id: string; username?: string; display_name?: string; profile_id: string; created_at?: string }>;
+  };
+}> {
+  return apiCall(`/users/${userId}/referral`);
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {

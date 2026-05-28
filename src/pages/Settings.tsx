@@ -23,6 +23,13 @@ import {
   requestPushPermission,
   setPushEnabled,
 } from '../services/browserNotifications';
+import {
+  deleteUserAccount,
+  exportUserAccountData,
+  getReferralInfo,
+  getUserId,
+  logout as clearSession,
+} from '../services/api';
 
 interface SettingsProps {
   onNavigate?: (page: string) => void;
@@ -47,7 +54,16 @@ export function Settings({
   isLightMode = false,
   onToggleLightMode = () => {},
 }: SettingsProps) {
+  const userId = getUserId();
   const [activeTab, setActiveTab] = useState<'account' | 'notifications' | 'privacy' | 'about'>('account');
+  const [referralInfo, setReferralInfo] = useState<{
+    code: string;
+    link: string;
+    referral_count: number;
+    referred_users: Array<{ id: string; username?: string; display_name?: string; profile_id: string }>;
+  } | null>(null);
+  const [accountActionMessage, setAccountActionMessage] = useState('');
+  const [accountBusy, setAccountBusy] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState<SettingToggle[]>([
     {
       id: 'interests',
@@ -124,6 +140,33 @@ export function Settings({
     );
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadReferralInfo = async () => {
+      if (!userId) {
+        return;
+      }
+
+      try {
+        const response = await getReferralInfo(userId);
+        if (active) {
+          setReferralInfo(response.referral);
+        }
+      } catch {
+        if (active) {
+          setReferralInfo(null);
+        }
+      }
+    };
+
+    loadReferralInfo();
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   const toggleNotification = async (id: string) => {
     const target = notificationSettings.find((setting) => setting.id === id);
 
@@ -152,6 +195,68 @@ export function Settings({
     setPrivacySettings(
       privacySettings.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
     );
+  };
+
+  const copyReferralLink = async () => {
+    if (!referralInfo?.link) return;
+    await navigator.clipboard.writeText(referralInfo.link);
+    setAccountActionMessage('Referral link copied to clipboard.');
+  };
+
+  const downloadAccountExport = async () => {
+    if (!userId) {
+      setAccountActionMessage('Please sign in again before exporting your data.');
+      return;
+    }
+
+    setAccountBusy(true);
+    setAccountActionMessage('');
+
+    try {
+      const data = await exportUserAccountData(userId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `junto-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setAccountActionMessage('Your account export is downloading now.');
+    } catch (error: any) {
+      setAccountActionMessage(error?.message || 'Could not export your account data.');
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!userId) {
+      setAccountActionMessage('No active account found.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Delete your account? This will remove your profile, events, messages, subscriptions, notifications, and related data.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAccountBusy(true);
+    setAccountActionMessage('');
+
+    try {
+      await deleteUserAccount(userId);
+      clearSession();
+      onNavigate('Landing');
+    } catch (error: any) {
+      setAccountActionMessage(error?.message || 'Could not delete your account.');
+    } finally {
+      setAccountBusy(false);
+    }
   };
 
   const tabs = [
@@ -220,6 +325,88 @@ export function Settings({
                   <ChevronRight className="w-5 h-5 text-slate-400" />
                 </div>
               </div>
+
+              {/* Referral System */}
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold">Referral System</h3>
+                    <p className="text-sm text-slate-400 mt-1">Share your code and track invites</p>
+                  </div>
+                  <button
+                    onClick={copyReferralLink}
+                    disabled={!referralInfo?.link}
+                    className="rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Your code</p>
+                    <p className="mt-2 break-all font-mono text-sm text-white">{referralInfo?.code || 'Loading...'}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Successful invites</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{referralInfo?.referral_count ?? 0}</p>
+                  </div>
+                </div>
+
+                {referralInfo?.referred_users?.length ? (
+                  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">People who used your code</p>
+                    <div className="mt-3 space-y-2">
+                      {referralInfo.referred_users.slice(0, 5).map((person) => (
+                        <div key={person.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">
+                          <span className="text-white">{person.display_name || person.username || 'New user'}</span>
+                          <span className="text-slate-400">{person.profile_id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Data Export */}
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold">Download Your Data</h3>
+                    <p className="text-sm text-slate-400 mt-1">Export your profile, messages, notifications, and activity</p>
+                  </div>
+                  <button
+                    onClick={downloadAccountExport}
+                    disabled={accountBusy}
+                    className="rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {accountBusy ? 'Preparing...' : 'Export JSON'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Account Deletion */}
+              <div className="p-6 bg-white/5 border border-red-500/20 rounded-xl">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-red-300">Delete Account</h3>
+                    <p className="text-sm text-slate-400 mt-1">Permanently remove your account and personal data</p>
+                  </div>
+                  <button
+                    onClick={deleteAccount}
+                    disabled={accountBusy}
+                    className="rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+
+              {accountActionMessage && (
+                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                  {accountActionMessage}
+                </div>
+              )}
 
               {/* Theme Toggle */}
               <div className="p-6 bg-white/5 border border-white/10 rounded-xl">

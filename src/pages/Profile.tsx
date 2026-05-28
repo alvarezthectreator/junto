@@ -360,6 +360,7 @@ export const Profile: React.FC<ProfileProps> = ({
 
                 <motion.button 
                   whileTap={{ scale: 0.96 }}
+                  onClick={() => onNavigate?.('settings')}
                   className={`h-10 w-10 flex items-center justify-center rounded-xl border transition-all ${
                     isLightMode ? 'border-amber-900/10 bg-white text-amber-950' : 'border-white/[0.08] bg-white/[0.03] text-gray-200'
                   }`}

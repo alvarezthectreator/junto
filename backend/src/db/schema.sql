@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   date_of_birth DATE,
   intro_video_url VARCHAR(500),
   profile_id VARCHAR(20) UNIQUE,
+  referred_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   is_active BOOLEAN DEFAULT true

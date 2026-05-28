@@ -90,6 +90,18 @@ export async function initializeDatabase() {
 
 // Ensure notifications table exists (for production databases that were created without it)
 function ensureProductionTables() {
+  const addReferralColumns = [
+    `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
+  ];
+
+  addReferralColumns.forEach((statement) => {
+    db.run(statement, (err) => {
+      if (err && !err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+        console.warn('⚠️  Could not ensure referral columns:', err.message);
+      }
+    });
+  });
+
   const createNotificationsTable = `
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
