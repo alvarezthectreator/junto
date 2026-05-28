@@ -25,29 +25,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 const corsOptions = {
-  origin: function(origin, callback) {
-    const allowed = [
-      'https://junto-six-swart.vercel.app',
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://localhost:3000'
-    ];
-    
-    // Allow no origin (for mobile apps, electron, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Check if origin is in allowed list
-    if (allowed.includes(origin)) {
-      callback(null, true);
-    } else {
-      // Log but still allow (don't reject)
-      console.log('CORS request from:', origin);
-      callback(null, true);
-    }
-  },
+  origin: true,  // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
