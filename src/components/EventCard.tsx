@@ -1,6 +1,8 @@
-import React from 'react';
-import { Calendar, MessageCircle, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, MessageCircle, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
+import * as API from '../services/api';
+
 interface EventCardProps {
   userInitial: string;
   userName: string;
@@ -18,10 +20,13 @@ interface EventCardProps {
   reliabilityScore?: number;
   averageRating?: number;
   reviewCount?: number;
+  eventId?: string;
+  currentUserId?: string;
   onInterested?: () => void;
   onOpenUser?: (user: any) => void;
   userAvatar?: string;
 }
+
 export function EventCard({
   userInitial,
   userName,
@@ -39,16 +44,59 @@ export function EventCard({
   reliabilityScore = 0,
   averageRating = 0,
   reviewCount = 0,
+  eventId,
+  currentUserId,
   onInterested,
   onOpenUser,
   userAvatar
 }: EventCardProps) {
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    // Check if event is already saved
+    if (eventId && currentUserId) {
+      checkIfSaved();
+    }
+  }, [eventId, currentUserId]);
+
+  const checkIfSaved = async () => {
+    try {
+      if (!eventId || !currentUserId) return;
+      const result = await API.checkEventSaved(currentUserId, eventId);
+      setIsSaved(result.saved);
+    } catch (error) {
+      console.error('Failed to check if event is saved:', error);
+    }
+  };
+
+  const handleSaveToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!eventId || !currentUserId || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      if (isSaved) {
+        await API.unsaveEvent(currentUserId, eventId);
+        setIsSaved(false);
+      } else {
+        await API.saveEvent(currentUserId, eventId);
+        setIsSaved(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle save:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const avatarColors = [
-  'bg-blue-500',
-  'bg-purple-500',
-  'bg-emerald-500',
-  'bg-amber-500',
-  'bg-rose-500'];
+    'bg-blue-500',
+    'bg-purple-500',
+    'bg-emerald-500',
+    'bg-amber-500',
+    'bg-rose-500'
+  ];
 
   const displayAvatars = Math.min(interestedCount, 3);
   return (
@@ -129,7 +177,7 @@ export function EventCard({
                 🟢 {reliabilityScore}%
               </span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-xs font-semibold text-gray-300">
-                <Star size={10} className="text-[#FBBF24]" /> {averageRating.toFixed(1)} ({reviewCount})
+                ⭐ {averageRating.toFixed(1)} ({reviewCount})
               </span>
             </div>
           </div>
@@ -181,6 +229,16 @@ export function EventCard({
             className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity hover:opacity-90 shadow-sm ${accentColor || 'bg-[#F59E0B]'} ${accentColor?.includes('text-gray-900') ? 'text-gray-900' : 'text-white'}`}>
             
             View event →
+          </button>
+          <button 
+            onClick={handleSaveToggle}
+            disabled={isSaving}
+            className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl transition-colors ${
+              isSaved 
+                ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' 
+                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+            }`}>
+            <Heart size={16} className={`sm:w-4 sm:h-4 md:w-5 md:h-5 ${isSaved ? 'fill-current' : ''}`} />
           </button>
           <button className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
             <MessageCircle size={16} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />

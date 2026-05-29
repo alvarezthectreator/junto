@@ -682,6 +682,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
                   reliabilityScore={event.reliabilityScore}
                   averageRating={event.averageRating}
                   reviewCount={event.reviewCount}
+                  eventId={event.id}
+                  currentUserId={currentUser?.id}
                   onInterested={() => openEventDetail(event, actualIndex)}
                 />
               </div>

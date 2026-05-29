@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
 import { Calendar, Save, Trash2, ChevronRight } from "lucide-react";
+import { useAppContext } from "../context/AppContext";
+import * as API from "../services/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle, AlertCircle, Info } from "lucide-react";
+
+type ToastMessage = { id: string; text: string; type: 'success' | 'error' | 'info' };
 
 function TravelEventCard({ event, index, isLightMode = false }: { event: any; index: number; isLightMode?: boolean }) {
   const [visible, setVisible] = useState(false);
@@ -90,6 +96,7 @@ function TravelEventCard({ event, index, isLightMode = false }: { event: any; in
 }
 
 export const TravelMode = () => {
+  const { currentUser } = useAppContext();
   const [isLightMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Lagos");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
@@ -98,25 +105,49 @@ export const TravelMode = () => {
   const [tripEndDate, setTripEndDate] = useState("");
   const [savedTrips, setSavedTrips] = useState<Array<{ id: string; city: string; startDate: string; endDate: string }>>([]);
   const [showSavedTrips, setShowSavedTrips] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setHeaderVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
 
-  const saveTrip = () => {
+  const showToast = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, text, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id));
+    }, 3000);
+  };
+
+  const saveTrip = async () => {
     if (!tripStartDate || !selectedCity) {
-      alert('Please select a city and start date');
+      showToast('Please select a city and start date', 'error');
       return;
     }
-    const newTrip = {
-      id: Date.now().toString(),
-      city: selectedCity,
-      startDate: tripStartDate,
-      endDate: tripEndDate || tripStartDate,
-    };
-    setSavedTrips([...savedTrips, newTrip]);
-    alert('Trip saved!');
+
+    setIsSaving(true);
+    try {
+      if (currentUser?.id) {
+        // selectedCity is already just the city name (e.g., "Lagos", "Abuja")
+        await API.updateTravelDestination(currentUser.id, selectedCity);
+        showToast(`✈️ Travel destination saved to ${selectedCity}!`, 'success');
+      }
+
+      const newTrip = {
+        id: Date.now().toString(),
+        city: selectedCity,
+        startDate: tripStartDate,
+        endDate: tripEndDate || tripStartDate,
+      };
+      setSavedTrips([...savedTrips, newTrip]);
+    } catch (error) {
+      console.error('Failed to save travel destination:', error);
+      showToast('Failed to save travel destination', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const deleteTrip = (id: string) => {
@@ -385,24 +416,26 @@ export const TravelMode = () => {
               </div>
               <button
                 onClick={saveTrip}
+                disabled={isSaving}
                 style={{
                   padding: "8px 14px",
-                  background: "#F69D11",
-                  color: "#000",
+                  background: isSaving ? "#ccc" : "#F69D11",
+                  color: isSaving ? "#666" : "#000",
                   border: "none",
                   borderRadius: 8,
                   fontSize: 12,
                   fontWeight: 700,
-                  cursor: "pointer",
+                  cursor: isSaving ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                   transition: "opacity 0.2s",
+                  opacity: isSaving ? 0.7 : 1,
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as any).style.opacity = "0.9"; }}
-                onMouseLeave={(e) => { (e.currentTarget as any).style.opacity = "1"; }}
+                onMouseEnter={(e) => { if (!isSaving) (e.currentTarget as any).style.opacity = "0.9"; }}
+                onMouseLeave={(e) => { if (!isSaving) (e.currentTarget as any).style.opacity = "1"; }}
               >
-                <Save size={14} /> Save
+                <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
               </button>
             </div>
             {savedTrips.length > 0 && (
@@ -534,6 +567,47 @@ export const TravelMode = () => {
               <li>Share your profile with trusted contacts for safety</li>
             </ul>
           </div>
+        </div>
+
+        {/* Toast Notifications */}
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50 }}>
+          <AnimatePresence>
+            {toasts.map((toast, index) => {
+              const typeStyles = {
+                success: { bg: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', text: '#22c55e', icon: '✓' },
+                error: { bg: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', text: '#ef4444', icon: '✕' },
+                info: { bg: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', text: '#3b82f6', icon: 'ℹ' }
+              };
+              const style = typeStyles[toast.type];
+              return (
+                <motion.div
+                  key={toast.id}
+                  initial={{ opacity: 0, x: 400 }}
+                  animate={{ opacity: 1, x: 0, y: index * 80 }}
+                  exit={{ opacity: 0, x: 400 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  style={{
+                    background: style.bg,
+                    border: style.border,
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    backdropFilter: 'blur(10px)',
+                    color: style.text,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{style.icon}</span>
+                  {toast.text}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       </main>
     </div>

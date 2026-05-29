@@ -4,7 +4,7 @@ import { broadcastEventUpdate, broadcastEventCreated, broadcastEventDeleted } fr
 
 export async function getEvents(req, res) {
   try {
-    const { city, tier, date, limit = 20, offset = 0 } = req.query;
+    const { city, tier, date, event_type, category, limit = 20, offset = 0 } = req.query;
 
     let sql = `SELECT e.*, u.display_name, u.profile_id FROM events e
                LEFT JOIN users u ON e.host_id = u.id
@@ -30,8 +30,20 @@ export async function getEvents(req, res) {
       paramCount++;
     }
 
+    if (event_type) {
+      sql += ` AND e.event_type = $${paramCount}`;
+      params.push(event_type);
+      paramCount++;
+    }
+
+    if (category) {
+      sql += ` AND e.description ILIKE $${paramCount}`;
+      params.push(`%${category}%`);
+      paramCount++;
+    }
+
     sql += ` ORDER BY e.event_date ASC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    params.push(limit, offset);
+    params.push(parseInt(limit), parseInt(offset));
 
     const result = await query(sql, params);
     res.json({ events: result.rows });
@@ -188,6 +200,130 @@ export async function getHostEvents(req, res) {
     );
 
     res.json({ events: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==================== EVENT SAVES (WISHLIST) ====================
+
+export async function saveEvent(req, res) {
+  try {
+    const { userId, eventId } = req.body;
+
+    if (!userId || !eventId) {
+      return res.status(400).json({ error: 'userId and eventId required' });
+    }
+
+    const saveId = uuidv4();
+    const result = await query(
+      `INSERT INTO event_saves (id, user_id, event_id) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, event_id) DO UPDATE SET saved_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [saveId, userId, eventId]
+    );
+
+    res.status(201).json({ message: '❤️ Event saved', saved: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function unsaveEvent(req, res) {
+  try {
+    const { userId, eventId } = req.body;
+
+    if (!userId || !eventId) {
+      return res.status(400).json({ error: 'userId and eventId required' });
+    }
+
+    await query('DELETE FROM event_saves WHERE user_id = $1 AND event_id = $2', [userId, eventId]);
+    res.json({ message: '✓ Removed from saved' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getUserSavedEvents(req, res) {
+  try {
+    const { userId } = req.params;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const result = await query(
+      `SELECT e.* FROM events e
+       INNER JOIN event_saves es ON e.id = es.event_id
+       WHERE es.user_id = $1 AND e.status = 'active'
+       ORDER BY es.saved_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+
+    res.json({ events: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function checkEventSaved(req, res) {
+  try {
+    const { userId, eventId } = req.params;
+
+    const result = await query(
+      'SELECT id FROM event_saves WHERE user_id = $1 AND event_id = $2',
+      [userId, eventId]
+    );
+
+    res.json({ saved: result.rows.length > 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// ==================== EVENT RATINGS ====================
+
+export async function rateEvent(req, res) {
+  try {
+    const { userId, eventId, rating, comment } = req.body;
+
+    if (!userId || !eventId || !rating) {
+      return res.status(400).json({ error: 'userId, eventId, and rating required' });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+
+    const ratingId = uuidv4();
+    const result = await query(
+      `INSERT INTO event_ratings (id, user_id, event_id, rating, comment) 
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, event_id) DO UPDATE SET rating = $4, comment = $5
+       RETURNING *`,
+      [ratingId, userId, eventId, rating, comment || null]
+    );
+
+    res.json({ message: '⭐ Rating saved', rating: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getEventRating(req, res) {
+  try {
+    const { eventId } = req.params;
+
+    const result = await query(
+      `SELECT AVG(rating) as average_rating, COUNT(*) as rating_count 
+       FROM event_ratings WHERE event_id = $1`,
+      [eventId]
+    );
+
+    const stats = result.rows[0];
+    res.json({ 
+      average_rating: stats.average_rating ? parseFloat(stats.average_rating).toFixed(1) : 0,
+      rating_count: parseInt(stats.rating_count || 0)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

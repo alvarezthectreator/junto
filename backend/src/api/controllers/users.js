@@ -74,30 +74,80 @@ export async function updateUserProfile(req, res) {
     const { userId } = req.params;
     const { display_name, bio, gender, city, occupation, interests, travel_mode_enabled, travel_destination_city } = req.body;
 
-    // Update user
+    // Update user table
     if (display_name || bio || gender || city || occupation) {
-      await query(
-        `UPDATE users SET display_name = COALESCE(?, display_name),
-                         bio = COALESCE(?, bio),
-                         gender = COALESCE(?, gender),
-                         city = COALESCE(?, city),
-                         occupation = COALESCE(?, occupation),
-                         updated_at = datetime('now')
-         WHERE id = ?`,
-        [display_name, bio, gender, city, occupation, userId]
-      );
+      const updates = [];
+      const params = [];
+      let paramCount = 1;
+
+      if (display_name) {
+        updates.push(`display_name = $${paramCount}`);
+        params.push(display_name);
+        paramCount++;
+      }
+      if (bio) {
+        updates.push(`bio = $${paramCount}`);
+        params.push(bio);
+        paramCount++;
+      }
+      if (gender) {
+        updates.push(`gender = $${paramCount}`);
+        params.push(gender);
+        paramCount++;
+      }
+      if (city) {
+        updates.push(`city = $${paramCount}`);
+        params.push(city);
+        paramCount++;
+      }
+      if (occupation) {
+        updates.push(`occupation = $${paramCount}`);
+        params.push(occupation);
+        paramCount++;
+      }
+
+      if (updates.length > 0) {
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(userId);
+        
+        await query(
+          `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+          params
+        );
+      }
     }
 
-    // Update profile
-    if (interests || travel_mode_enabled !== undefined) {
-      await query(
-        `UPDATE user_profiles SET interests = COALESCE(?, interests),
-                                  travel_mode_enabled = COALESCE(?, travel_mode_enabled),
-                                  travel_destination_city = COALESCE(?, travel_destination_city),
-                                  updated_at = datetime('now')
-         WHERE user_id = ?`,
-        [interests ? JSON.stringify(interests) : null, travel_mode_enabled, travel_destination_city, userId]
-      );
+    // Update user_profiles table
+    if (interests !== undefined || travel_mode_enabled !== undefined || travel_destination_city) {
+      const updates = [];
+      const params = [];
+      let paramCount = 1;
+
+      if (interests !== undefined) {
+        updates.push(`interests = $${paramCount}`);
+        params.push(JSON.stringify(interests));
+        paramCount++;
+      }
+      if (travel_mode_enabled !== undefined) {
+        updates.push(`travel_mode_enabled = $${paramCount}`);
+        params.push(travel_mode_enabled);
+        paramCount++;
+      }
+      if (travel_destination_city) {
+        updates.push(`travel_destination_city = $${paramCount}`);
+        params.push(travel_destination_city);
+        paramCount++;
+      }
+
+      if (updates.length > 0) {
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(userId);
+        
+        await query(
+          `UPDATE user_profiles SET ${updates.join(', ')} WHERE user_id = $${paramCount}`,
+          params
+        );
+      }
     }
 
     res.json({ success: true, message: 'Profile updated' });

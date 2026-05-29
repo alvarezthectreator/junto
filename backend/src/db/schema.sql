@@ -184,6 +184,18 @@ CREATE TABLE IF NOT EXISTS event_saves (
   UNIQUE(user_id, event_id)
 );
 
+-- Event Ratings
+CREATE TABLE IF NOT EXISTS event_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, event_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
 CREATE INDEX IF NOT EXISTS idx_events_city ON events(location_city);

@@ -445,6 +445,40 @@ export async function cancelSubscription(userId: string): Promise<{ subscription
   return apiCall(`/subscriptions/${userId}/cancel`, 'PUT');
 }
 
+// ==================== EVENT SAVES/WISHLIST ====================
+
+export async function saveEvent(userId: string, eventId: string): Promise<{ message: string; saved: any }> {
+  return apiCall('/events/save', 'POST', { userId, eventId });
+}
+
+export async function unsaveEvent(userId: string, eventId: string): Promise<{ message: string }> {
+  return apiCall('/events/save', 'DELETE', { userId, eventId });
+}
+
+export async function getSavedEvents(userId: string, limit: number = 20, offset: number = 0): Promise<{ events: Event[] }> {
+  return apiCall(`/events/user/${userId}/saved?limit=${limit}&offset=${offset}`);
+}
+
+export async function checkEventSaved(userId: string, eventId: string): Promise<{ saved: boolean }> {
+  return apiCall(`/events/${eventId}/saved/${userId}`);
+}
+
+// ==================== EVENT RATINGS ====================
+
+export async function rateEvent(userId: string, eventId: string, rating: number, comment?: string): Promise<{ message: string; rating: any }> {
+  return apiCall('/events/rate', 'POST', { userId, eventId, rating, comment });
+}
+
+export async function getEventRating(eventId: string): Promise<{ average_rating: number; rating_count: number }> {
+  return apiCall(`/events/${eventId}/rating`);
+}
+
+// ==================== USER PROFILE UPDATES ====================
+
+export async function updateTravelDestination(userId: string, travelDestinationCity: string): Promise<{ success: boolean; message: string }> {
+  return apiCall(`/users/${userId}/profile`, 'PUT', { travel_destination_city: travelDestinationCity });
+}
+
 // ==================== HEALTH CHECK ====================
 
 export async function healthCheck(): Promise<any> {
