@@ -1,32 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Award,
+  Briefcase,
+  Calendar,
   Camera,
   CheckCircle2,
   ChevronRight,
   Download,
   Edit2,
+  Eye,
+  Globe,
   HelpCircle,
+  Lock,
   LogOut,
+  Loader,
   MapPin,
+  MessageCircle,
   Moon,
+  Phone,
+  Plus,
   Settings,
   ShieldCheck,
   Star,
   Sun,
-  Video,
   Trash2,
-  Loader,
-  MessageCircle,
-  Calendar,
-  Briefcase,
   User,
-  Eye,
-  Plus,
-  X,
-  Award,
-  Lock,
-  Globe
+  Video,
+  X
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
