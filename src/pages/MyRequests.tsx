@@ -541,17 +541,14 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
   };
 
   const openPersonProfile = (person: InterestedPerson) => {
-    setSelectedUser({
-      id: person.userId || person.profileId || person.id,
-      name: person.name,
-      avatar: person.avatar,
-      bio: person.bio || `Hey! I'm ${person.name}. Let's connect!`,
-      interests: [],
-      location: person.location || 'Lagos, Nigeria',
-      reliabilityScore: person.reliabilityScore || 90,
-      isVerified: true,
-    });
-    navigate('/profile');
+    // Navigate to public host profile instead of full profile
+    if (setSelectedUser && onNavigate) {
+      onNavigate('public-profile');
+      // Pass the hostId through context/state
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('publicHostId', person.userId || person.profileId || person.id);
+      }
+    }
   };
 
   const showNotice = (message: string, tone: NoticeTone = getNoticeTone(message), duration = 2000) => {

@@ -20,6 +20,7 @@ import { SafetyCentre } from './pages/SafetyCentre';
 import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
 import { Notifications } from './pages/Notifications';
+import { PublicHostProfile } from './pages/PublicHostProfile';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
@@ -69,6 +70,7 @@ export function App() {
   const [showMenu, setShowMenu] = useState(false);
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [publicHostId, setPublicHostId] = useState<string | null>(null);
 
   // Track route changes and update activeNav
   useEffect(() => {
@@ -87,6 +89,17 @@ export function App() {
       setActiveNav('Profile');
     }
   }, [location.pathname]);
+
+  // Handle public profile navigation - retrieve hostId from sessionStorage
+  useEffect(() => {
+    if (currentPage === 'public-profile') {
+      const hostId = sessionStorage.getItem('publicHostId');
+      if (hostId) {
+        setPublicHostId(hostId);
+        sessionStorage.removeItem('publicHostId');
+      }
+    }
+  }, [currentPage]);
   
   // Reset openCreateModal when leaving myhost page
   useEffect(() => {
@@ -301,6 +314,7 @@ export function App() {
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode />;
     if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
+    if (currentPage === 'public-profile' && publicHostId) return <PublicHostProfile hostId={publicHostId} onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
 
     return (
       <div className="flex min-h-screen bg-[#0F0F13] text-white selection:bg-[#F59E0B]/30 font-sans">
