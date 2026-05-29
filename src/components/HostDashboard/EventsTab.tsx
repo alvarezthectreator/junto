@@ -112,6 +112,10 @@ const EventsTab: React.FC<EventsTabProps> = ({ isLightMode = false }) => {
   const activeEvents = events.filter(e => e.status === 'active' || e.status === 'full').length;
   const totalRevenue = events.reduce((sum, e) => sum + ((e.price || 0) * e.confirmedGuests), 0);
 
+  const handleDeleteEvent = (eventId: string) => {
+    setEvents(events.filter(e => e.id !== eventId));
+  };
+
   const surfaceClass = isLightMode ? 'bg-white/80 border-black/10' : 'bg-gray-900 bg-opacity-50 border-gray-800';
   const mutedClass = isLightMode ? 'text-[#7a674f]' : 'text-gray-400';
 
@@ -194,7 +198,7 @@ const EventsTab: React.FC<EventsTabProps> = ({ isLightMode = false }) => {
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event) => (
             <motion.div key={event.id} variants={itemVariants}>
-              <EventCard event={event} isLightMode={isLightMode} />
+              <EventCard event={event} isLightMode={isLightMode} onDelete={handleDeleteEvent} />
             </motion.div>
           ))
         ) : (

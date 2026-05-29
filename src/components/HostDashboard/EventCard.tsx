@@ -1,14 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Trash2, Users, DollarSign, MapPin, Calendar } from 'lucide-react';
 import { HostedEvent } from '../../types/hostDashboard';
+import * as API from '../../services/api';
 
 interface EventCardProps {
   event: HostedEvent;
   isLightMode?: boolean;
+  onDelete?: (eventId: string) => void;
 }
 
-const EventCard: React.FC<EventCardProps> = ({ event, isLightMode = false }) => {
+const EventCard: React.FC<EventCardProps> = ({ event, isLightMode = false, onDelete }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true);
+      await API.deleteEvent(event.id);
+      onDelete?.(event.id);
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      alert('Failed to delete event. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
   const surfaceClass = isLightMode ? 'bg-white/80 border-black/10' : 'bg-gray-900 bg-opacity-50 border-gray-800';
   const mutedClass = isLightMode ? 'text-[#7a674f]' : 'text-gray-400';
   const lineClass = isLightMode ? 'border-black/10' : 'border-gray-800';
@@ -100,11 +118,49 @@ const EventCard: React.FC<EventCardProps> = ({ event, isLightMode = false }) => 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={isDeleting}
+            className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
           </motion.button>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={`rounded-lg p-6 max-w-sm ${isLightMode ? 'bg-white' : 'bg-gray-800'}`}
+            >
+              <h3 className="text-lg font-bold mb-4">Delete Event?</h3>
+              <p className={`mb-6 ${mutedClass}`}>
+                Are you sure you want to delete "{event.title}"? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    isLightMode
+                      ? 'bg-gray-200 hover:bg-gray-300 text-black'
+                      : 'bg-gray-700 hover:bg-gray-600 text-white'
+                  } disabled:opacity-50`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 rounded-lg font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
