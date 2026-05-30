@@ -24,6 +24,7 @@ import { PublicHostProfile } from './pages/PublicHostProfile';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { logout as clearApiSession, getLastSessionActivity, markSessionActivity } from './services/api';
 
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
@@ -396,18 +397,20 @@ export function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark">
-      <AppProvider value={{
-        selectedEvent,
-        selectedUser,
-        setSelectedUser,
-        handleLogout,
-      }}>
-        <ErrorBoundary>
-          <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
-            {content}
-          </div>
-        </ErrorBoundary>
-      </AppProvider>
+      <LanguageProvider>
+        <AppProvider value={{
+          selectedEvent,
+          selectedUser,
+          setSelectedUser,
+          handleLogout,
+        }}>
+          <ErrorBoundary>
+            <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
+              {content}
+            </div>
+          </ErrorBoundary>
+        </AppProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

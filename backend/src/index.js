@@ -21,6 +21,7 @@ import searchRoutes from './api/routes/search.js';
 import reportRoutes from './api/routes/reports.js';
 import ratingRoutes from './api/routes/ratings.js';
 import inviteRoutes from './api/routes/invites.js';
+import verificationRoutes from './api/routes/verification.js';
 
 // Load environment variables
 dotenv.config();
@@ -65,6 +66,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/invites', inviteRoutes);
+app.use('/api/verification', verificationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

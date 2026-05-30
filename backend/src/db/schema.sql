@@ -255,3 +255,24 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+
+-- Email/Phone Verification Table
+CREATE TABLE IF NOT EXISTS email_phone_verifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email VARCHAR(255),
+  phone_number VARCHAR(20),
+  verification_code VARCHAR(6) NOT NULL,
+  verification_type VARCHAR(20) NOT NULL, -- 'email' or 'phone'
+  is_verified BOOLEAN DEFAULT false,
+  attempts INT DEFAULT 0,
+  max_attempts INT DEFAULT 5,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL,
+  verified_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_user ON email_phone_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_code ON email_phone_verifications(verification_code);
+CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_expires ON email_phone_verifications(expires_at);

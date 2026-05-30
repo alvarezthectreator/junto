@@ -16,8 +16,10 @@ import {
   MapPin,
   User,
   AlertCircle,
+  Globe,
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import {
   isBrowserNotificationsSupported,
   isPushEnabled,
@@ -58,7 +60,7 @@ export function Settings({
   handleLogout = () => {},
 }: SettingsProps) {
   const userId = getUserId();
-  const [activeTab, setActiveTab] = useState<'account' | 'notifications' | 'privacy' | 'about'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'notifications' | 'privacy' | 'preferences' | 'about'>('account');
   const [referralInfo, setReferralInfo] = useState<{
     code: string;
     link: string;
@@ -265,6 +267,7 @@ export function Settings({
   const tabs = [
     { id: 'account', label: 'Account', icon: <User className="w-5 h-5" /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell className="w-5 h-5" /> },
+    { id: 'preferences', label: 'Preferences', icon: <Globe className="w-5 h-5" /> },
     { id: 'privacy', label: 'Privacy', icon: <Lock className="w-5 h-5" /> },
     { id: 'about', label: 'About', icon: <HelpCircle className="w-5 h-5" /> },
   ];
@@ -568,6 +571,19 @@ export function Settings({
                   </div>
                 </motion.div>
               ))}
+            </motion.div>
+          )}
+
+          {/* Preferences Tab */}
+          {activeTab === 'preferences' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl">
+                <LanguageSwitcher />
+              </div>
             </motion.div>
           )}
 
