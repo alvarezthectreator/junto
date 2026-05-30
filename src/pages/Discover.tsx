@@ -3,6 +3,7 @@ import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
+import { SearchFilter } from '../components/SearchFilter';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
@@ -514,6 +515,14 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       </div>
 
 
+
+      {/* Search & Filter */}
+      <SearchFilter 
+        onSearch={(results) => {
+          // Filter results are already handled by SearchFilter component
+          // which updates the event list via API
+        }} 
+      />
 
       {/* Travel Mode Toggle */}
       <div className="group relative mb-8 sm:mb-10">

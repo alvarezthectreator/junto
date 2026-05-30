@@ -234,8 +234,22 @@ export function PublicHostProfile({ hostId, onNavigate, setActiveNav }: PublicHo
           </div>
         </motion.div>
 
-        {/* Report Modal */}
+        {/* Report/Block Modal */}
         {showReportModal && (
+          <ReportBlockModal
+            userId={currentUser?.id}
+            targetUserId={host.id}
+            targetUserName={host.name}
+            onClose={() => setShowReportModal(false)}
+            onSuccess={() => {
+              setToast({ message: '✅ Report submitted. Thank you for helping keep Junto safe.', type: 'success' });
+              setShowReportModal(false);
+            }}
+          />
+        )}
+
+        {/* Fallback Old Report Modal - Commented Out for Reference */}
+        {false && showReportModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -1120,6 +1120,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                         </div>
                       </div>
                     </div>
+
+                    {/* Host Ratings & Reviews */}
+                    <HostRating 
+                      hostId={event.host_id || event.host.id}
+                      eventId={event.id}
+                      userId={currentUser?.id}
+                      onRatingSubmitted={() => {
+                        // Refresh event data or ratings display
+                      }}
+                    />
                   </div>
 
                   <div className="space-y-4">

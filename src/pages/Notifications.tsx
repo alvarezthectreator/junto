@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
+import { PrivateInviteCard } from '../components/PrivateInviteCard';
 import {
   deleteNotification as deleteNotificationApi,
   getNotifications as getNotificationsApi,
