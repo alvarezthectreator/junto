@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS events (
   title VARCHAR(255) NOT NULL,
   description TEXT,
   event_type VARCHAR(100),
+  category VARCHAR(50), -- Movies, Food, Beach, Music, Sports, Travel, Wellness, etc.
   location_city VARCHAR(100) NOT NULL,
   location_address VARCHAR(500),
   location_coordinates POINT, -- latitude, longitude
@@ -51,8 +52,11 @@ CREATE TABLE IF NOT EXISTS events (
   guest_fee INT, -- in naira
   max_guests INT,
   current_guests_count INT DEFAULT 0,
-  status VARCHAR(50) DEFAULT 'active', -- active, completed, cancelled
+  status VARCHAR(50) DEFAULT 'active', -- active, completed, cancelled, expired
   financial_agreement_signed BOOLEAN DEFAULT false,
+  is_private BOOLEAN DEFAULT false,
+  is_visible_to_travelers BOOLEAN DEFAULT true,
+  is_tour_guide BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -63,7 +67,7 @@ CREATE TABLE IF NOT EXISTS event_applications (
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   personal_note TEXT,
-  status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, rejected
+  status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, rejected
   financial_agreement_signed BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -194,6 +198,30 @@ CREATE TABLE IF NOT EXISTS event_ratings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, event_id)
+);
+
+-- Host Ratings (trust score system)
+CREATE TABLE IF NOT EXISTS host_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rated_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  host_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  review TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(rated_by_user_id, host_id, event_id)
+);
+
+-- Push Notification Subscriptions
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_data TEXT NOT NULL, -- JSON stringified PushSubscription
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, subscription_data)
 );
 
 -- Indexes for performance

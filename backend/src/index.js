@@ -5,6 +5,7 @@ import http from 'http';
 import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
 import { initWebSocket } from './websocket.js';
+import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -16,6 +17,10 @@ import nearbyRoutes from './api/routes/nearby.js';
 import safetyRoutes from './api/routes/safety.js';
 import notificationRoutes from './api/routes/notifications.js';
 import subscriptionRoutes from './api/routes/subscriptions.js';
+import searchRoutes from './api/routes/search.js';
+import reportRoutes from './api/routes/reports.js';
+import ratingRoutes from './api/routes/ratings.js';
+import inviteRoutes from './api/routes/invites.js';
 
 // Load environment variables
 dotenv.config();
@@ -56,6 +61,10 @@ app.use('/api/nearby', nearbyRoutes);
 app.use('/api/safety', safetyRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/invites', inviteRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -81,6 +90,9 @@ async function startServer() {
       console.log('🌱 Seeding database with mock data...');
       await seedDatabase();
     }
+    
+    // Start event expiry cleanup scheduler
+    startExpiryCleanupScheduler();
     
     // Create HTTP server for both Express and WebSocket
     const server = http.createServer(app);

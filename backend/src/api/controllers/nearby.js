@@ -7,8 +7,8 @@ export async function getNearbyUsers(req, res) {
     const { limit = 50, radius = 5 } = req.query;
 
     // Get user's city
-    const userRes = await query('SELECT city FROM users WHERE id = $1', [userId]);
-    if (userRes.rows.length === 0) {
+    const userRes = await query('SELECT city FROM users WHERE id = ?', [userId]);
+    if (!userRes.rows || userRes.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -17,15 +17,15 @@ export async function getNearbyUsers(req, res) {
     // Get users in same city, excluding self and already swiped
     const result = await query(
       `SELECT DISTINCT u.* FROM users u
-       LEFT JOIN swipes s ON u.id = s.swiped_user_id AND s.swiper_id = $1
-       LEFT JOIN blocked_users b ON (u.id = b.blocked_user_id AND b.blocker_id = $1)
-              OR (u.id = b.blocker_id AND b.blocked_user_id = $1)
-       WHERE u.city = $2 AND u.id != $1 AND s.id IS NULL AND b.id IS NULL
-       LIMIT $3`,
-      [userId, userCity, limit]
+       LEFT JOIN swipes s ON u.id = s.swiped_user_id AND s.swiper_id = ?
+       LEFT JOIN blocked_users b ON (u.id = b.blocked_user_id AND b.blocker_id = ?)
+              OR (u.id = b.blocker_id AND b.blocked_user_id = ?)
+       WHERE u.city = ? AND u.id != ? AND s.id IS NULL AND b.id IS NULL
+       LIMIT ?`,
+      [userId, userId, userId, userCity, userId, limit]
     );
 
-    res.json({ nearby_users: result.rows });
+    res.json({ nearby_users: result.rows || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -33,58 +33,92 @@ export async function getNearbyUsers(req, res) {
 
 export async function swipeUser(req, res) {
   try {
-    const { swiper_id, swiped_user_id, direction } = req.body;
+    const { user_id, swiped_user_id, direction } = req.body;
 
-    if (!swiper_id || !swiped_user_id || !['right', 'left'].includes(direction)) {
+    if (!user_id || !swiped_user_id || !['right', 'left'].includes(direction)) {
       return res.status(400).json({ error: 'Invalid swipe data' });
     }
 
-    // Record swipe
-    const swipeId = uuidv4();
-    await query(
-      `INSERT INTO swipes (id, swiper_id, swiped_user_id, direction)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (swiper_id, swiped_user_id) DO UPDATE SET direction = $4`,
-      [swipeId, swiper_id, swiped_user_id, direction]
+    // Check if swipe already exists
+    const existingSwipe = await query(
+      `SELECT id FROM swipes WHERE swiper_id = ? AND swiped_user_id = ?`,
+      [user_id, swiped_user_id]
     );
+
+    const swipeId = uuidv4();
+    
+    if (existingSwipe.rows && existingSwipe.rows.length > 0) {
+      // Update existing swipe
+      await query(
+        `UPDATE swipes SET direction = ? WHERE swiper_id = ? AND swiped_user_id = ?`,
+        [direction, user_id, swiped_user_id]
+      );
+    } else {
+      // Insert new swipe
+      await query(
+        `INSERT INTO swipes (id, swiper_id, swiped_user_id, direction, created_at)
+         VALUES (?, ?, ?, ?, datetime('now'))`,
+        [swipeId, user_id, swiped_user_id, direction]
+      );
+    }
 
     // Check for mutual match
     if (direction === 'right') {
       const mutualSwipe = await query(
-        `SELECT * FROM swipes WHERE swiper_id = $1 AND swiped_user_id = $2 AND direction = 'right'`,
-        [swiped_user_id, swiper_id]
+        `SELECT id FROM swipes WHERE swiper_id = ? AND swiped_user_id = ? AND direction = 'right'`,
+        [swiped_user_id, user_id]
       );
 
-      if (mutualSwipe.rows.length > 0) {
-        // Create match
-        await query(
-          `INSERT INTO matches (user1_id, user2_id) VALUES ($1, $2)
-           ON CONFLICT DO NOTHING`,
-          [swiper_id, swiped_user_id]
+      if (mutualSwipe.rows && mutualSwipe.rows.length > 0) {
+        // Check if match already exists
+        const existingMatch = await query(
+          `SELECT id FROM matches WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)`,
+          [user_id, swiped_user_id, swiped_user_id, user_id]
         );
 
-        // Create conversation
-        const convId = uuidv4();
-        await query(
-          `INSERT INTO conversations (id, user1_id, user2_id) VALUES ($1, $2, $3)
-           ON CONFLICT DO NOTHING`,
-          [convId, swiper_id, swiped_user_id]
-        );
+        if (!existingMatch.rows || existingMatch.rows.length === 0) {
+          // Create match
+          const matchId = uuidv4();
+          await query(
+            `INSERT INTO matches (id, user1_id, user2_id, matched_at) VALUES (?, ?, ?, datetime('now'))`,
+            [matchId, user_id, swiped_user_id]
+          );
 
-        // Notify both users
-        const swiperRes = await query('SELECT display_name FROM users WHERE id = $1', [swiper_id]);
-        const swiped_res = await query('SELECT display_name FROM users WHERE id = $1', [swiped_user_id]);
+          // Create conversation
+          const convId = uuidv4();
+          const existingConv = await query(
+            `SELECT id FROM conversations WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)`,
+            [user_id, swiped_user_id, swiped_user_id, user_id]
+          );
+          
+          if (!existingConv.rows || existingConv.rows.length === 0) {
+            await query(
+              `INSERT INTO conversations (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, datetime('now'))`,
+              [convId, user_id, swiped_user_id]
+            );
+          }
 
-        await query(
-          `INSERT INTO notifications (user_id, notification_type, related_user_id, title, body)
-           VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)`,
-          [
-            swiped_user_id, 'match', swiper_id, '❤️ It\'s a Match!', `You matched with ${swiperRes.rows[0]?.display_name || 'someone'}!`,
-            swiper_id, 'match', swiped_user_id, '❤️ It\'s a Match!', `You matched with ${swiped_res.rows[0]?.display_name || 'someone'}!`
-          ]
-        );
+          // Notify both users
+          const swiperRes = await query('SELECT display_name FROM users WHERE id = ?', [user_id]);
+          const swipedRes = await query('SELECT display_name FROM users WHERE id = ?', [swiped_user_id]);
 
-        return res.json({ match: true, message: '✅ It\'s a match!' });
+          const notif1Id = uuidv4();
+          const notif2Id = uuidv4();
+          
+          await query(
+            `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+            [notif1Id, swiped_user_id, 'match', user_id, '❤️ It\'s a Match!', `You matched with ${swiperRes.rows && swiperRes.rows[0] ? swiperRes.rows[0].display_name : 'someone'}!`]
+          );
+
+          await query(
+            `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+            [notif2Id, user_id, 'match', swiped_user_id, '❤️ It\'s a Match!', `You matched with ${swipedRes.rows && swipedRes.rows[0] ? swipedRes.rows[0].display_name : 'someone'}!`]
+          );
+
+          return res.json({ match: true, message: '✅ It\'s a match!' });
+        }
       }
     }
 
@@ -100,19 +134,28 @@ export async function getMatches(req, res) {
     const { userId } = req.params;
     const { limit = 50 } = req.query;
 
+    // SQLite doesn't support CASE in SELECT for this, so we'll query differently
     const result = await query(
-      `SELECT CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END as matched_user_id,
-              u.display_name, u.profile_id, u.bio, u.city,
-              m.matched_at
+      `SELECT m.user1_id, m.user2_id, u.display_name, u.profile_id, u.bio, u.city, m.matched_at
        FROM matches m
-       LEFT JOIN users u ON (CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END) = u.id
-       WHERE m.user1_id = $1 OR m.user2_id = $1
+       LEFT JOIN users u ON CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END = u.id
+       WHERE m.user1_id = ? OR m.user2_id = ?
        ORDER BY m.matched_at DESC
-       LIMIT $2`,
-      [userId, limit]
+       LIMIT ?`,
+      [userId, userId, userId, limit]
     );
 
-    res.json({ matches: result.rows });
+    // Process results to get matched_user_id
+    const matches = (result.rows || []).map(row => ({
+      matched_user_id: row.user1_id === userId ? row.user2_id : row.user1_id,
+      display_name: row.display_name,
+      profile_id: row.profile_id,
+      bio: row.bio,
+      city: row.city,
+      matched_at: row.matched_at
+    }));
+
+    res.json({ matches });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -126,13 +169,13 @@ export async function getSwipeHistory(req, res) {
     const result = await query(
       `SELECT s.*, u.display_name, u.profile_id FROM swipes s
        LEFT JOIN users u ON s.swiped_user_id = u.id
-       WHERE s.swiper_id = $1
+       WHERE s.swiper_id = ?
        ORDER BY s.created_at DESC
-       LIMIT $2`,
+       LIMIT ?`,
       [userId, limit]
     );
 
-    res.json({ swipes: result.rows });
+    res.json({ swipes: result.rows || [] });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

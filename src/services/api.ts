@@ -94,6 +94,14 @@ export interface Subscription {
   updated_at: string;
 }
 
+export interface PushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
@@ -397,22 +405,6 @@ export async function triggerSOS(userId: string, message?: string): Promise<any>
   return apiCall(`/safety/${userId}/sos`, 'POST', { message });
 }
 
-export async function blockUser(userId: string, blockedUserId: string): Promise<any> {
-  return apiCall(`/safety/${userId}/block`, 'POST', { blocked_user_id: blockedUserId });
-}
-
-export async function reportUser(
-  userId: string,
-  reportedUserId: string,
-  reportType: string,
-  description?: string
-): Promise<any> {
-  return apiCall(`/safety/${userId}/report/${reportedUserId}`, 'POST', {
-    report_type: reportType,
-    description,
-  });
-}
-
 // ==================== NOTIFICATIONS ====================
 
 export async function getNotifications(userId: string): Promise<Notification[]> {
@@ -483,4 +475,144 @@ export async function updateTravelDestination(userId: string, travelDestinationC
 
 export async function healthCheck(): Promise<any> {
   return apiCall('/health', 'GET');
+}
+
+// ==================== SEARCH & FILTER ====================
+
+export async function searchEvents(
+  keyword?: string,
+  category?: string,
+  billingTier?: number,
+  city?: string,
+  minDate?: string,
+  maxDate?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<{ events: Event[]; total: number }> {
+  const params = new URLSearchParams();
+  if (keyword) params.append('keyword', keyword);
+  if (category) params.append('category', category);
+  if (billingTier) params.append('billingTier', String(billingTier));
+  if (city) params.append('city', city);
+  if (minDate) params.append('minDate', minDate);
+  if (maxDate) params.append('maxDate', maxDate);
+  params.append('limit', String(limit));
+  params.append('offset', String(offset));
+
+  return apiCall(`/search/search?${params.toString()}`);
+}
+
+export async function getEventCategories(): Promise<{ categories: Array<{ value: string; label: string; icon: string }> }> {
+  return apiCall('/search/categories');
+}
+
+// ==================== REPORT & BLOCK ====================
+
+export async function reportUser(
+  reporterId: string,
+  reportedUserId: string,
+  reportType: string,
+  description?: string
+): Promise<{ report_id: string; status: string; message: string }> {
+  return apiCall('/reports/report', 'POST', { reporter_id: reporterId, reported_user_id: reportedUserId, report_type: reportType, description });
+}
+
+export async function blockUser(
+  blockerId: string,
+  blockedUserId: string,
+  reason?: string
+): Promise<{ block_id: string; message: string }> {
+  return apiCall('/reports/block', 'POST', { blocker_id: blockerId, blocked_user_id: blockedUserId, reason });
+}
+
+export async function unblockUser(blockerId: string, blockedUserId: string): Promise<{ message: string }> {
+  return apiCall('/reports/unblock', 'POST', { blocker_id: blockerId, blocked_user_id: blockedUserId });
+}
+
+export async function getBlockedUsers(userId: string): Promise<{ blocked_users: User[] }> {
+  return apiCall(`/reports/${userId}/blocked`);
+}
+
+export async function checkUserBlocked(blockerId: string, blockedUserId: string): Promise<{ is_blocked: boolean }> {
+  return apiCall(`/reports/check-blocked?blocker_id=${blockerId}&blocked_user_id=${blockedUserId}`);
+}
+
+// ==================== HOST RATINGS & REVIEWS ====================
+
+export async function rateHost(
+  ratedByUserId: string,
+  hostId: string,
+  eventId: string,
+  rating: number,
+  review?: string
+): Promise<{ rating_id: string; message: string; host_rating: { average: number; total_ratings: number } }> {
+  return apiCall('/ratings/', 'POST', { rated_by_user_id: ratedByUserId, host_id: hostId, event_id: eventId, rating, review });
+}
+
+export async function getHostRatings(hostId: string, limit: number = 20, offset: number = 0): Promise<{ ratings: any[]; summary: { average_rating: number; total_ratings: number } }> {
+  return apiCall(`/ratings/${hostId}?limit=${limit}&offset=${offset}`);
+}
+
+export async function getUserHostRating(userId: string, hostId: string): Promise<{ rating: any | null }> {
+  return apiCall(`/ratings/user-rating?user_id=${userId}&host_id=${hostId}`);
+}
+
+export async function deleteHostRating(ratingId: string, userId: string): Promise<{ message: string }> {
+  return apiCall('/ratings/', 'DELETE', { rating_id: ratingId, user_id: userId });
+}
+
+// ==================== ACCEPT/DECLINE INVITES ====================
+
+export async function acceptPrivateInvite(
+  applicationId: string,
+  userId: string
+): Promise<{ message: string; status: string }> {
+  return apiCall('/invites/accept', 'POST', { application_id: applicationId, user_id: userId });
+}
+
+export async function declinePrivateInvite(
+  applicationId: string,
+  userId: string
+): Promise<{ message: string; status: string }> {
+  return apiCall('/invites/decline', 'POST', { application_id: applicationId, user_id: userId });
+}
+
+export async function getPendingInvites(userId: string): Promise<{ invites: any[] }> {
+  return apiCall(`/invites/${userId}/pending`);
+}
+
+// ==================== PUSH NOTIFICATIONS ====================
+
+export async function subscribeToPush(userId: string, subscription: PushSubscription): Promise<{ message: string; subscription_id: string }> {
+  return apiCall('/notifications/push/subscribe', 'POST', { user_id: userId, subscription });
+}
+
+export async function unsubscribeFromPush(userId: string, subscription: PushSubscription): Promise<{ message: string }> {
+  return apiCall('/notifications/push/unsubscribe', 'POST', { user_id: userId, subscription });
+}
+
+export async function getPushSubscriptions(userId: string): Promise<{ subscriptions: any[] }> {
+  return apiCall(`/notifications/push/${userId}/subscriptions`);
+}
+
+// Helper to register for push notifications
+export async function registerForPushNotifications(userId: string): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('Push notifications not supported');
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: process.env.VITE_PUBLIC_KEY || ''
+    });
+
+    await subscribeToPush(userId, subscription);
+    return true;
+  } catch (error) {
+    console.error('Push registration failed:', error);
+    return false;
+  }
 }
