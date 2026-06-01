@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Compass,
@@ -7,7 +7,6 @@ import {
   ShieldAlert,
   User,
   Heart,
-  LogOut,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -22,19 +21,6 @@ interface SidebarProps {
 
 export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar }: SidebarProps) {
   const navigate = useNavigate();
-  const [showLogoutMenu, setShowLogoutMenu] = useState(false);
-  const logoutMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (logoutMenuRef.current && !logoutMenuRef.current.contains(event.target as Node)) {
-        setShowLogoutMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleNavigate = (page: string, navLabel: string) => {
     if (onNavigate) {
@@ -46,19 +32,6 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
       onCloseSidebar?.();
     } else {
       navigate(`/${page}`);
-    }
-  };
-
-  const handleLogoutClick = () => {
-    setShowLogoutMenu((current) => !current);
-  };
-
-  const confirmLogout = () => {
-    setShowLogoutMenu(false);
-    if (handleLogout) {
-      handleLogout();
-    } else if (onLogout) {
-      onLogout();
     }
   };
 
@@ -116,43 +89,6 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
             isActive={activeNav === 'Profile'}
             onClick={() => handleNavigate('profile', 'Profile')}
           />
-        </div>
-
-        <div className="relative flex items-center gap-1 md:gap-2 flex-shrink-0" ref={logoutMenuRef}>
-          {/* Logout Button */}
-          <motion.button
-            onClick={handleLogoutClick}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex-shrink-0 flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full hover:bg-red-500/15 text-red-400 hover:text-red-300 transition-all"
-            title="Logout"
-            aria-haspopup="menu"
-            aria-expanded={showLogoutMenu}
-          >
-            <motion.div
-              animate={{ rotate: showLogoutMenu ? 90 : 0 }}
-              transition={{ type: 'spring', stiffness: 250, damping: 20 }}
-            >
-              <LogOut size={16} className="md:w-5 md:h-5" />
-            </motion.div>
-          </motion.button>
-
-          {showLogoutMenu && (
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              className="absolute bottom-full right-0 mb-3 w-44 overflow-hidden rounded-2xl border border-red-500/20 bg-[#18181f] shadow-2xl shadow-black/40"
-            >
-              <button
-                onClick={confirmLogout}
-                className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200"
-              >
-                <LogOut size={15} />
-                Logout
-              </button>
-            </motion.div>
-          )}
         </div>
       </nav>
     </motion.div>
