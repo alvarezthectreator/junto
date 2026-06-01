@@ -963,7 +963,6 @@ export const Profile: React.FC<ProfileProps> = ({
 
             {/* Quick Core Stats Block */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard value={stats.outings} label="Total Outings" icon={<Globe size={16} />} isLightMode={isLightMode} />
               <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
               <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
               <StatCard value={`${displayReliabilityScore}%`} label={serverReliabilityScore !== null ? 'Server-backed reliability' : 'Estimated reliability'} icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
