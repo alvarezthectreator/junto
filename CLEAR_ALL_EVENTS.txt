@@ -1,0 +1,20 @@
+// Run this in your browser console to clean the frontend cache
+// Press F12 → Console → Copy-paste this and run
+
+console.log('🧹 Clearing Junto event caches...');
+
+// Clear created events cache
+localStorage.removeItem('junto-created-events');
+
+// Clear deleted events cache
+localStorage.removeItem('junto-deleted-events');
+
+// Clear discover events cache if any
+localStorage.removeItem('junto-discover-events');
+
+// Clear discover socket cache
+localStorage.removeItem('junto-discover-socket');
+
+console.log('✅ All caches cleared!');
+console.log('🔄 Refresh the page to see a completely clean Discover feed');
+console.log('🎉 Ready to create new events from scratch!');
