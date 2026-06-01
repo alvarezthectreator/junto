@@ -222,10 +222,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
-  const [hostEvents, setHostEvents] = useState<API.Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
   const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
+  const [displayLimit, setDisplayLimit] = useState(12);
   
   const filters = [
   'All vibes',
@@ -261,9 +261,15 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         console.log('🔄 Event updated:', eventId);
         API.getEventById(eventId)
           .then((response) => {
-            setApiEvents((prev) =>
-              prev.map((event) => (event.id === eventId ? response.event : event))
-            );
+            setApiEvents((prev) => {
+              const exists = prev.some((event) => event.id === eventId);
+              if (!exists) {
+                // Event doesn't exist yet, add it
+                return [response.event, ...prev];
+              }
+              // Event exists, update it
+              return prev.map((event) => (event.id === eventId ? response.event : event));
+            });
           })
           .catch((error) => console.error('Failed to fetch updated event:', error));
       },
@@ -272,7 +278,15 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         console.log('➕ Event created:', eventId);
         API.getEventById(eventId)
           .then((response) => {
-            setApiEvents((prev) => [response.event, ...prev]);
+            setApiEvents((prev) => {
+              // Check if event already exists to prevent duplicates
+              const exists = prev.some((event) => event.id === eventId);
+              if (exists) {
+                console.log('⚠️ Event already exists, skipping duplicate');
+                return prev;
+              }
+              return [response.event, ...prev];
+            });
           })
           .catch((error) => console.error('Failed to fetch new event:', error));
       },
@@ -289,25 +303,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   }, []);
 
   useEffect(() => {
-    const fetchHostEvents = async () => {
-      try {
-        if (!currentUser?.id) {
-          setHostEvents([]);
-          return;
-        }
-
-        const response = await API.getHostEvents(currentUser.id);
-        setHostEvents(response.events || []);
-      } catch (error) {
-        console.error('Failed to fetch host events for Discover:', error);
-        setHostEvents([]);
-      }
-    };
-
-    fetchHostEvents();
-  }, [currentUser?.id]);
-
-  useEffect(() => {
     setLocalEvents(loadStoredCreatedEvents());
   }, []);
 
@@ -315,16 +310,18 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     const deletedSignatures = readDeletedEventSignatures();
 
     const backendEvents = useBackend && apiEvents.length > 0
-      ? apiEvents.map((event, index) => toFeedEventFromApi(event, index))
+      ? apiEvents.map((event, index) => {
+        const feedEvent = toFeedEventFromApi(event, index);
+        // If this is the current user's event, display as "You"
+        if (event.host_id === currentUser?.id) {
+          feedEvent.userName = currentUser?.name || currentUser?.username || 'You';
+          feedEvent.userInitial = (currentUser?.name || currentUser?.username || 'Y').charAt(0).toUpperCase();
+        }
+        return feedEvent;
+      })
       : discoverEvents.map(toFeedEventFromSeed);
 
-    const personalHostEvents = hostEvents.map((event, index) => ({
-      ...toFeedEventFromApi(event, index + 1000),
-      userName: currentUser?.name || currentUser?.username || (event as any).display_name || 'You',
-      userInitial: (currentUser?.name || currentUser?.username || (event as any).display_name || 'Y').charAt(0).toUpperCase(),
-    }));
-
-    const merged = [...localEvents, ...personalHostEvents, ...backendEvents];
+    const merged = [...backendEvents];
     const deduped = new Map<string, FeedEvent>();
     merged.forEach((event) => {
       deduped.set(String(event.id), event);
@@ -333,7 +330,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     return Array.from(deduped.values())
       .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
       .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
-  }, [apiEvents, hostEvents, localEvents, useBackend, currentUser?.name, currentUser?.username]);
+  }, [apiEvents, localEvents, useBackend, currentUser?.id, currentUser?.name, currentUser?.username]);
 
   // Filter events based on active filter and search
   let filteredEvents = events.filter((event: any) => {
@@ -641,7 +638,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       {/* Feed Grid with Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
         {filteredEvents.length > 0 ? (
-          filteredEvents.map((event, index) => {
+          filteredEvents.slice(0, displayLimit).map((event, index) => {
             const actualIndex = events.indexOf(event);
             const isSaved = savedEventIds.includes(event.id);
             return (
@@ -713,10 +710,14 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Load More */}
       <div className="flex justify-center pb-20">
-        <button className="flex items-center gap-2 px-6 py-3 rounded-full bg-transparent border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all group">
-          <Loader2 size={16} className="group-hover:animate-spin" />
-          <span className="font-medium text-sm">Load more vibes</span>
-        </button>
+        {filteredEvents.length > displayLimit && (
+          <button 
+            onClick={() => setDisplayLimit(prev => prev + 12)}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-transparent border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all group">
+            <Loader2 size={16} className="group-hover:animate-spin" />
+            <span className="font-medium text-sm">Load more vibes</span>
+          </button>
+        )}
       </div>
     </motion.div>);
 

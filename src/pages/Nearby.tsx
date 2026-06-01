@@ -62,7 +62,7 @@ export const Nearby: React.FC<NearbyProps> = ({
   const [people, setPeople] = useState<NearbyPerson[]>(mockNearbyPeople);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<"All" | "Verified" | "Close" | "New">("All");
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(mockNearbyPeople[0].id);
+  const [selectedPersonId, setSelectedPersonId] = useState<string>(mockNearbyPeople[0]?.id || "");
   const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
   const [dislikedUserIds, setDislikedUserIds] = useState<Set<string>>(new Set());
   const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
@@ -87,13 +87,13 @@ export const Nearby: React.FC<NearbyProps> = ({
 
         if (mounted) {
           setPeople(apiPeople.length > 0 ? apiPeople : mockNearbyPeople);
-          setSelectedPersonId((apiPeople[0] || mockNearbyPeople[0]).id);
+          setSelectedPersonId((apiPeople[0] || mockNearbyPeople[0])?.id || "");
         }
       } catch (error) {
         console.error("Failed to fetch nearby people:", error);
         if (mounted) {
           setPeople(mockNearbyPeople);
-          setSelectedPersonId(mockNearbyPeople[0].id);
+          setSelectedPersonId(mockNearbyPeople[0]?.id || "");
         }
       } finally {
         if (mounted) setLoading(false);
