@@ -63,7 +63,12 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[9999] border-t border-white/5 bg-[#0F0F13]/98 px-2 md:px-4 py-2 md:py-3 rounded-t-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md">
+    <motion.div 
+      className="fixed inset-x-0 bottom-0 z-[9999] border-t border-white/10 bg-gradient-to-t from-[#0F0F13]/99 to-[#0F0F13]/95 px-2 md:px-4 py-2 md:py-3 rounded-t-3xl shadow-[0_-12px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+      initial={{ y: 0 }}
+      animate={{ y: 0 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+    >
       {/* Bottom Navbar */}
       <nav className="flex items-center justify-between gap-0.5 md:gap-3 max-w-7xl mx-auto">
         <div className="flex items-center justify-center gap-0.5 md:gap-4 flex-1 min-w-0">
@@ -115,15 +120,22 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
 
         <div className="relative flex items-center gap-1 md:gap-2 flex-shrink-0" ref={logoutMenuRef}>
           {/* Logout Button */}
-          <button
+          <motion.button
             onClick={handleLogoutClick}
-            className="flex-shrink-0 flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-all"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex-shrink-0 flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full hover:bg-red-500/15 text-red-400 hover:text-red-300 transition-all"
             title="Logout"
             aria-haspopup="menu"
             aria-expanded={showLogoutMenu}
           >
-            <LogOut size={16} className="md:w-5 md:h-5" />
-          </button>
+            <motion.div
+              animate={{ rotate: showLogoutMenu ? 90 : 0 }}
+              transition={{ type: 'spring', stiffness: 250, damping: 20 }}
+            >
+              <LogOut size={16} className="md:w-5 md:h-5" />
+            </motion.div>
+          </motion.button>
 
           {showLogoutMenu && (
             <motion.div
@@ -143,7 +155,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
           )}
         </div>
       </nav>
-    </div>
+    </motion.div>
   );
 }
 
@@ -160,25 +172,119 @@ function NavItem({
   badge?: string;
   onClick: () => void;
 }) {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  const iconVariants = {
+    inactive: { scale: 1, rotate: 0 },
+    active: { 
+      scale: 1.2, 
+      rotate: [0, -8, 8, -8, 0],
+      transition: { 
+        rotate: { type: 'spring', stiffness: 200, damping: 10, duration: 0.6 },
+        scale: { type: 'spring', stiffness: 300, damping: 15 }
+      }
+    },
+    hover: { 
+      scale: 1.15,
+      rotate: [0, 3, -3, 3, 0],
+      transition: { 
+        rotate: { type: 'spring', stiffness: 150, damping: 8, duration: 0.5 },
+        scale: { type: 'spring', stiffness: 250, damping: 12 }
+      }
+    }
+  };
+
+  const bgVariants = {
+    inactive: { 
+      backgroundColor: 'rgba(255, 255, 255, 0)',
+      boxShadow: 'none'
+    },
+    active: { 
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      boxShadow: '0 0 12px rgba(245, 158, 11, 0.2), inset 0 0 8px rgba(245, 158, 11, 0.1)'
+    },
+    hover: { 
+      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+      boxShadow: '0 0 8px rgba(255, 255, 255, 0.1)'
+    }
+  };
+
+  const textVariants = {
+    inactive: { color: '#9CA3AF' },
+    active: { color: '#FFFFFF' },
+    hover: { color: '#FFFFFF' }
+  };
+
   return (
-    <button
+    <motion.button
       onClick={onClick}
-      className={`flex flex-col items-center gap-0.5 md:gap-1 px-1 md:px-2 py-1.5 md:py-2 rounded-lg transition-colors relative group text-[9px] md:text-xs font-medium whitespace-nowrap ${
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      variants={bgVariants}
+      animate={isActive ? 'active' : isHovered ? 'hover' : 'inactive'}
+      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+      className={`flex flex-col items-center gap-0.5 md:gap-1 px-1 md:px-2 py-1.5 md:py-2 rounded-xl relative group text-[9px] md:text-xs font-semibold whitespace-nowrap backdrop-blur-sm border border-transparent ${
         isActive 
-          ? 'text-[#F59E0B] bg-white/5' 
-          : 'text-gray-400 hover:text-white hover:bg-white/5'
+          ? 'border-[#F59E0B]/30' 
+          : 'border-white/5'
       }`}
       title={label}
+      whileTap={{ scale: 0.95 }}
     >
-      <div className={`${isActive ? 'text-[#F59E0B]' : 'group-hover:text-white'}`}>
-        {icon}
-      </div>
-      <span className="block leading-none">{label}</span>
-      {badge && (
-        <span className="absolute -top-1 -right-1 bg-[#F59E0B] text-white text-[7px] md:text-[9px] font-bold w-3.5 md:w-4 h-3.5 md:h-4 rounded-full flex items-center justify-center">
-          {badge}
-        </span>
+      {/* Animated background glow */}
+      {isActive && (
+        <motion.div
+          className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#F59E0B]/10 via-transparent to-[#A78BFA]/10 opacity-0"
+          animate={{ opacity: [0.5, 0.2, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
       )}
-    </button>
+
+      {/* Icon with animation */}
+      <motion.div
+        variants={iconVariants}
+        animate={isActive ? 'active' : isHovered ? 'hover' : 'inactive'}
+        transition={{ type: 'spring', stiffness: 250, damping: 15 }}
+        className={`relative z-10 ${
+          isActive ? 'text-white drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 'text-gray-300'
+        }`}
+      >
+        {icon}
+      </motion.div>
+
+      {/* Text label with animation */}
+      <motion.span
+        variants={textVariants}
+        animate={isActive ? 'active' : isHovered ? 'hover' : 'inactive'}
+        transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+        className="block leading-none relative z-10 font-semibold"
+      >
+        {label}
+      </motion.span>
+
+      {/* Animated underline for active state */}
+      {isActive && (
+        <motion.div
+          layoutId="nav-underline"
+          className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 h-1 bg-gradient-to-r from-[#F59E0B] to-[#A78BFA] rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: '60%' }}
+          exit={{ width: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        />
+      )}
+
+      {/* Badge with pop animation */}
+      {badge && (
+        <motion.span
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25, delay: 0.1 }}
+          className="absolute -top-1 -right-1 bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white text-[7px] md:text-[9px] font-bold w-3.5 md:w-4 h-3.5 md:h-4 rounded-full flex items-center justify-center shadow-lg shadow-[#F59E0B]/50"
+        >
+          {badge}
+        </motion.span>
+      )}
+    </motion.button>
   );
 }
