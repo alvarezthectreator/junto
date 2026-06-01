@@ -14,6 +14,12 @@ import {
   showBrowserNotification,
 } from '../services/browserNotifications';
 import {
+  localActivityEventName,
+  deleteLocalNotification,
+  markLocalNotificationRead,
+  readLocalNotifications,
+} from '../utils/localActivity';
+import {
   Bell,
   Heart,
   MessageCircle,
@@ -37,6 +43,7 @@ interface NotificationItem {
   actionUrl?: string;
   icon: React.ReactNode;
   color: string;
+  createdAt?: string;
 }
 
 interface NotificationsProps {
@@ -46,7 +53,7 @@ interface NotificationsProps {
   onCloseSidebar?: () => void;
 }
 
-const NOTIFICATION_FILTERS = ['All', 'Unread', 'Messages', 'Events'] as const;
+const NOTIFICATION_FILTERS = ['All', 'Unread', 'Messages', 'Events', 'Applications'] as const;
 
 function formatTimestamp(value: string): string {
   const createdAt = new Date(value);
@@ -94,18 +101,51 @@ export function Notifications({
   onCloseSidebar = () => {},
 }: NotificationsProps) {
   const userId = getUserId();
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Unread' | 'Messages' | 'Events'>('All');
+  const [activeFilter, setActiveFilter] = useState<'All' | 'Unread' | 'Messages' | 'Events' | 'Applications'>('All');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
   const hasSyncedRef = useRef(false);
+  const serverNotificationsRef = useRef<NotificationItem[]>([]);
+
+  const mergeNotifications = (serverItems: NotificationItem[]) => {
+    const localItems = readLocalNotifications()
+      .filter((notification) => !notification.recipientUserId || notification.recipientUserId === userId)
+      .map((notification) => {
+        const presentation = getNotificationPresentation(notification.type);
+        return {
+          id: notification.id,
+          type: presentation.type,
+          title: notification.title,
+          description: notification.description,
+          timestamp: formatTimestamp(notification.createdAt),
+          read: Boolean(notification.read),
+          avatar: presentation.avatar,
+          icon: presentation.icon,
+          color: presentation.color,
+          createdAt: notification.createdAt,
+        } as NotificationItem;
+      });
+
+    const merged = new Map<string, NotificationItem>();
+    [...localItems, ...serverItems].forEach((notification) => {
+      merged.set(notification.id, notification);
+    });
+
+    return Array.from(merged.values()).sort((a, b) => {
+      const aTime = new Date(a.createdAt || a.timestamp).getTime();
+      const bTime = new Date(b.createdAt || b.timestamp).getTime();
+      return bTime - aTime;
+    });
+  };
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((notif) => {
       if (activeFilter === 'Unread') return !notif.read;
       if (activeFilter === 'Messages') return notif.type === 'message';
       if (activeFilter === 'Events') return notif.type === 'event' || notif.type === 'application';
+      if (activeFilter === 'Applications') return notif.type === 'application';
       return true;
     });
   }, [activeFilter, notifications]);
@@ -140,6 +180,7 @@ export function Notifications({
             avatar: presentation.avatar,
             icon: presentation.icon,
             color: presentation.color,
+            createdAt: notification.created_at,
           } as NotificationItem;
         });
 
@@ -162,7 +203,8 @@ export function Notifications({
 
         seenNotificationIdsRef.current = new Set(serverNotifications.map((notification: any) => notification.id));
         hasSyncedRef.current = true;
-        setNotifications(nextNotifications);
+        serverNotificationsRef.current = nextNotifications;
+        setNotifications(mergeNotifications(nextNotifications));
         setError(null);
       } catch (syncError: any) {
         if (active) {
@@ -177,15 +219,21 @@ export function Notifications({
 
     syncNotifications();
     const timer = window.setInterval(syncNotifications, 30000);
+    const refreshLocalNotifications = () => {
+      setNotifications(mergeNotifications(serverNotificationsRef.current));
+    };
+    window.addEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
 
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
     };
   }, [userId]);
 
   const markAsRead = async (id: string) => {
     setNotifications((current) => current.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    markLocalNotificationRead(id);
 
     try {
       await markNotificationAsReadApi(id);
@@ -211,6 +259,7 @@ export function Notifications({
 
   const deleteNotification = async (id: string) => {
     setNotifications((current) => current.filter((n) => n.id !== id));
+    deleteLocalNotification(id);
 
     try {
       await deleteNotificationApi(id);

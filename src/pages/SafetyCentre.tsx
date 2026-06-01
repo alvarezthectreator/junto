@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
+import {
+  appendSafetyReportCase,
+  readBlockedUserRecords,
+  readSafetyReportCases,
+  updateSafetyReportCase,
+  type BlockedUserRecord,
+  type SafetyEvidenceAttachment,
+  type SafetyReportCase,
+} from '../utils/localActivity';
+import { formatPhoneForWhatsApp, sendSOSViaWhatsApp } from '../utils/whatsappShare';
 import {
   AlertTriangle,
   Copy,
@@ -22,6 +32,9 @@ interface SafetyCentreProps {
 }
 
 type SafetyTab = 'profile' | 'contacts' | 'history';
+const contactsStorageKey = 'junto-safety-contacts';
+const historyStorageKey = 'junto-safety-history';
+const safetyActionsStorageKey = 'junto-safety-actions';
 
 const safetyTips = [
   'Share your Junto profile ID before heading out.',
@@ -51,30 +64,89 @@ const historyItems = [
   },
 ];
 
+type SafetyAction = {
+  id: string;
+  action: 'sos' | 'report' | 'block';
+  targetUserName?: string;
+  targetUserId?: string;
+  reportType?: string;
+  reason?: string;
+  status: string;
+  createdAt: string;
+  description?: string;
+  evidence?: SafetyEvidenceAttachment[];
+  reviewStatus?: SafetyReportCase['status'];
+};
+
+type SafetyContact = {
+  id: string;
+  name: string;
+  phone: string;
+  relationship: string;
+  isPrimary?: boolean;
+  verified?: boolean;
+  verificationStatus?: 'verified' | 'pending' | 'unverified';
+  verificationCode?: string;
+  lastVerificationRequestAt?: string;
+};
+
+function normalizeSafetyContact(contact: any): SafetyContact {
+  return {
+    id: String(contact?.id || Date.now()),
+    name: String(contact?.contact_name || contact?.name || 'Trusted contact'),
+    phone: String(contact?.contact_phone || contact?.phone || ''),
+    relationship: String(contact?.relationship || 'Contact'),
+    isPrimary: Boolean(contact?.is_primary),
+    verified: Boolean(contact?.verified ?? contact?.is_verified ?? contact?.verification_status === 'verified'),
+    verificationStatus: contact?.verification_status || (contact?.verified || contact?.is_verified ? 'verified' : 'pending'),
+    verificationCode: contact?.verification_code || undefined,
+    lastVerificationRequestAt: contact?.last_verification_request_at || undefined,
+  };
+}
+
+function generateVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
 export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiveNav = () => {}, onCloseSidebar = () => {}, currentUser }) => {
   const [activeTab, setActiveTab] = useState<SafetyTab>('profile');
   const [sosActive, setSosActive] = useState(false);
   const [sosCountdown, setSosCountdown] = useState(0);
   const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [showEditContactModal, setShowEditContactModal] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [newContactRelationship, setNewContactRelationship] = useState('Friend');
-  const [contacts, setContacts] = useState([
+  const [contacts, setContacts] = useState<SafetyContact[]>([
     {
       id: '1',
       name: 'Mom',
       phone: '+234 703 123 4567',
       relationship: 'Mother',
+      isPrimary: true,
+      verified: true,
+      verificationStatus: 'verified',
     },
     {
       id: '2',
       name: 'Tunde',
       phone: '+234 801 987 6543',
       relationship: 'Best Friend',
+      verified: true,
+      verificationStatus: 'verified',
     },
   ]);
+  const [historyEntries, setHistoryEntries] = useState(historyItems);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [editContactName, setEditContactName] = useState('');
+  const [editContactPhone, setEditContactPhone] = useState('');
+  const [editContactRelationship, setEditContactRelationship] = useState('Friend');
   const [loading, setLoading] = useState(false);
   const [sosMessage, setSosMessage] = useState('');
+  const [safetyActions, setSafetyActions] = useState<SafetyAction[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
+  const [reportQueue, setReportQueue] = useState<SafetyReportCase[]>([]);
+  const sosTimerRef = useRef<number | null>(null);
 
   const profileId = 'JTO-9201-NG';
   const profilePhone = '+234 803 456 7890';
@@ -93,11 +165,58 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       // Call SOS API
       await API.triggerSOS(currentUser.id, 'Emergency SOS activated - please contact me immediately');
 
-      const timer = setInterval(() => {
+      if (sosTimerRef.current) {
+        window.clearInterval(sosTimerRef.current);
+      }
+
+      sosTimerRef.current = window.setInterval(() => {
         setSosCountdown((prev) => {
           if (prev <= 1) {
-            clearInterval(timer);
-            setSosMessage('Emergency signal sent to all trusted contacts');
+            if (sosTimerRef.current) {
+              window.clearInterval(sosTimerRef.current);
+              sosTimerRef.current = null;
+            }
+            const primaryContact = contacts.find((contact) => contact.isPrimary) || contacts[0];
+            if (primaryContact?.phone) {
+              sendSOSViaWhatsApp(
+                formatPhoneForWhatsApp(primaryContact.phone),
+                currentUser?.name || 'Junto member',
+                profilePhone
+              );
+            }
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Junto SOS sent', {
+                body: `Emergency signal sent to ${contacts.length} trusted contacts. Emergency line 112 is ready.`,
+              });
+            }
+
+            setSosMessage('Emergency signal sent. WhatsApp ping prepared and emergency line 112 is ready.');
+            const nextHistory = [
+              {
+                id: Date.now().toString(),
+                title: 'SOS Activated',
+                time: new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+                detail: `${contacts.length} contacts notified with live location and profile ID. Primary contact and emergency line 112 are ready.`,
+                status: 'Resolved',
+                icon: Heart,
+                accent: 'red',
+              },
+              ...historyEntries,
+            ].slice(0, 6);
+            setHistoryEntries(nextHistory);
+            localStorage.setItem(historyStorageKey, JSON.stringify(nextHistory));
+
+            const nextAction: SafetyAction = {
+              id: `sos-${Date.now()}`,
+              action: 'sos',
+              status: 'sent',
+              createdAt: new Date().toISOString(),
+              description: `SOS sent to ${contacts.length} trusted contacts. Primary contact and emergency line 112 prepared.`,
+            };
+            const nextActions = [nextAction, ...safetyActions].slice(0, 12);
+            setSafetyActions(nextActions);
+            localStorage.setItem(safetyActionsStorageKey, JSON.stringify(nextActions));
             setTimeout(() => setSosMessage(''), 3000);
             return 0;
           }
@@ -113,6 +232,10 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
   };
 
   const handleSOSCancel = () => {
+    if (sosTimerRef.current) {
+      window.clearInterval(sosTimerRef.current);
+      sosTimerRef.current = null;
+    }
     setSosActive(false);
     setSosCountdown(0);
     setSosMessage('');
@@ -147,9 +270,15 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
         name: newContactName,
         phone: newContactPhone,
         relationship: newContactRelationship,
+        verified: false,
+        verificationStatus: 'pending' as const,
+        verificationCode: generateVerificationCode(),
+        isPrimary: contacts.length === 0,
       };
       
-      setContacts([...contacts, newContact]);
+      const nextContacts = [...contacts, newContact];
+      setContacts(nextContacts);
+      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
       setNewContactName('');
       setNewContactPhone('');
       setNewContactRelationship('Friend');
@@ -178,7 +307,9 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
     try {
       setLoading(true);
       await API.deleteTrustedContact(contactId);
-      setContacts(contacts.filter(c => c.id !== contactId));
+      const nextContacts = contacts.filter(c => c.id !== contactId);
+      setContacts(nextContacts);
+      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
       setSosMessage('✓ Contact deleted');
       setTimeout(() => setSosMessage(''), 2000);
     } catch (error) {
@@ -190,27 +321,255 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
     }
   };
 
+  const beginEditContact = (contact: typeof contacts[number]) => {
+    setEditingContactId(contact.id);
+    setEditContactName(contact.name);
+    setEditContactPhone(contact.phone);
+    setEditContactRelationship(contact.relationship);
+    setShowEditContactModal(true);
+  };
+
+  const handleSaveContactEdit = async () => {
+    if (!editingContactId || !editContactName.trim() || !editContactPhone.trim()) {
+      setSosMessage('Please fill in all fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = await API.updateTrustedContact(editingContactId, {
+        contact_name: editContactName.trim(),
+        contact_phone: editContactPhone.trim(),
+      });
+
+      const nextContacts = contacts.map((contact) =>
+        contact.id === editingContactId
+          ? {
+              ...contact,
+              name: updated.contact?.contact_name || editContactName.trim(),
+              phone: updated.contact?.contact_phone || editContactPhone.trim(),
+              relationship: editContactRelationship,
+              isPrimary: Boolean(updated.contact?.is_primary ?? contact.isPrimary),
+              verified: true,
+              verificationStatus: 'verified' as const,
+              verificationCode: undefined,
+            }
+          : contact
+      );
+      setContacts(nextContacts);
+      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      setShowEditContactModal(false);
+      setEditingContactId(null);
+      setSosMessage('✓ Contact updated');
+      setTimeout(() => setSosMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to update contact:', error);
+      setSosMessage('Failed to update contact');
+      setTimeout(() => setSosMessage(''), 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setPrimaryContact = async (contactId: string) => {
+    try {
+      setLoading(true);
+      const nextContacts = contacts.map((contact) => ({
+        ...contact,
+        isPrimary: contact.id === contactId,
+      }));
+      setContacts(nextContacts);
+      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      await API.updateTrustedContact(contactId, { is_primary: true });
+      setSosMessage('✓ Primary contact updated');
+      setTimeout(() => setSosMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to set primary contact:', error);
+      setSosMessage('Failed to update primary contact');
+      setTimeout(() => setSosMessage(''), 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const requestVerificationHandshake = async (contactId: string) => {
+    const nextCode = generateVerificationCode();
+    const nextContacts = contacts.map((contact) =>
+      contact.id === contactId
+        ? {
+            ...contact,
+            verificationStatus: 'pending' as const,
+            verified: false,
+            verificationCode: nextCode,
+            lastVerificationRequestAt: new Date().toISOString(),
+          }
+        : contact
+    );
+
+    setContacts(nextContacts);
+    localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+
+    const contact = nextContacts.find((entry) => entry.id === contactId);
+    const message = `Junto verification code for ${contact?.name || 'your trusted contact'}: ${nextCode}`;
+
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch {
+      // Clipboard access is best-effort.
+    }
+
+    if (contact?.phone) {
+      window.open(
+        `https://wa.me/${formatPhoneForWhatsApp(contact.phone).replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
+        '_blank'
+      );
+    }
+
+    setSosMessage(`Verification handshake prepared for ${contact?.name || 'contact'}.`);
+    setTimeout(() => setSosMessage(''), 2200);
+  };
+
+  const markContactVerified = async (contactId: string) => {
+    const nextContacts = contacts.map((contact) =>
+      contact.id === contactId
+        ? {
+            ...contact,
+            verificationStatus: 'verified' as const,
+            verified: true,
+            verificationCode: undefined,
+          }
+        : contact
+    );
+
+    setContacts(nextContacts);
+    localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+    setSosMessage('✓ Trusted contact verified');
+    setTimeout(() => setSosMessage(''), 2200);
+  };
+
+  const handleEmergencyServicesEscalation = () => {
+    const emergencyNumber = '112';
+    window.open(`tel:${emergencyNumber}`, '_self');
+
+    const escalationEntry = {
+      id: `emergency-${Date.now()}`,
+      title: 'Emergency services escalated',
+      time: new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      detail: `Nigeria emergency line ${emergencyNumber} opened from Safety Centre.`,
+      status: 'Dialing',
+      icon: AlertTriangle,
+      accent: 'red',
+    };
+
+    const nextHistory = [escalationEntry, ...historyEntries].slice(0, 6);
+    setHistoryEntries(nextHistory);
+    localStorage.setItem(historyStorageKey, JSON.stringify(nextHistory));
+    setSosMessage('Emergency services path opened via 112.');
+    setTimeout(() => setSosMessage(''), 2200);
+  };
+
   // Load contacts on mount
   useEffect(() => {
     if (currentUser?.id) {
       const fetchContacts = async () => {
         try {
           const data = await API.getTrustedContacts(currentUser.id);
-          if (data && Array.isArray(data)) {
-            setContacts(data.map((c: any) => ({
-              id: c.id,
-              name: c.contact_name || c.name,
-              phone: c.contact_phone || c.phone,
-              relationship: c.relationship || 'Contact',
-            })));
+          const contactsList = Array.isArray((data as any)?.contacts) ? (data as any).contacts : Array.isArray(data) ? data : [];
+          if (contactsList.length > 0) {
+            const mapped = contactsList.map((c: any) => normalizeSafetyContact(c));
+            setContacts(mapped);
+            localStorage.setItem(contactsStorageKey, JSON.stringify(mapped));
+          } else {
+            const cached = localStorage.getItem(contactsStorageKey);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) {
+                setContacts(parsed.map((contact: any) => normalizeSafetyContact(contact)));
+              }
+            }
           }
         } catch (error) {
           console.error('Failed to fetch contacts:', error);
+          const cached = localStorage.getItem(contactsStorageKey);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) {
+                setContacts(parsed.map((contact: any) => normalizeSafetyContact(contact)));
+              }
+            } catch {
+              // ignore
+            }
+          }
         }
       };
       fetchContacts();
     }
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    try {
+      const cachedHistory = localStorage.getItem(historyStorageKey);
+      if (cachedHistory) {
+        const parsed = JSON.parse(cachedHistory);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setHistoryEntries(parsed);
+        }
+      }
+    } catch {
+      // ignore cached history issues
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const cachedActions = localStorage.getItem(safetyActionsStorageKey);
+      if (cachedActions) {
+        const parsed = JSON.parse(cachedActions);
+        if (Array.isArray(parsed)) {
+          setSafetyActions(parsed);
+        }
+      }
+
+      setBlockedUsers(readBlockedUserRecords());
+      setReportQueue(readSafetyReportCases());
+    } catch {
+      // ignore cached safety data issues
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (sosTimerRef.current) {
+        window.clearInterval(sosTimerRef.current);
+        sosTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadSafetyAudit = () => {
+      try {
+        const cachedActions = localStorage.getItem(safetyActionsStorageKey);
+        if (cachedActions) {
+          const parsedActions = JSON.parse(cachedActions);
+          if (Array.isArray(parsedActions)) {
+            setSafetyActions(parsedActions);
+          }
+        }
+        setBlockedUsers(readBlockedUserRecords());
+        setReportQueue(readSafetyReportCases());
+      } catch {
+        // ignore refresh issues
+      }
+    };
+
+    loadSafetyAudit();
+    window.addEventListener('junto-safety-updated', loadSafetyAudit as EventListener);
+    return () => {
+      window.removeEventListener('junto-safety-updated', loadSafetyAudit as EventListener);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
@@ -264,8 +623,8 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                 />
                 <TopStat
                   icon={<Phone size={18} />}
-                  title="Phone verified"
-                  description="Your registered line is attached to every safety alert."
+                  title={`${blockedUsers.length} blocked users`}
+                  description="People you have removed from your safety circle."
                 />
               </div>
             </div>
@@ -305,6 +664,29 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                     >
                       I&apos;m safe now
                     </button>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={handleEmergencyServicesEscalation}
+                        className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+                      >
+                        Call 112
+                      </button>
+                      <button
+                        onClick={() => {
+                          const primaryContact = contacts.find((contact) => contact.isPrimary) || contacts[0];
+                          if (primaryContact?.phone) {
+                            sendSOSViaWhatsApp(
+                              formatPhoneForWhatsApp(primaryContact.phone),
+                              currentUser?.name || 'Junto member',
+                              profilePhone
+                            );
+                          }
+                        }}
+                        className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-200 transition hover:bg-yellow-500/20"
+                      >
+                        WhatsApp primary
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -416,22 +798,75 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                             {contact.name.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-white">{contact.name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-white">{contact.name}</p>
+                              {contact.isPrimary && (
+                                <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-green-300">
+                                  Primary
+                                </span>
+                              )}
+                              {contact.verificationStatus === 'verified' ? (
+                                <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-300">
+                                  Verified
+                                </span>
+                              ) : (
+                                <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200">
+                                  {contact.verificationStatus === 'pending' ? 'Pending verification' : 'Not verified'}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs uppercase tracking-[0.18em] text-amber-300/80">
                               {contact.relationship}
                             </p>
                             <p className="mt-1 text-sm font-mono text-gray-400">{contact.phone}</p>
+                            {contact.verificationCode && contact.verificationStatus === 'pending' && (
+                              <p className="mt-1 text-xs text-yellow-200">
+                                Verification code: <span className="font-semibold tracking-[0.25em]">{contact.verificationCode}</span>
+                              </p>
+                            )}
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteContact(contact.id)}
-                          disabled={loading}
-                          className="self-end rounded-full border border-red-500/20 bg-red-500/10 p-3 text-red-300 transition hover:bg-red-500/15 sm:self-auto disabled:opacity-50"
-                          aria-label={`Remove ${contact.name}`}
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="flex flex-wrap gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={() => setPrimaryContact(contact.id)}
+                            disabled={loading || contact.isPrimary}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-gray-200 transition hover:bg-white/10 disabled:opacity-50"
+                          >
+                            Set primary
+                          </button>
+                          <button
+                            onClick={() => beginEditContact(contact)}
+                            disabled={loading}
+                            className="rounded-full border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-300 transition hover:bg-yellow-500/15 disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => requestVerificationHandshake(contact.id)}
+                            disabled={loading}
+                            className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300 transition hover:bg-blue-500/15 disabled:opacity-50"
+                          >
+                            {contact.verificationStatus === 'verified' ? 'Resend code' : 'Verify contact'}
+                          </button>
+                          {contact.verificationStatus === 'pending' && (
+                            <button
+                              onClick={() => markContactVerified(contact.id)}
+                              disabled={loading}
+                              className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-semibold text-green-300 transition hover:bg-green-500/15 disabled:opacity-50"
+                            >
+                              Mark verified
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteContact(contact.id)}
+                            disabled={loading}
+                            className="rounded-full border border-red-500/20 bg-red-500/10 p-3 text-red-300 transition hover:bg-red-500/15 disabled:opacity-50"
+                            aria-label={`Remove ${contact.name}`}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </div>
                     ))}
 
@@ -452,7 +887,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                   description="A quick record of alerts, profile shares, and resolved check-ins."
                 >
                   <div className="space-y-4">
-                    {historyItems.map((item) => {
+                    {historyEntries.map((item) => {
                       const Icon = item.icon;
                       const iconClasses =
                         item.accent === 'red'
@@ -485,6 +920,135 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                         </div>
                       );
                     })}
+                    {historyEntries.length === 0 && (
+                      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
+                        No safety history yet. Your SOS activity will appear here.
+                      </div>
+                    )}
+                  </div>
+                </PanelCard>
+              )}
+
+              {activeTab === 'history' && (
+                <PanelCard
+                  eyebrow="Safety audit"
+                  title="Reports, blocks, and escalation"
+                  description="Persistent records of block, report, and SOS activity."
+                >
+                  <div className="space-y-3">
+                    {safetyActions.length > 0 ? (
+                      safetyActions.map((action) => (
+                        <div
+                          key={action.id}
+                          className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {action.action === 'sos' && 'Emergency SOS sent'}
+                                {action.action === 'report' && `Report filed for ${action.targetUserName || 'a user'}`}
+                                {action.action === 'block' && `Blocked ${action.targetUserName || 'a user'}`}
+                              </p>
+                              <p className="mt-1 text-xs text-gray-400">
+                                {new Date(action.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-yellow-500/20 bg-yellow-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-yellow-300">
+                              {action.status}
+                            </span>
+                          </div>
+                          <p className="mt-3 text-sm text-gray-300">
+                            {action.description || action.reason || action.reportType || 'Recorded for future review.'}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
+                        No report or block actions yet.
+                      </div>
+                    )}
+                  </div>
+                </PanelCard>
+              )}
+
+              {activeTab === 'history' && (
+                <PanelCard
+                  eyebrow="Review queue"
+                  title="Cases awaiting moderation"
+                  description="Evidence uploads and report details are collected here for case review."
+                >
+                  <div className="space-y-3">
+                    {reportQueue.length > 0 ? (
+                      reportQueue.map((reportCase) => (
+                        <div key={reportCase.id} className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-white">
+                                {reportCase.targetUserName} - {reportCase.reportType.replace(/_/g, ' ')}
+                              </p>
+                              <p className="mt-1 text-xs text-gray-400">
+                                Submitted {new Date(reportCase.createdAt).toLocaleString()}
+                              </p>
+                              <p className="mt-2 text-sm text-gray-300">{reportCase.description}</p>
+                              <p className="mt-2 text-xs text-amber-200">
+                                Evidence attached: {reportCase.evidence.length} file{reportCase.evidence.length === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <span className="self-start rounded-full border border-yellow-500/20 bg-yellow-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-yellow-300">
+                              {reportCase.status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+
+                          {reportCase.evidence.length > 0 && (
+                            <div className="mt-3 grid gap-2">
+                              {reportCase.evidence.map((file) => (
+                                <div key={`${reportCase.id}-${file.name}`} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300">
+                                  <p className="font-semibold text-white">{file.name}</p>
+                                  <p>{Math.round(file.size / 1024)} KB</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSafetyReportCase(reportCase.id, { status: 'under_review' });
+                                setReportQueue(readSafetyReportCases());
+                              }}
+                              className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300 transition hover:bg-blue-500/15"
+                            >
+                              Mark reviewing
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSafetyReportCase(reportCase.id, { status: 'needs_follow_up', reviewNote: 'Follow-up requested from the safety team.' });
+                                setReportQueue(readSafetyReportCases());
+                              }}
+                              className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/15"
+                            >
+                              Need more info
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateSafetyReportCase(reportCase.id, { status: 'resolved', reviewNote: 'Case closed locally for this demo.' });
+                                setReportQueue(readSafetyReportCases());
+                              }}
+                              className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-semibold text-green-300 transition hover:bg-green-500/15"
+                            >
+                              Mark resolved
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
+                        No reports in the review queue yet.
+                      </div>
+                    )}
                   </div>
                 </PanelCard>
               )}

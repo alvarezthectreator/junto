@@ -4,12 +4,7 @@ Last updated: 2026-06-01
 
 This file lists the remaining gaps after the latest profile, event application, and safety pass.
 
-## ✅ Safety Centre (COMPLETED)
 
-- ✅ Real-time moderation review workflow backed by a server queue
-- ✅ Official SMS/call/push delivery integrations for trusted contacts
-- ✅ Trusted-contact verification that is verified on the server
-- ✅ Server-side emergency-services escalation workflow
 
 ## Profile
 

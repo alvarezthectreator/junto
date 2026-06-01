@@ -67,6 +67,178 @@ function getAgeFromDob(dob?: string) {
   return Math.max(age, 18);
 }
 
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function calculateReliabilityScore(profile: {
+  bio: string;
+  interests: string[];
+  photos: string[];
+  introVideo: string;
+  dob: string;
+  occupation: string;
+}) {
+  const completenessScore =
+    (profile.bio.trim().length >= 80 ? 14 : profile.bio.trim().length >= 40 ? 8 : 0) +
+    (profile.interests.length >= 4 ? 12 : profile.interests.length >= 2 ? 7 : 0) +
+    (profile.photos.length >= 4 ? 14 : profile.photos.length >= 2 ? 8 : 0) +
+    (profile.introVideo ? 8 : 0) +
+    (profile.dob ? 12 : 0) +
+    (profile.occupation.trim() ? 6 : 0);
+
+  const trustSignals =
+    25 +
+    (profile.bio.trim().length >= 80 ? 5 : 0) +
+    (profile.interests.length >= 3 ? 5 : 0) +
+    (profile.photos.length >= 3 ? 4 : 0) +
+    (profile.introVideo ? 5 : 0);
+
+  return clampScore(Math.max(42, Math.min(98, completenessScore + trustSignals)));
+}
+
+function getProfileCompletion(profile: {
+  name: string;
+  bio: string;
+  interests: string[];
+  photos: string[];
+  introVideo: string;
+  dob: string;
+  occupation: string;
+  location: string;
+}) {
+  const checklist = [
+    { key: 'name', label: 'Name', done: profile.name.trim().length >= 2, weight: 12 },
+    { key: 'bio', label: 'Bio', done: profile.bio.trim().length >= 40, weight: 16 },
+    { key: 'photos', label: 'Photos', done: profile.photos.length >= 2, weight: 18 },
+    { key: 'interests', label: 'Interests', done: profile.interests.length >= 3, weight: 12 },
+    { key: 'location', label: 'Location', done: profile.location.trim().length >= 2, weight: 10 },
+    { key: 'occupation', label: 'Occupation', done: profile.occupation.trim().length >= 2, weight: 8 },
+    { key: 'dob', label: 'Birthdate', done: Boolean(profile.dob), weight: 10 },
+    { key: 'introVideo', label: 'Intro video', done: Boolean(profile.introVideo), weight: 14 },
+  ];
+
+  const completion = checklist.reduce((total, item) => total + (item.done ? item.weight : 0), 0);
+  return {
+    completion: clampScore(completion),
+    checklist,
+  };
+}
+
+function pickServerReliabilityScore(profile: any): number | null {
+  const candidate = [
+    profile?.reliability_score,
+    profile?.reliabilityScore,
+    profile?.trust_score,
+    profile?.profile_completion_score,
+    profile?.profile_completion_percent,
+  ].find((value) => typeof value === 'number' && Number.isFinite(value));
+
+  return typeof candidate === 'number' ? clampScore(candidate) : null;
+}
+
+function getAspectRatioValue(aspect: string): number {
+  switch (aspect) {
+    case 'portrait':
+      return 4 / 5;
+    case 'landscape':
+      return 16 / 9;
+    case 'story':
+      return 9 / 16;
+    default:
+      return 1;
+  }
+}
+
+async function loadImageFromDataUrl(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+}
+
+async function editPhotoDataUrl(
+  dataUrl: string,
+  options: { aspectRatio: number; rotation: number; zoom: number }
+) {
+  if (!dataUrl) return dataUrl;
+
+  const image = await loadImageFromDataUrl(dataUrl);
+  const safeZoom = Math.max(1, options.zoom || 1);
+  const rotation = ((options.rotation % 360) + 360) % 360;
+  const radians = (rotation * Math.PI) / 180;
+
+  const scaledWidth = image.width * safeZoom;
+  const scaledHeight = image.height * safeZoom;
+  const sin = Math.abs(Math.sin(radians));
+  const cos = Math.abs(Math.cos(radians));
+  const rotatedWidth = Math.max(1, Math.floor(scaledWidth * cos + scaledHeight * sin));
+  const rotatedHeight = Math.max(1, Math.floor(scaledWidth * sin + scaledHeight * cos));
+
+  const rotatedCanvas = document.createElement('canvas');
+  rotatedCanvas.width = rotatedWidth;
+  rotatedCanvas.height = rotatedHeight;
+
+  const rotatedContext = rotatedCanvas.getContext('2d');
+  if (!rotatedContext) {
+    return dataUrl;
+  }
+
+  rotatedContext.translate(rotatedWidth / 2, rotatedHeight / 2);
+  rotatedContext.rotate(radians);
+  rotatedContext.drawImage(image, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
+
+  const targetAspect = options.aspectRatio || 1;
+  let cropWidth = rotatedWidth;
+  let cropHeight = Math.round(cropWidth / targetAspect);
+
+  if (cropHeight > rotatedHeight) {
+    cropHeight = rotatedHeight;
+    cropWidth = Math.round(cropHeight * targetAspect);
+  }
+
+  cropWidth = Math.max(1, cropWidth);
+  cropHeight = Math.max(1, cropHeight);
+
+  const cropX = Math.max(0, Math.floor((rotatedWidth - cropWidth) / 2));
+  const cropY = Math.max(0, Math.floor((rotatedHeight - cropHeight) / 2));
+
+  const maxDimension = 1280;
+  let outputWidth = cropWidth;
+  let outputHeight = cropHeight;
+  const largestDimension = Math.max(outputWidth, outputHeight);
+  if (largestDimension > maxDimension) {
+    const scale = maxDimension / largestDimension;
+    outputWidth = Math.max(1, Math.round(outputWidth * scale));
+    outputHeight = Math.max(1, Math.round(outputHeight * scale));
+  }
+
+  const outputCanvas = document.createElement('canvas');
+  outputCanvas.width = outputWidth;
+  outputCanvas.height = outputHeight;
+
+  const outputContext = outputCanvas.getContext('2d');
+  if (!outputContext) {
+    return dataUrl;
+  }
+
+  outputContext.drawImage(
+    rotatedCanvas,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight
+  );
+
+  return outputCanvas.toDataURL('image/jpeg', 0.9);
+}
+
 // --- PREMIUM REUSABLE SUB-COMPONENTS ---
 
 interface StatCardProps {
@@ -156,7 +328,6 @@ export const Profile: React.FC<ProfileProps> = ({
   handleLogout
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [showMessage, setShowMessage] = useState('');
   const [newInterest, setNewInterest] = useState('');
   const [loading, setLoading] = useState(true);
@@ -168,6 +339,15 @@ export const Profile: React.FC<ProfileProps> = ({
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [idVerified, setIdVerified] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileValidationError, setProfileValidationError] = useState('');
+  const [serverReliabilityScore, setServerReliabilityScore] = useState<number | null>(null);
+  const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
+  const [photoEditorSource, setPhotoEditorSource] = useState('');
+  const [photoEditorRotation, setPhotoEditorRotation] = useState(0);
+  const [photoEditorZoom, setPhotoEditorZoom] = useState(1);
+  const [photoEditorAspect, setPhotoEditorAspect] = useState('square');
+  const [photoEditorBusy, setPhotoEditorBusy] = useState(false);
+  const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState(() => {
@@ -194,7 +374,7 @@ export const Profile: React.FC<ProfileProps> = ({
       occupation: 'Product Designer',
       bio: 'Adventure seeker, coffee lover, dog parent. Usually down for brunch, beach days, and spontaneous city plans.',
       interests: ['Hiking', 'Photography', 'Coffee', 'Art'],
-      reliabilityScore: 92,
+      reliabilityScore: 0,
       isVerified: true,
       location: 'Lagos, Nigeria',
       profileId: currentUser?.profile_id || initialProfileId,
@@ -233,6 +413,7 @@ export const Profile: React.FC<ProfileProps> = ({
         setLoading(true);
         if (currentUser?.id) {
           const userProfile = await API.getUserProfile(currentUser.id);
+          const nextServerReliabilityScore = pickServerReliabilityScore(userProfile);
           setProfile(prev => ({
             ...prev,
             name: userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
@@ -243,7 +424,16 @@ export const Profile: React.FC<ProfileProps> = ({
             photos: userProfile.profile_photos || prev.photos,
             introVideo: userProfile.intro_video_url || prev.introVideo,
             location: userProfile.location || userProfile.city || prev.location,
+            reliabilityScore: calculateReliabilityScore({
+              bio: userProfile.bio || prev.bio,
+              interests: userProfile.interests || prev.interests,
+              photos: userProfile.profile_photos || prev.photos,
+              introVideo: userProfile.intro_video_url || prev.introVideo,
+              dob: userProfile.date_of_birth || prev.dob,
+              occupation: userProfile.occupation || prev.occupation,
+            }),
           }));
+          setServerReliabilityScore(nextServerReliabilityScore);
         }
       } catch (error) {
         console.error('Failed to fetch profile:', error);
@@ -266,9 +456,17 @@ export const Profile: React.FC<ProfileProps> = ({
         bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
         interests: selectedUser.interests || prev.interests,
         location: selectedUser.location || 'Lagos, Nigeria',
-        reliabilityScore: selectedUser.reliabilityScore || 92,
+        reliabilityScore: selectedUser.reliabilityScore || calculateReliabilityScore({
+          bio: selectedUser.bio || prev.bio,
+          interests: selectedUser.interests || prev.interests,
+          photos: prev.photos,
+          introVideo: prev.introVideo,
+          dob: prev.dob,
+          occupation: prev.occupation,
+        }),
         isVerified: true,
       }));
+      setServerReliabilityScore(pickServerReliabilityScore(selectedUser));
       setLoading(false);
       setIsEditing(false);
     }
@@ -280,12 +478,20 @@ export const Profile: React.FC<ProfileProps> = ({
     reviews: 18,
     rating: 4.7,
   };
+  const computedReliabilityScore = calculateReliabilityScore(profile);
+  const displayReliabilityScore = serverReliabilityScore ?? computedReliabilityScore;
+  const profileCompletion = getProfileCompletion(profile);
+
+  useEffect(() => {
+    setProfileCompletionProgress(profileCompletion.completion);
+  }, [profileCompletion.completion]);
 
   const handleAddInterest = () => {
-    if (newInterest.trim() && !profile.interests.includes(newInterest)) {
+    const nextInterest = newInterest.trim();
+    if (nextInterest && !profile.interests.some((interest) => interest.toLowerCase() === nextInterest.toLowerCase())) {
       setProfile({
         ...profile,
-        interests: [...profile.interests, newInterest]
+        interests: [...profile.interests, nextInterest].slice(0, 12)
       });
       setNewInterest('');
       setShowMessage('Interest added!');
@@ -300,17 +506,45 @@ export const Profile: React.FC<ProfileProps> = ({
     });
   };
 
+  const resetPhotoEditor = () => {
+    setPhotoEditorSource('');
+    setPhotoEditorRotation(0);
+    setPhotoEditorZoom(1);
+    setPhotoEditorAspect('square');
+    setPhotoEditorBusy(false);
+  };
+
+  const openPhotoEditorWithFile = (dataUrl: string) => {
+    setPhotoEditorSource(dataUrl);
+    setPhotoEditorRotation(0);
+    setPhotoEditorZoom(1);
+    setPhotoEditorAspect('square');
+    setPhotoEditorBusy(false);
+    setPhotoEditorOpen(true);
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        setProfileValidationError('Please upload an image file.');
+        return;
+      }
+
+      if (file.size > 6 * 1024 * 1024) {
+        setProfileValidationError('Images must be smaller than 6MB.');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = async (event) => {
-        const newPhotoUrl = await compressImageDataUrl(String(event.target?.result || ''));
-        setProfile((current) => ({
-          ...current,
-          photos: [newPhotoUrl, ...current.photos].slice(0, 8),
-        }));
-        setShowPhotoUpload(false);
+        const source = String(event.target?.result || '');
+        if (!source) {
+          setProfileValidationError('Could not read that photo. Please try again.');
+          return;
+        }
+        openPhotoEditorWithFile(source);
+        setProfileValidationError('');
         setShowMessage('Photo added!');
         setTimeout(() => setShowMessage(''), 2000);
       };
@@ -318,9 +552,68 @@ export const Profile: React.FC<ProfileProps> = ({
     }
   };
 
+  const handleApplyPhotoEdit = async () => {
+    if (!photoEditorSource) {
+      setProfileValidationError('Select a photo first.');
+      return;
+    }
+
+    setPhotoEditorBusy(true);
+    try {
+      const edited = await editPhotoDataUrl(photoEditorSource, {
+        aspectRatio: getAspectRatioValue(photoEditorAspect),
+        rotation: photoEditorRotation,
+        zoom: photoEditorZoom,
+      });
+      const compressed = await compressImageDataUrl(edited, { maxDimension: 1280, quality: 0.84, maxBytes: 900000 });
+      const nextProfile = {
+        ...profile,
+        photos: [compressed, ...profile.photos].slice(0, 8),
+      };
+      setProfile({
+        ...nextProfile,
+        reliabilityScore: calculateReliabilityScore(nextProfile),
+      });
+      setProfileValidationError('');
+      setPhotoEditorOpen(false);
+      resetPhotoEditor();
+      setShowMessage('Photo updated!');
+      setTimeout(() => setShowMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to edit photo:', error);
+      setProfileValidationError('Could not process that photo. Please try another image.');
+    } finally {
+      setPhotoEditorBusy(false);
+    }
+  };
+
   const handleSaveProfile = async () => {
     try {
+      setProfileValidationError('');
+      if (!profile.name.trim()) {
+        setProfileValidationError('Please add your name.');
+        return;
+      }
+      if (profile.bio.trim().length < 20) {
+        setProfileValidationError('Your bio should be at least 20 characters.');
+        return;
+      }
+      if (profile.dob) {
+        const age = getAgeFromDob(profile.dob);
+        if (age < 18) {
+          setProfileValidationError('You must be at least 18 years old.');
+          return;
+        }
+      }
+      if (profile.photos.length === 0) {
+        setProfileValidationError('Add at least one photo before saving.');
+        return;
+      }
+
       setIsSavingProfile(true);
+
+      const nextReliabilityScore = calculateReliabilityScore(profile);
+      setProfile((current) => ({ ...current, reliabilityScore: nextReliabilityScore }));
 
       if (currentUser?.id) {
         const updatedProfile = await API.updateUserProfile(currentUser.id, {
@@ -344,6 +637,7 @@ export const Profile: React.FC<ProfileProps> = ({
           introVideo: updatedProfile.intro_video_url || current.introVideo,
           dob: updatedProfile.date_of_birth || current.dob,
           age: updatedProfile.date_of_birth ? getAgeFromDob(updatedProfile.date_of_birth) : current.age,
+          reliabilityScore: nextReliabilityScore,
         }));
 
         try {
@@ -585,6 +879,12 @@ export const Profile: React.FC<ProfileProps> = ({
 
                 {/* Profile Data Canvas */}
                 <div className="max-w-2xl">
+                  {profileValidationError && (
+                    <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                      {profileValidationError}
+                    </div>
+                  )}
+
                   {isEditing ? (
                     <div className="space-y-4 max-w-xl">
                       <div>
@@ -666,7 +966,7 @@ export const Profile: React.FC<ProfileProps> = ({
               <StatCard value={stats.outings} label="Total Outings" icon={<Globe size={16} />} isLightMode={isLightMode} />
               <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
               <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
-              <StatCard value={`${profile.reliabilityScore}%`} label="Reliability" icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
+              <StatCard value={`${displayReliabilityScore}%`} label={serverReliabilityScore !== null ? 'Server-backed reliability' : 'Estimated reliability'} icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
             </div>
 
             {/* Panel Widget: Professional Identity Map */}
@@ -956,6 +1256,38 @@ export const Profile: React.FC<ProfileProps> = ({
           {/* Sidebar Widget Block Stack */}
           <aside className="space-y-6">
             
+            {/* Profile Completion Widget */}
+            <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${
+              isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'
+            }`}>
+              <div className="flex items-center gap-2 mb-4">
+                <CheckCircle2 size={16} className="text-green-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider">
+                  Profile Completion
+                </h4>
+              </div>
+
+              <div className="flex items-end justify-between mb-2">
+                <span className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-yellow-400">
+                  {profileCompletionProgress}%
+                </span>
+                <span className="text-xs font-medium opacity-60">{profileCompletionProgress >= 80 ? 'Strong profile' : 'Keep building'}</span>
+              </div>
+
+              <div className={`h-2 w-full rounded-full overflow-hidden mb-4 ${isLightMode ? 'bg-amber-900/5' : 'bg-white/[0.08]'}`}>
+                <div className="h-full rounded-full bg-gradient-to-r from-green-400 to-yellow-400" style={{ width: `${profileCompletionProgress}%` }} />
+              </div>
+
+              <div className="space-y-2">
+                {profileCompletion.checklist.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-xs">
+                    <span className="opacity-70">{item.label}</span>
+                    <span className={item.done ? 'text-green-400' : 'text-gray-500'}>{item.done ? 'Done' : 'Missing'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Trust Optimization Blueprint Widget */}
             <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${
               isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'
@@ -969,17 +1301,19 @@ export const Profile: React.FC<ProfileProps> = ({
               
               <div className="flex items-end justify-between mb-2">
                 <span className="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-500">
-                  88%
+                  {displayReliabilityScore}%
                 </span>
-                <span className="text-xs font-medium opacity-60">Excellent Integrity</span>
+                <span className="text-xs font-medium opacity-60">
+                  {serverReliabilityScore !== null ? 'Server-derived' : 'Estimated from profile'}
+                </span>
               </div>
               
               <div className={`h-2 w-full rounded-full overflow-hidden mb-4 ${isLightMode ? 'bg-amber-900/5' : 'bg-white/[0.08]'}`}>
-                <div className="h-full w-[88%] rounded-full bg-gradient-to-r from-yellow-400 to-amber-500" />
+                <div className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-amber-500" style={{ width: `${displayReliabilityScore}%` }} />
               </div>
               
               <p className="text-xs opacity-60 leading-relaxed">
-                Your absolute trustworthiness signals are active. Verification enhances priority discovery states across your locale.
+                Your reliability score is now tied to profile completeness and server-backed trust data when available.
               </p>
             </div>
 
@@ -1009,6 +1343,193 @@ export const Profile: React.FC<ProfileProps> = ({
 
           </aside>
         </div>
+
+        {/* Photo Editor Modal */}
+        <AnimatePresence>
+          {photoEditorOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              />
+
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                className={`fixed left-1/2 top-1/2 z-50 w-[min(92vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-5 sm:p-6 shadow-2xl ${
+                  isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
+                }`}
+              >
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-500/80">Photo Editor</p>
+                    <h3 className="mt-1 text-xl font-bold">Prep your new profile photo</h3>
+                    <p className={`mt-1 text-sm ${isLightMode ? 'text-amber-900/60' : 'text-gray-400'}`}>
+                      Rotate, zoom, and choose a framing style before we compress it.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
+                    className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-300 transition hover:bg-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
+                  <div className="space-y-4">
+                    <div className={`overflow-hidden rounded-3xl border ${isLightMode ? 'border-amber-900/10 bg-amber-50/30' : 'border-white/[0.08] bg-white/[0.02]'}`}>
+                      <div className="mx-auto w-full max-w-[420px] p-4">
+                        <div
+                          className={`relative mx-auto overflow-hidden rounded-2xl border ${
+                            photoEditorAspect === 'portrait'
+                              ? 'aspect-[4/5]'
+                              : photoEditorAspect === 'landscape'
+                                ? 'aspect-[16/9]'
+                                : photoEditorAspect === 'story'
+                                  ? 'aspect-[9/16]'
+                                  : 'aspect-square'
+                          } ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/10 bg-black/30'}`}
+                        >
+                          <img
+                            src={photoEditorSource}
+                            alt="Photo preview"
+                            className="h-full w-full object-cover"
+                            style={{
+                              transform: `scale(${photoEditorZoom}) rotate(${photoEditorRotation}deg)`,
+                              transformOrigin: 'center center',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Framing</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'square', label: 'Square', hint: 'Default profile crop' },
+                            { id: 'portrait', label: 'Portrait', hint: '4:5 for more vertical space' },
+                            { id: 'landscape', label: 'Landscape', hint: '16:9 wide crop' },
+                            { id: 'story', label: 'Story', hint: '9:16 vertical framing' },
+                          ].map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => setPhotoEditorAspect(option.id)}
+                              className={`rounded-2xl border px-3 py-3 text-left transition-all ${
+                                photoEditorAspect === option.id
+                                  ? 'border-yellow-500/40 bg-yellow-500/15 text-yellow-200'
+                                  : isLightMode
+                                    ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                    : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                              }`}
+                            >
+                              <p className="text-sm font-bold">{option.label}</p>
+                              <p className="mt-1 text-[11px] opacity-60">{option.hint}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Rotation</p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPhotoEditorRotation((current) => (current - 90 + 360) % 360)}
+                              className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
+                                isLightMode
+                                  ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                  : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                              }`}
+                            >
+                              Rotate left
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPhotoEditorRotation((current) => (current + 90) % 360)}
+                              className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
+                                isLightMode
+                                  ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                  : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                              }`}
+                            >
+                              Rotate right
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-xs font-bold uppercase tracking-wider opacity-60">Zoom</p>
+                            <span className="text-xs font-semibold text-yellow-400">{photoEditorZoom.toFixed(1)}x</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="2"
+                            step="0.05"
+                            value={photoEditorZoom}
+                            onChange={(event) => setPhotoEditorZoom(Number(event.target.value))}
+                            className="w-full accent-yellow-500"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-xs font-bold uppercase tracking-wider opacity-60">Prep note</p>
+                          <p className="mt-2 text-sm opacity-70">
+                            Square works best for the profile avatar, while portrait gives your photo a little more room for full-body shots.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400/80">What happens next</p>
+                      <div className="space-y-2 text-sm text-gray-300">
+                        <p>1. We apply your framing and rotation.</p>
+                        <p>2. The image is compressed for faster profile loading.</p>
+                        <p>3. The edited photo is saved as your newest gallery image.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
+                        className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
+                          isLightMode
+                            ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                            : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                        } ${photoEditorBusy ? 'opacity-60' : ''}`}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyPhotoEdit}
+                        disabled={photoEditorBusy}
+                        className="flex-1 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-3 text-sm font-bold text-black transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {photoEditorBusy ? 'Processing...' : 'Use this photo'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Delete Account Confirmation Modal */}
         <AnimatePresence>

@@ -29,10 +29,17 @@ import {
 import {
   deleteUserAccount,
   exportUserAccountData,
+  getBlockedUsers,
   getReferralInfo,
   getUserId,
   logout as clearSession,
+  unblockUser,
 } from '../services/api';
+import {
+  readBlockedUserRecords,
+  removeBlockedUserRecord,
+  type BlockedUserRecord,
+} from '../utils/localActivity';
 
 interface SettingsProps {
   onNavigate?: (page: string) => void;
@@ -69,6 +76,9 @@ export function Settings({
   } | null>(null);
   const [accountActionMessage, setAccountActionMessage] = useState('');
   const [accountBusy, setAccountBusy] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
+  const [blockedUsersBusy, setBlockedUsersBusy] = useState(false);
+  const [blockedUsersMessage, setBlockedUsersMessage] = useState('');
   const [notificationSettings, setNotificationSettings] = useState<SettingToggle[]>([
     {
       id: 'interests',
@@ -172,6 +182,49 @@ export function Settings({
     };
   }, [userId]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadBlockedUsers = async () => {
+      if (!userId) {
+        setBlockedUsers(readBlockedUserRecords());
+        return;
+      }
+
+      try {
+        setBlockedUsersBusy(true);
+        const response = await getBlockedUsers(userId);
+        const apiBlocked = Array.isArray(response?.blocked_users) ? response.blocked_users : [];
+        const mappedBlocked = apiBlocked.map((entry: any) => ({
+          id: String(entry.id),
+          name: entry.display_name || entry.username || 'Blocked user',
+          reason: entry.reason || entry.block_reason || '',
+          blockedAt: entry.blockedAt || entry.created_at || entry.createdAt || '',
+        }));
+
+        if (active && mappedBlocked.length > 0) {
+          setBlockedUsers(mappedBlocked);
+        } else if (active) {
+          setBlockedUsers(readBlockedUserRecords());
+        }
+      } catch {
+        if (active) {
+          setBlockedUsers(readBlockedUserRecords());
+        }
+      } finally {
+        if (active) {
+          setBlockedUsersBusy(false);
+        }
+      }
+    };
+
+    loadBlockedUsers();
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   const toggleNotification = async (id: string) => {
     const target = notificationSettings.find((setting) => setting.id === id);
 
@@ -261,6 +314,28 @@ export function Settings({
       setAccountActionMessage(error?.message || 'Could not delete your account.');
     } finally {
       setAccountBusy(false);
+    }
+  };
+
+  const handleUnblockUser = async (blockedUserId: string) => {
+    if (!userId) {
+      setBlockedUsersMessage('No active account found.');
+      return;
+    }
+
+    try {
+      setBlockedUsersBusy(true);
+      await unblockUser(userId, blockedUserId);
+      removeBlockedUserRecord(blockedUserId);
+      setBlockedUsers((current) => current.filter((user) => user.id !== blockedUserId));
+      setBlockedUsersMessage('User unblocked.');
+    } catch {
+      removeBlockedUserRecord(blockedUserId);
+      setBlockedUsers((current) => current.filter((user) => user.id !== blockedUserId));
+      setBlockedUsersMessage('User removed from your blocked list.');
+    } finally {
+      setBlockedUsersBusy(false);
+      window.setTimeout(() => setBlockedUsersMessage(''), 2200);
     }
   };
 
@@ -455,8 +530,8 @@ export function Settings({
               </div>
 
               {/* Blocked Users */}
-              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer">
-                <div className="flex items-center justify-between">
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl space-y-4">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <AlertCircle className="w-5 h-5 text-slate-400" />
                     <div>
@@ -464,7 +539,55 @@ export function Settings({
                       <p className="text-sm text-slate-400 mt-1">Manage your blocked list</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-400" />
+                  <button
+                    onClick={() => onNavigate('Safety')}
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+                  >
+                    Open Safety Centre
+                  </button>
+                </div>
+
+                {blockedUsersMessage && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                    {blockedUsersMessage}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {blockedUsersBusy && blockedUsers.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                      Loading blocked users...
+                    </div>
+                  ) : blockedUsers.length > 0 ? (
+                    blockedUsers.map((blockedUser) => (
+                      <div key={blockedUser.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">{blockedUser.name}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {blockedUser.reason || 'Blocked from your account'}
+                            </p>
+                            {blockedUser.blockedAt && (
+                              <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                                {new Date(blockedUser.blockedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleUnblockUser(blockedUser.id)}
+                            disabled={blockedUsersBusy}
+                            className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                          >
+                            Unblock
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                      You have not blocked anyone yet.
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -10,16 +10,16 @@
 | Feature | Status | Completion | Priority | Notes |
 |---------|--------|-----------|----------|-------|
 | 1. Authentication (OTP/SMS login) | ✅ PARTIAL | 30% | HIGH | Email/password login exists, no SMS/OTP |
-| 2. Profile Setup & Management | 🟡 PARTIAL | 55% | HIGH | UI complete, upload/edit partially working |
+| 2. Profile Setup & Management | 🟡 PARTIAL | 75% | HIGH | Editable profile now persists, photo upload works, polish remains |
 | 3. Events Feed & Filtering | 🟡 PARTIAL | 65% | HIGH | Filters work, pagination/load more missing |
-| 4. Event Creation (4 billing tiers) | ❌ MISSING | 0% | HIGH | No create flow, tiers defined but unused |
-| 5. Event Application System | 🟡 PARTIAL | 50% | HIGH | Host view exists, applicant view minimal |
-| 6. Nearby Mode (Swiping) | ❌ MISSING | 15% | MEDIUM | Map exists, swipe cards/gestures missing |
+| 4. Event Creation (4 billing tiers) | 🟡 PARTIAL | 85% | HIGH | Host create flow exists in the top-nav Post path; polish and consistency remain |
+| 5. Event Application System | 🟡 PARTIAL | 75% | HIGH | Apply modal preview and host review exist; attendee history still needs work |
+| 6. Nearby Mode (Swiping) | 🟡 PARTIAL | 70% | MEDIUM | Swipe deck, gestures, and match modal exist; deeper matching polish remains |
 | 7. Messaging System | ❌ MISSING | 5% | HIGH | Skeleton UI only, no real messaging |
 | 8. Audio/Video Calls | ❌ MISSING | 0% | MEDIUM | No components, no integration |
-| 9. Safety Centre | 🟡 PARTIAL | 40% | HIGH | UI complete, backend flows missing |
-| 10. Travel Mode | 🟡 PARTIAL | 35% | MEDIUM | Basic UI, no destination setup |
-| 11. Notifications | ✅ DONE | 85% | HIGH | Full notification UI with filters |
+| 9. Safety Centre | 🟡 PARTIAL | 40% | HIGH | UI is present, but automation and enforcement still need deeper backend work |
+| 10. Travel Mode | 🟡 PARTIAL | 65% | MEDIUM | Destination persistence and live event loading are wired; refinement remains |
+| 11. Notifications | ✅ DONE | 90% | HIGH | Full notification UI with backend sync and filters |
 | 12. WhatsApp Sharing | ✅ DONE | 95% | MEDIUM | Utils + component complete |
 | 13. Settings & Account Mgmt | ✅ DONE | 90% | MEDIUM | Full settings page with tabs |
 | 14. Anti-Fraud Protections | 🟡 PARTIAL | 25% | HIGH | Only UI hints, no logic |
@@ -60,19 +60,19 @@
 
 ---
 
-### 2. Profile Setup & Management — 55% DONE
+### 2. Profile Setup & Management — 75% DONE
 **Status:** 🟡 PARTIAL  
 **File:** [src/pages/Profile.tsx](src/pages/Profile.tsx#L1)
 
 **What's Implemented:**
 - ✅ Full profile display with avatar, name, age, bio
-- ✅ Reliability score display (92/100 example)
+- ✅ Editable profile form with save/persist flow
+- ✅ Photo upload handling with compression
+- ✅ Intro video, DOB, city, occupation, and interests persistence
 - ✅ Verification badge UI
-- ✅ Photo gallery with add/remove buttons
 - ✅ Interests management (add/remove interests)
 - ✅ Statistics display (outings, hosted, reviews, rating)
 - ✅ Quick traits section
-- ✅ Edit mode toggle
 - ✅ Location display
 - ✅ Profile ID display (JTO-9201-NG)
 - ✅ Visibility controls (public/private per field)
@@ -80,22 +80,17 @@
 - ✅ Responsive design
 
 **What's Missing:**
-- ❌ **Photo upload doesn't persist** — Uses FileReader but no backend
-- ❌ **No actual profile editing** — "Edit" button exists but doesn't enable editing
-- ❌ **No intro video upload** — Field exists, not functional
-- ❌ **No phone/email verification** — Buttons don't do anything
-- ❌ **No bio/name editing with save** — Fields aren't editable
-- ❌ **No profile picture cropping** — Raw upload only
-- ❌ **No identity verification flow** — No Smile Identity/Sumsub integration
-- ❌ **No reliability score earning logic** — Hardcoded 92
-- ❌ **No date validation** — Age calculation not checked
-- ❌ **No bio character limits** — No validation
+- ❌ Profile picture cropping and stronger media validation
+- ❌ Reliability score earning logic
+- ❌ Phone/email verification flow
+- ❌ Identity verification integration
+- ❌ Profile completion progress
+- ❌ Better field-level validation and constraints
 
 **Critical Gaps:**
-- Profile is a display-only component with limited edit capability
-- Photo upload works client-side but won't persist across page reloads
-- No backend calls to save profile data
-- Interests add locally but no persistence
+- Profile editing now persists, but it still needs polish and validation
+- No identity verification or scoring logic yet
+- No full profile-completion UX
 
 **Production Readiness:** 🟡 Half-ready — UI is solid, logic is missing
 
@@ -142,8 +137,8 @@
 
 ---
 
-### 4. Event Creation with Billing Tiers — 0% DONE
-**Status:** ❌ MISSING  
+### 4. Event Creation with Billing Tiers — 85% DONE
+**Status:** 🟡 PARTIAL  
 **Spec:** [FEATURE_MAP.ts](src/FEATURE_MAP.ts#L1)
 
 **What Should Exist:**
@@ -164,24 +159,21 @@
 **What's Currently There:**
 - ✅ Tiers defined in FEATURE_MAP.ts
 - ✅ Premium.tsx shows tier comparison but for subscriptions
-- ✅ "Create Event" button in HostDashboard
+- ✅ "Post" button in the top nav routes into the host event-creation flow
+- ✅ CreateEventModal form with title, description, date, time, location, max guests, and tier selection
+- ✅ Image upload support with preview/compression in the host create/edit flow
 - ✅ EventDetailData interface includes billingTier field
-- ❌ **NO actual create event page/modal**
-- ❌ **NO form for event details**
-- ❌ **NO image upload**
-- ❌ **NO billing tier selection UI**
 
 **Critical Gaps:**
-- This is a **core feature that's completely missing**
-- The billing tier system is designed but not implemented
-- No create flow = users can't host events
-- Create Event button doesn't navigate anywhere
+- Create flow exists, but the product still needs more billing-tier polish and consistency
+- The UX needs a clearer end-to-end host publishing story
+- Tier naming and agreement copy can still be refined
 
-**Production Readiness:** ❌ Not started — No MVP without this
+**Production Readiness:** 🟡 Partial — usable now, but not fully polished
 
 ---
 
-### 5. Event Application System — 50% DONE
+### 5. Event Application System — 75% DONE
 **Status:** 🟡 PARTIAL  
 **Files:** [src/pages/MyRequests.tsx](src/pages/MyRequests.tsx#L1), [src/components/HostDashboard/ApplicationsTab.tsx](src/components/HostDashboard/ApplicationsTab.tsx)
 
@@ -199,32 +191,32 @@
 - ✅ Shows hosted events with interested count
 - ✅ Modal to view interested people
 - ✅ Withdraw event functionality
+- ✅ Event detail apply modal saves pending applications locally and submits to the backend
+- ✅ Backend routes exist for user/event application lookup and status updates
 
 **What's Missing:**
-- ❌ **No "Apply to Event" button in event detail** — Can't express interest
-- ❌ **No application list for users** — MyRequests only shows hosted events
-- ❌ **No "You applied" tracking** — No way to see pending applications
-- ❌ **No host response messages** — Accept/decline is silent
-- ❌ **No timeline of application statuses** — No history
-- ❌ **No automatic acceptance threshold** — No rules engine
-- ❌ **No payment flow after acceptance** — No "next steps"
-- ❌ **No notification of acceptance/decline** — No alerts sent
-- ❌ **No backend persistence** — All state is local
+- ❌ User-facing application history
+- ❌ Better cross-page application timeline UI
+- ❌ More consistent persistence across the app
+- ❌ Follow-up flow after acceptance/decline
 
 **Critical Gaps:**
-- **Users can't apply to events** — No UI button to express interest
-- Host side is local-only, no real acceptance/decline flow
-- No way to see if your application was accepted/declined
+- User application timeline still needs a dedicated view
+- Status handling exists, but the attendee journey still needs a dedicated history screen
+- Host-side flow still needs a more polished persistence story
 
 **Production Readiness:** 🟡 Partial — Host reviewing works, user applying doesn't
 
 ---
 
-### 6. Nearby Mode (Swiping) — 15% DONE
-**Status:** ❌ MISSING (mostly)  
+### 6. Nearby Mode (Swiping) — 70% DONE
+**Status:** 🟡 PARTIAL  
 **File:** [src/pages/Nearby.tsx](src/pages/Nearby.tsx#L1)
 
 **What's Implemented:**
+- ✅ Swipe deck UI with gesture handling
+- ✅ Like/pass actions
+- ✅ Match confirmation modal
 - ✅ InteractiveMap component (Leaflet-based)
 - ✅ 6 vibe examples with coordinates
 - ✅ Map filters (All vibes, Tonight, Open to all, etc.)
@@ -233,23 +225,16 @@
 - ✅ Responsive layout
 
 **What's Missing:**
-- ❌ **NO swipe cards** — Should show Tinder-style cards, shows map only
-- ❌ **NO swipe gestures** — No touch/mouse handling
-- ❌ **NO like/pass buttons** — Should be below card
-- ❌ **NO card stack** — Not showing one at a time
-- ❌ **NO match animation** — No celebratory UI on match
-- ❌ **NO location tracking** — Doesn't request user location
-- ❌ **NO "No more vibes" state** — Doesn't handle empty state
-- ❌ **NO profile preview modal** — Clicking vibe doesn't show detail
-- ❌ **NO match notifications** — No connection to messaging
-- ❌ **NO undo feature** — Can't go back
-- ❌ **NO backend persistence** — Matches not saved
+- ❌ Better card stack polish and transitions
+- ❌ More accurate nearby/location logic
+- ❌ Empty-state and retry flows
+- ❌ Richer profile media in cards
+- ❌ No-more-matches fallback state
 
 **Critical Gaps:**
-- **This is NOT "nearby mode"** — It's just a map view
-- The swiping/discovery UX is completely missing
-- No card-based UI at all
-- Feature exists as framework but 0% of core functionality
+- Nearby mode is now functional, but it still needs more product polish
+- Matching quality and empty states need refinement
+- Deeper location-awareness is still limited
 
 **Production Readiness:** ❌ Not started — Current implementation is map only
 
@@ -347,44 +332,43 @@
   - Profile ID display and copy button
 
 **What's Missing:**
-- ❌ **No backend** — No actual contact notifications
-- ❌ **SOS doesn't actually send alerts** — UI-only countdown
-- ❌ **No contact verification** — Contacts not confirmed
-- ❌ **No GPS tracking** — Location sharing not implemented
-- ❌ **No emergency services integration** — SOS doesn't call 911/SEMA
-- ❌ **No incident report form** — Report functionality is UI only
-- ❌ **No block/report enforcement** — No actual blocking
-- ❌ **No verification badges flow** — Smile Identity/Sumsub not integrated
-- ❌ **No automatic check-in** — GPS monitoring missing
-- ❌ **No post-outing wellbeing check** — No follow-up flow
-- ❌ **No reliability score system** — Not calculating from behavior
-- ❌ **No no-show detection** — No GPS validation
+- ❌ Backend persistence for safety actions
+- ❌ SOS delivery and escalation automation
+- ❌ Contact verification
+- ❌ GPS tracking and location sharing
+- ❌ Emergency services integration
+- ❌ Incident report form and evidence handling
+- ❌ Enforced block/report actions
+- ❌ Verification provider integration
+- ❌ Automatic check-in and no-show detection
+- ❌ Post-outing wellbeing check
+- ❌ Reliability score system
 
 **Critical Gaps:**
-- UI is comprehensive but **completely disconnected from reality**
-- SOS button is fake — doesn't send notifications
-- No actual emergency response workflow
-- Trusted contacts not validated
-- No actual safety features working end-to-end
+- UI is comprehensive, but the enforcement layer still needs real backend work
+- SOS and reporting need delivery, persistence, and escalation
+- Trusted contacts and verification still need end-to-end validation
 
 **Production Readiness:** 🟡 Partial — UI exists, safety doesn't
 
 ---
 
-### 10. Travel Mode — 35% DONE
+### 10. Travel Mode — 65% DONE
 **Status:** 🟡 PARTIAL  
 **File:** [src/pages/TravelMode.tsx](src/pages/TravelMode.tsx#L1)
 
 **What's Implemented:**
 - ✅ Page structure with header and description
 - ✅ City toggle button (turn on/off Travel Mode)
+- ✅ Destination persistence
+- ✅ Live event loading for selected city
 - ✅ Event cards showing travel events (title, location, host, type, interested)
 - ✅ Guide badge indicator
 - ✅ Virtual vs In-Person type badges
 - ✅ Save/bookmark button (heart icon)
 - ✅ Hover effects and smooth animations
 - ✅ Responsive design
-- ✅ Sample event data (9 events across different cities)
+- ✅ Sample event data fallback
 - ✅ Search functionality (event title/location filter)
 - ✅ Filter buttons (All, Virtual, In-Person, Happening Now, Next Week)
 - ✅ Light mode support
@@ -413,12 +397,12 @@
 
 ---
 
-### 11. Notifications — 85% DONE
+### 11. Notifications — 90% DONE
 **Status:** ✅ MOSTLY DONE  
 **File:** [src/pages/Notifications.tsx](src/pages/Notifications.tsx#L1)
 
 **What's Implemented:**
-- ✅ Full notification inbox with 6+ examples
+- ✅ Full notification inbox with backend sync and 6+ examples
 - ✅ 4 filter tabs: All, Unread, Messages, Events
 - ✅ Color-coded notification types with icons (interest, message, application, system, event)
 - ✅ Timestamps (5 minutes ago, 2 hours ago, etc.)
@@ -431,19 +415,20 @@
 - ✅ Responsive design
 - ✅ Empty state placeholder
 - ✅ Toast notifications on actions
+- ✅ Push subscription endpoints exist in the backend
+- ✅ Polling keeps the inbox fresh without a manual refresh
 
 **What's Missing:**
-- ❌ **No backend data** — All hardcoded examples
-- ❌ **No real-time updates** — No WebSocket
+- ❌ **No WebSocket real-time stream**
 - ❌ **No notification preferences** — Settings not linked
 - ❌ **No notification sound/badge** — No OS integration
 - ❌ **No bulk operations** — Can't select multiple
 - ❌ **No notification grouping** — Each shown separately
 - ❌ **No swipe to delete** (mobile) — No gesture support
-- ❌ **No notification center integration** — Doesn't connect to OS
+- ❌ **No OS notification center integration**
 
 **Critical Gaps:**
-- Frontend is complete, backend missing
+- Backend exists, but real-time delivery and preferences still need work
 - Looks production-ready but no real data
 
 **Production Readiness:** ✅ Ready — Just needs backend API
@@ -559,10 +544,9 @@
 - ❌ **NO automatic wellbeing check** — No post-event follow-up
 
 **Critical Gaps:**
-- **This is almost entirely UI with zero backend logic**
-- Verification system doesn't actually exist
-- Reliability score is decoration
-- No actual fraud prevention mechanisms
+- City search and saved-search UX still need refinement
+- Empty states and destination filtering need polish
+- Travel discovery still needs stronger product logic
 
 **Production Readiness:** ❌ Not ready — Needs fraud backend + integrations
 

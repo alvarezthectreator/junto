@@ -8,6 +8,7 @@ import {
   Users,
   CheckCircle2,
   Edit3,
+  MessageCircle,
   Eye,
   Image as ImageIcon,
   Check,
@@ -23,6 +24,13 @@ import {
 } from 'lucide-react';
 import * as API from '../services/api';
 import { compressImageDataUrl } from '../utils/imageCompression';
+import {
+  appendEventActivity,
+  appendLocalNotification,
+  localActivityEventName,
+  readEventActivities,
+  type EventActivity,
+} from '../utils/localActivity';
 
 interface MyRequestsProps {
   onNavigate?: (page: string) => void;
@@ -63,6 +71,19 @@ interface HostedEvent {
   cover_photo_url?: string;
   coverImage?: string;
   applications: InterestedPerson[];
+}
+
+interface UserApplicationHistory {
+  id: string;
+  eventId?: string;
+  eventTitle: string;
+  hostName: string;
+  city: string;
+  note: string;
+  status: 'pending' | 'accepted' | 'declined';
+  submittedAt: string;
+  updatedAt: string;
+  source?: string;
 }
 
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
@@ -159,6 +180,12 @@ function normalizeApplicationStatus(status?: string): 'interested' | 'accepted' 
   return 'interested';
 }
 
+function normalizeHistoryStatus(status?: string): 'pending' | 'accepted' | 'declined' {
+  if (status === 'accepted') return 'accepted';
+  if (status === 'declined' || status === 'rejected') return 'declined';
+  return 'pending';
+}
+
 function readStoredEventApplications() {
   try {
     const raw = localStorage.getItem(eventApplicationsKey);
@@ -196,6 +223,34 @@ function mapApplicationToPerson(application: any): InterestedPerson {
     location: application.location || '',
     reliabilityScore: Number(application.reliability_score || application.reliabilityScore || 90),
   };
+}
+
+function mapApplicationToHistory(application: any): UserApplicationHistory {
+  const submittedAt = application.created_at || application.applied_at || application.joinedAt || new Date().toISOString();
+  const updatedAt = application.updated_at || application.updatedAt || submittedAt;
+
+  return {
+    id: String(application.id || application.application_id || application.backend_id || `${application.event_id || application.eventId}-${application.user_id || application.userId}-${submittedAt}`),
+    eventId: application.event_id ? String(application.event_id) : application.eventId ? String(application.eventId) : undefined,
+    eventTitle: application.event_title || application.title || application.eventTitle || 'Event',
+    hostName: application.host_name || application.display_name || application.hostName || 'Host',
+    city: application.location || application.location_city || application.city || 'Unknown location',
+    note: application.message || application.note || '',
+    status: normalizeHistoryStatus(application.status),
+    submittedAt,
+    updatedAt,
+    source: application.source || 'api',
+  };
+}
+
+function mergeApplicationHistory(primary: UserApplicationHistory[], secondary: UserApplicationHistory[]) {
+  const merged = new Map<string, UserApplicationHistory>();
+  [...primary, ...secondary].forEach((application) => {
+    const key = application.eventId ? `${application.eventId}-${application.eventTitle}` : application.id;
+    merged.set(String(key), application);
+  });
+
+  return Array.from(merged.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 function mergeApplicationLists(primary: InterestedPerson[], secondary: InterestedPerson[]) {
@@ -532,6 +587,10 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const [editImagePreview, setEditImagePreview] = useState('');
+  const [userApplications, setUserApplications] = useState<UserApplicationHistory[]>([]);
+  const [userApplicationsLoading, setUserApplicationsLoading] = useState(true);
+  const [userApplicationsError, setUserApplicationsError] = useState('');
+  const [eventActivityFeed, setEventActivityFeed] = useState<EventActivity[]>([]);
   const tabs = ['Active', 'Past', 'Drafts'];
 
   // Get current user ID from localStorage
@@ -617,6 +676,54 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
     fetchHostedEvents();
   }, []);
 
+  useEffect(() => {
+    const fetchUserApplications = async () => {
+      const userId = getCurrentUserId();
+      if (!userId) {
+        setUserApplicationsLoading(false);
+        setUserApplications([]);
+        return;
+      }
+
+      try {
+        setUserApplicationsLoading(true);
+        setUserApplicationsError('');
+
+        const response = await API.getUserApplications(userId);
+        const apiApplications = (response?.applications || []).map(mapApplicationToHistory);
+        const localApplications = readStoredEventApplications()
+          .filter((application: any) => String(application.user_id || '') === String(userId))
+          .map(mapApplicationToHistory);
+
+        setUserApplications(mergeApplicationHistory(apiApplications, localApplications));
+      } catch (error) {
+        console.error('Failed to fetch user applications:', error);
+        setUserApplicationsError('Unable to load your applications right now.');
+
+        const localApplications = readStoredEventApplications()
+          .filter((application: any) => String(application.user_id || '') === String(getCurrentUserId() || ''))
+          .map(mapApplicationToHistory);
+        setUserApplications(localApplications);
+      } finally {
+        setUserApplicationsLoading(false);
+      }
+    };
+
+    fetchUserApplications();
+  }, []);
+
+  useEffect(() => {
+    const loadEventActivity = () => {
+      setEventActivityFeed(readEventActivities());
+    };
+
+    loadEventActivity();
+    window.addEventListener(localActivityEventName(), loadEventActivity as EventListener);
+    return () => {
+      window.removeEventListener(localActivityEventName(), loadEventActivity as EventListener);
+    };
+  }, []);
+
   const updateApplicationStatusLocal = (eventId: string, applicationKey: string, nextStatus: 'accepted' | 'declined') => {
     setHostedEvents((current) =>
       current.map((event) =>
@@ -664,6 +771,33 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
     nextStatus: 'accepted' | 'declined'
   ) => {
     updateApplicationStatusLocal(eventId, person.id, nextStatus);
+
+    const statusLabel = nextStatus === 'accepted' ? 'accepted' : 'declined';
+    appendLocalNotification({
+      id: `notif-${eventId}-${person.userId || person.id}-${Date.now()}`,
+      recipientUserId: person.userId,
+      type: 'application',
+      title: nextStatus === 'accepted' ? `Your application was accepted` : `Your application was declined`,
+      description:
+        nextStatus === 'accepted'
+          ? `Good news. Your request for ${selectedEvent?.title || 'this event'} was accepted.`
+          : `Your request for ${selectedEvent?.title || 'this event'} was declined.`,
+      createdAt: new Date().toISOString(),
+      read: false,
+      eventId,
+      source: 'my-requests',
+    });
+
+    appendEventActivity({
+      id: `activity-${eventId}-${person.id}-${Date.now()}`,
+      eventId,
+      title: nextStatus === 'accepted' ? 'Application accepted' : 'Application declined',
+      detail: `${person.name} was ${statusLabel} for ${selectedEvent?.title || 'this event'}.`,
+      type: 'status',
+      createdAt: new Date().toISOString(),
+      actorName: selectedEvent?.display_name || 'Host',
+      targetName: person.name,
+    });
 
     const backendId = person.backendId || person.applicationId;
     if (backendId) {
@@ -1336,6 +1470,155 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                   <p className="text-xl font-bold text-white">{pastRequests.length}</p>
                 </div>
               </div>
+            </div>
+
+            <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#F59E0B]">Event history feed</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-white">Shared event updates</h3>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Applications, approvals, and declines from across your hosted events.
+                  </p>
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-gray-300">
+                  {eventActivityFeed.length} updates
+                </div>
+              </div>
+
+              {eventActivityFeed.length > 0 ? (
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  {eventActivityFeed.slice(0, 4).map((activity) => (
+                    <div key={activity.id} className="rounded-3xl border border-white/5 bg-[#141419] p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-lg font-semibold text-white truncate">{activity.title}</p>
+                          <p className="mt-1 text-sm text-gray-400">
+                            {activity.actorName || 'Host'} · {new Date(activity.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FBBF24]">
+                          {activity.type}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm text-gray-300">{activity.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
+                  <p className="text-lg font-semibold text-white">No shared activity yet</p>
+                  <p className="mt-2 text-sm text-gray-400">Once people apply or you respond, the feed appears here and on event detail pages.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#F59E0B]">Attendee history</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-white">Your application timeline</h3>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Keep track of every event request, the host's response, and the next step.
+                  </p>
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-gray-300">
+                  {userApplications.length} applications tracked
+                </div>
+              </div>
+
+              {userApplicationsError && (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  {userApplicationsError}
+                </div>
+              )}
+
+              {userApplicationsLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="animate-spin text-[#F59E0B]" size={28} />
+                </div>
+              ) : userApplications.length > 0 ? (
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  {userApplications.map((application) => {
+                    const statusStyles = {
+                      pending: 'border-amber-500/20 bg-amber-500/10 text-amber-300',
+                      accepted: 'border-green-500/20 bg-green-500/10 text-green-300',
+                      declined: 'border-red-500/20 bg-red-500/10 text-red-300',
+                    }[application.status];
+
+                    const timelineSteps = [
+                      { label: 'Applied', active: true },
+                      { label: 'Review', active: application.status !== 'pending' },
+                      { label: application.status === 'accepted' ? 'Accepted' : application.status === 'declined' ? 'Declined' : 'Waiting', active: application.status !== 'pending' },
+                    ];
+
+                    return (
+                      <div key={application.id} className="rounded-3xl border border-white/5 bg-[#141419] p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="text-lg font-semibold text-white truncate">{application.eventTitle}</p>
+                            <p className="mt-1 text-sm text-gray-400">{application.hostName} · {application.city}</p>
+                            <p className="mt-2 text-xs text-gray-500">
+                              Submitted {new Date(application.submittedAt).toLocaleDateString()} · Updated {new Date(application.updatedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${statusStyles}`}>
+                            {application.status}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          {timelineSteps.map((step, index) => (
+                            <div
+                              key={step.label}
+                              className={`rounded-2xl border p-3 text-xs ${
+                                step.active
+                                  ? index === 2 && application.status === 'pending'
+                                    ? 'border-white/5 bg-white/5 text-gray-300'
+                                    : 'border-[#F59E0B]/20 bg-[#F59E0B]/10 text-white'
+                                  : 'border-white/5 bg-white/5 text-gray-400'
+                              }`}
+                            >
+                              {step.label}
+                            </div>
+                          ))}
+                        </div>
+
+                        <p className="mt-4 text-sm text-gray-300">
+                          {application.status === 'accepted'
+                            ? 'You are in. Message the host and lock it into your schedule.'
+                            : application.status === 'declined'
+                              ? 'This one did not land. Browse more events or reach out to the host for context.'
+                              : 'The host is still reviewing your note. We will keep this updated.'}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {application.status !== 'pending' && (
+                            <button
+                              onClick={() => onNavigate?.('main')}
+                              className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
+                            >
+                              Browse more
+                            </button>
+                          )}
+                          <button
+                            onClick={() => navigate('/messages')}
+                            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                          >
+                            <MessageCircle size={14} className="inline-block mr-2" />
+                            Message host
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
+                  <p className="text-lg font-semibold text-white">No applications yet</p>
+                  <p className="mt-2 text-sm text-gray-400">Apply to an event and the timeline will appear here with status updates.</p>
+                </div>
+              )}
             </div>
 
             {/* Tabs */}

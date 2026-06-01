@@ -9,6 +9,13 @@ import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/dis
 import { useAppContext } from '../context/AppContext';
 import * as API from '../services/api';
 import { compressImageDataUrl } from '../utils/imageCompression';
+import {
+  appendEventActivity,
+  appendLocalNotification,
+  localActivityEventName,
+  readEventActivities,
+  type EventActivity,
+} from '../utils/localActivity';
 
 const LeafletMapContainer = MapContainer as any;
 const LeafletMarker = Marker as any;
@@ -165,6 +172,13 @@ function writeStoredEventApplications(applications: StoredEventApplication[]) {
   window.localStorage.setItem(eventApplicationsStorageKey, JSON.stringify(applications));
 }
 
+function normalizeApplicationStatus(status?: string): 'pending' | 'accepted' | 'declined' | 'none' {
+  if (status === 'accepted') return 'accepted';
+  if (status === 'declined' || status === 'rejected') return 'declined';
+  if (status === 'pending') return 'pending';
+  return 'none';
+}
+
 function readCurrentUserSnapshot() {
   if (typeof window === 'undefined') {
     return null;
@@ -198,14 +212,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [activeTab, setActiveTab] = useState<'overview' | 'attendees' | 'host' | 'reviews'>('overview');
   const [shareState, setShareState] = useState<string>('');
   const [guestList, setGuestList] = useState<EventAttendee[]>([]);
-  const [applicationStatus, setApplicationStatus] = useState<'none' | 'pending'>('none');
+  const [applicationStatus, setApplicationStatus] = useState<'none' | 'pending' | 'accepted' | 'declined'>('none');
   const [applicationNote, setApplicationNote] = useState('');
+  const [applicationUpdatedAt, setApplicationUpdatedAt] = useState('');
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationText, setApplicationText] = useState('');
   const [applicationLoaded, setApplicationLoaded] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  const [eventActivities, setEventActivities] = useState<EventActivity[]>([]);
   const [editDraft, setEditDraft] = useState({
     title: '',
     description: '',
@@ -287,10 +303,56 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
   const reviews = event.reviews ?? [];
   const applicationStorageKey = `junto-event-application-${event.id}`;
+  const applicationTimeline = useMemo(() => {
+    const submittedAt = applicationUpdatedAt ? new Date(applicationUpdatedAt).toLocaleString() : 'Just now';
+    const responseText =
+      applicationStatus === 'accepted'
+        ? 'You are in. Message the host and add this outing to your calendar.'
+        : applicationStatus === 'declined'
+          ? 'The host passed this time. Save the search and try another event.'
+          : 'We will update this as soon as the host replies.';
+
+    return [
+      {
+        title: 'Applied',
+        detail: applicationNote || `Your note was sent ${submittedAt}.`,
+        state: 'complete' as const,
+      },
+      {
+        title: 'Host review',
+        detail:
+          applicationStatus === 'pending'
+            ? 'The host is reviewing your request now.'
+            : 'The host already reviewed your request.',
+        state: applicationStatus === 'pending' ? ('active' as const) : ('complete' as const),
+      },
+      {
+        title: applicationStatus === 'accepted' ? 'Accepted' : applicationStatus === 'declined' ? 'Declined' : 'Waiting',
+        detail: responseText,
+        state:
+          applicationStatus === 'pending'
+            ? ('waiting' as const)
+            : ('complete' as const),
+      },
+    ];
+  }, [applicationNote, applicationStatus, applicationUpdatedAt]);
 
   useEffect(() => {
     setEvent(baseEvent);
   }, [baseEvent.id]);
+
+  useEffect(() => {
+    const loadActivities = () => {
+      const nextActivities = readEventActivities().filter((activity) => String(activity.eventId) === String(event.id));
+      setEventActivities(nextActivities);
+    };
+
+    loadActivities();
+    window.addEventListener(localActivityEventName(), loadActivities as EventListener);
+    return () => {
+      window.removeEventListener(localActivityEventName(), loadActivities as EventListener);
+    };
+  }, [event.id]);
 
   useEffect(() => {
     setEditDraft({
@@ -323,21 +385,25 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     }
 
     try {
-      const parsed = JSON.parse(savedApplication) as { status?: 'pending'; note?: string };
-      if (parsed.status === 'pending') {
-        setApplicationStatus('pending');
+      const parsed = JSON.parse(savedApplication) as { status?: string; note?: string; updatedAt?: string };
+      const normalizedStatus = normalizeApplicationStatus(parsed.status);
+      if (normalizedStatus !== 'none') {
+        setApplicationStatus(normalizedStatus);
         setApplicationNote(parsed.note ?? '');
-        setGuestList((current) => [
-          {
-            id: 'you',
-            name: 'You',
-            avatar: '✨',
-            paymentStatus: 'pending',
-            joinedAt: new Date(),
-            status: 'pending',
-          },
-          ...current.filter((attendee) => attendee.id !== 'you'),
-        ]);
+        setApplicationUpdatedAt((parsed as any).updatedAt || '');
+        if (normalizedStatus === 'pending' || normalizedStatus === 'accepted') {
+          setGuestList((current) => [
+            {
+              id: 'you',
+              name: 'You',
+              avatar: '✨',
+              paymentStatus: normalizedStatus === 'accepted' ? 'host_covers' : 'pending',
+              joinedAt: new Date(),
+              status: normalizedStatus === 'accepted' ? 'confirmed' : 'pending',
+            },
+            ...current.filter((attendee) => attendee.id !== 'you'),
+          ]);
+        }
       }
     } catch {
       window.localStorage.removeItem(applicationStorageKey);
@@ -351,13 +417,104 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       return;
     }
 
-    if (applicationStatus === 'pending') {
-      window.localStorage.setItem(applicationStorageKey, JSON.stringify({ status: 'pending', note: applicationNote }));
+    if (applicationStatus === 'none') {
+      window.localStorage.removeItem(applicationStorageKey);
       return;
     }
 
-    window.localStorage.removeItem(applicationStorageKey);
-  }, [applicationStatus, applicationNote, applicationStorageKey, applicationLoaded]);
+    window.localStorage.setItem(
+      applicationStorageKey,
+      JSON.stringify({
+        status: applicationStatus,
+        note: applicationNote,
+        updatedAt: applicationUpdatedAt || new Date().toISOString(),
+      })
+    );
+  }, [applicationStatus, applicationNote, applicationUpdatedAt, applicationStorageKey, applicationLoaded]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !applicationLoaded || !currentUserId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncApplicationStatus = async () => {
+      try {
+        const response = await API.getUserApplications(currentUserId);
+        if (cancelled) return;
+
+        const applications = Array.isArray(response?.applications) ? response.applications : [];
+        const currentApplication = applications.find((application: any) =>
+          String(application.event_id || application.eventId || application.id) === String(event.id)
+        );
+
+        if (!currentApplication) {
+          return;
+        }
+
+        const nextStatus = normalizeApplicationStatus(currentApplication.status);
+        if (nextStatus === 'none') {
+          return;
+        }
+
+        const nextNote = String(currentApplication.message || currentApplication.note || applicationNote || '');
+        const nextUpdatedAt = String(currentApplication.updated_at || currentApplication.updatedAt || currentApplication.created_at || new Date().toISOString());
+
+        setApplicationStatus(nextStatus);
+        setApplicationNote(nextNote);
+        setApplicationUpdatedAt(nextUpdatedAt);
+
+        if (nextStatus === 'accepted') {
+          setIsJoined(true);
+          setGuestList((current) => [
+            {
+              id: 'you',
+              name: 'You',
+              avatar: '✨',
+              paymentStatus: 'host_covers',
+              joinedAt: new Date(nextUpdatedAt),
+              status: 'confirmed',
+            },
+            ...current.filter((attendee) => attendee.id !== 'you'),
+          ]);
+        } else if (nextStatus === 'declined') {
+          setIsJoined(false);
+          setGuestList((current) => current.filter((attendee) => attendee.id !== 'you'));
+        }
+
+        try {
+          const existingApplications = readStoredEventApplications();
+          const nextApplications = existingApplications.map((application) =>
+            String(application.event_id) === String(event.id) &&
+            String(application.user_id) === String(currentUserId)
+              ? {
+                  ...application,
+                  status: nextStatus,
+                  message: nextNote,
+                  updated_at: nextUpdatedAt,
+                  backend_id: application.backend_id || String(currentApplication.id || currentApplication.application_id || ''),
+                  source: 'api',
+                }
+              : application
+          );
+          writeStoredEventApplications(nextApplications);
+        } catch (storageError) {
+          console.error('Failed to sync application status locally:', storageError);
+        }
+      } catch (error) {
+        console.error('Failed to sync application status:', error);
+      }
+    };
+
+    syncApplicationStatus();
+    const intervalId = window.setInterval(syncApplicationStatus, 20000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [applicationLoaded, applicationNote, currentUserId, event.id]);
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?page=event&eventId=${event.id}`;
@@ -420,6 +577,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     setShowApplicationModal(false);
     setApplicationStatus('pending');
     setApplicationNote(applicationText.trim());
+    setApplicationUpdatedAt(new Date().toISOString());
     setGuestList((current) => {
       const next = current.filter((attendee) => attendee.id !== 'you');
       return [
@@ -435,6 +593,30 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       ];
     });
     setShareState('Application sent');
+
+    appendLocalNotification({
+      id: `notif-${Date.now()}`,
+      recipientUserId: event.host_id || '',
+      type: 'application',
+      title: `${currentUser?.name || 'A guest'} is interested in ${event.title}`,
+      description: applicationText.trim()
+        ? `${currentUser?.name || 'A guest'} sent a note: ${applicationText.trim()}`
+        : `${currentUser?.name || 'A guest'} clicked I'm interested.`,
+      createdAt: new Date().toISOString(),
+      read: false,
+      eventId: event.id,
+      source: 'event-detail',
+    });
+
+    appendEventActivity({
+      id: `activity-${Date.now()}`,
+      eventId: event.id,
+      title: 'New application',
+      detail: `${currentUser?.name || 'A guest'} clicked I'm interested.`,
+      type: 'application',
+      createdAt: new Date().toISOString(),
+      actorName: currentUser?.name || 'Guest',
+    });
 
     try {
       const existingApplications = readStoredEventApplications();
@@ -466,6 +648,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 ? {
                     ...application,
                     backend_id: backendId,
+                    updated_at: new Date().toISOString(),
                     source: 'api',
                   }
                 : application
@@ -487,6 +670,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     setIsJoined(false);
     setApplicationStatus('none');
     setApplicationNote('');
+    setApplicationUpdatedAt('');
     setApplicationText('');
     setShowApplicationModal(false);
     setGuestList((current) => current.filter((attendee) => attendee.id !== 'you'));
@@ -787,6 +971,144 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                       <p className="mt-1 text-sm text-gray-200">{applicationNote}</p>
                     </div>
                   )}
+                </motion.div>
+              )}
+
+              {applicationStatus !== 'none' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-5 rounded-2xl border border-white/5 bg-white/5 p-4 sm:p-5"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#FBBF24]">Status timeline</p>
+                      <p className="text-xs text-gray-400">
+                        {applicationStatus === 'accepted'
+                          ? 'Follow-up actions are ready.'
+                          : applicationStatus === 'declined'
+                            ? 'You can save this search and move on to another outing.'
+                            : 'We will keep tracking the response for you.'}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                        applicationStatus === 'accepted'
+                          ? 'border-green-500/20 bg-green-500/10 text-green-300'
+                          : applicationStatus === 'declined'
+                            ? 'border-red-500/20 bg-red-500/10 text-red-300'
+                            : 'border-[#F59E0B]/20 bg-[#F59E0B]/10 text-[#FBBF24]'
+                      }`}
+                    >
+                      {applicationStatus}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {applicationTimeline.map((step) => (
+                      <div
+                        key={step.title}
+                        className={`rounded-2xl border p-4 ${
+                          step.state === 'complete'
+                            ? 'border-green-500/20 bg-green-500/10'
+                            : step.state === 'active'
+                              ? 'border-[#F59E0B]/25 bg-[#F59E0B]/10'
+                              : 'border-white/5 bg-white/5'
+                        }`}
+                      >
+                        <p className="text-xs uppercase tracking-[0.18em] text-gray-400">{step.title}</p>
+                        <p className="mt-2 text-sm text-gray-100">{step.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {applicationStatus === 'pending' && (
+                      <>
+                        <button
+                          onClick={handleCancelAttendance}
+                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                        >
+                          Withdraw application
+                        </button>
+                        <button
+                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
+                        >
+                          Message host
+                        </button>
+                      </>
+                    )}
+
+                    {applicationStatus === 'accepted' && (
+                      <>
+                        <button
+                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
+                        >
+                          Message host
+                        </button>
+                        <button
+                          onClick={handleAddToCalendar}
+                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                        >
+                          Add to calendar
+                        </button>
+                      </>
+                    )}
+
+                    {applicationStatus === 'declined' && (
+                      <>
+                        <button
+                          onClick={() => onNavigate?.('main')}
+                          className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
+                        >
+                          Browse more events
+                        </button>
+                        <button
+                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                        >
+                          Message host
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {eventActivities.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-5 rounded-2xl border border-white/5 bg-white/5 p-4 sm:p-5"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#FBBF24]">Event history feed</p>
+                      <p className="text-xs text-gray-400">Shared updates for this event across pages.</p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-300">
+                      {eventActivities.length} updates
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {eventActivities.slice(0, 4).map((activity) => (
+                      <div key={activity.id} className="rounded-2xl border border-white/5 bg-[#0F0F13] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{activity.title}</p>
+                            <p className="mt-1 text-xs text-gray-400">{new Date(activity.createdAt).toLocaleString()}</p>
+                          </div>
+                          <span className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FBBF24]">
+                            {activity.type}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-300">{activity.detail}</p>
+                      </div>
+                    ))}
+                  </div>
                 </motion.div>
               )}
 
@@ -1457,7 +1779,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0F0F13]/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-6xl">
-          {applicationStatus !== 'pending' ? (
+          {applicationStatus === 'none' ? (
             <div className="grid gap-2 sm:grid-cols-[1.4fr_0.8fr_0.8fr]">
               <button
                 onClick={handleJoin}
@@ -1475,7 +1797,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 Share
               </button>
           </div>
-          ) : (
+          ) : applicationStatus === 'pending' ? (
             <div className="grid gap-2 sm:grid-cols-2">
               <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#F59E0B]/25 py-3 font-bold text-[#FBBF24]">
                 <Check size={18} /> Application sent
@@ -1488,6 +1810,39 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               </button>
               <button onClick={handleAddToCalendar} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Add to Calendar
+              </button>
+              <button onClick={handleShare} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Share
+              </button>
+            </div>
+          ) : applicationStatus === 'accepted' ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500/20 py-3 font-bold text-green-300">
+                <Check size={18} /> You&apos;re in
+              </button>
+              <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Withdraw
+              </button>
+              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Message Host
+              </button>
+              <button onClick={handleAddToCalendar} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Add to Calendar
+              </button>
+              <button onClick={handleShare} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Share
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/20 py-3 font-bold text-red-300">
+                <AlertCircle size={18} /> Application declined
+              </button>
+              <button onClick={() => onNavigate?.('main')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Browse more
+              </button>
+              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+                Message Host
               </button>
               <button onClick={handleShare} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Share

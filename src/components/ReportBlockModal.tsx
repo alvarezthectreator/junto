@@ -1,5 +1,32 @@
 import React, { useState } from 'react';
 import { reportUser, blockUser } from '../services/api';
+import {
+  appendSafetyReportCase,
+  upsertBlockedUserRecord,
+  type SafetyEvidenceAttachment,
+} from '../utils/localActivity';
+
+const safetyActionsKey = 'junto-safety-actions';
+
+function readStoredSafetyActions() {
+  try {
+    const raw = localStorage.getItem(safetyActionsKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredSafetyActions(actions: any[]) {
+  localStorage.setItem(safetyActionsKey, JSON.stringify(actions));
+  window.dispatchEvent(new CustomEvent('junto-safety-updated'));
+}
+
+function appendSafetyAction(action: any) {
+  const nextActions = [action, ...readStoredSafetyActions()].slice(0, 20);
+  writeStoredSafetyActions(nextActions);
+}
 
 interface ReportBlockModalProps {
   userId: string;
@@ -20,7 +47,44 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
   const [reportType, setReportType] = useState('inappropriate');
   const [description, setDescription] = useState('');
   const [reason, setReason] = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState<SafetyEvidenceAttachment[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const handleEvidenceChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const nextEvidence: SafetyEvidenceAttachment[] = [];
+
+    for (const file of files.slice(0, 3)) {
+      if (file.size > 4 * 1024 * 1024) {
+        alert(`${file.name} is too large. Please keep evidence files under 4MB.`);
+        continue;
+      }
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read evidence file'));
+        reader.readAsDataURL(file);
+      });
+
+      nextEvidence.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl,
+        previewUrl: file.type.startsWith('image/') ? dataUrl : undefined,
+      });
+    }
+
+    setEvidenceFiles((current) => [...current, ...nextEvidence].slice(0, 3));
+    event.target.value = '';
+  };
+
+  const removeEvidence = (index: number) => {
+    setEvidenceFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
 
   const handleSubmitReport = async () => {
     if (!description.trim()) {
@@ -31,6 +95,29 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
     setLoading(true);
     try {
       await reportUser(userId, targetUserId, reportType, description);
+      appendSafetyReportCase({
+        id: `report-${Date.now()}`,
+        reporterUserId: userId,
+        targetUserId,
+        targetUserName,
+        reportType,
+        description,
+        evidence: evidenceFiles,
+        status: 'submitted',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      appendSafetyAction({
+        id: `report-${Date.now()}`,
+        action: 'report',
+        targetUserId,
+        targetUserName,
+        reportType,
+        description,
+        evidence: evidenceFiles,
+        status: 'submitted',
+        createdAt: new Date().toISOString(),
+      });
       alert('Report submitted. Our team will review it soon.');
       onSuccess?.();
       onClose();
@@ -46,6 +133,21 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
     setLoading(true);
     try {
       await blockUser(userId, targetUserId, reason);
+      upsertBlockedUserRecord({
+        id: targetUserId,
+        name: targetUserName,
+        reason: reason.trim(),
+        blockedAt: new Date().toISOString(),
+      });
+      appendSafetyAction({
+        id: `block-${Date.now()}`,
+        action: 'block',
+        targetUserId,
+        targetUserName,
+        reason: reason.trim(),
+        status: 'saved',
+        createdAt: new Date().toISOString(),
+      });
       alert(`${targetUserName} has been blocked.`);
       onSuccess?.();
       onClose();
@@ -112,6 +214,39 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
                 rows={4}
               />
             </div>
+
+            <div>
+              <label className="text-sm font-semibold text-gray-300">Evidence upload</label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                onChange={handleEvidenceChange}
+                className="mt-2 block w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 file:mr-4 file:rounded-full file:border-0 file:bg-yellow-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
+              />
+              <p className="mt-2 text-xs text-gray-500">Screenshots or PDF evidence helps the review queue move faster.</p>
+            </div>
+
+            {evidenceFiles.length > 0 && (
+              <div className="space-y-2 rounded border border-white/10 bg-white/5 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Attached evidence</p>
+                {evidenceFiles.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded bg-black/20 px-3 py-2 text-xs text-gray-300">
+                    <div>
+                      <p className="font-semibold text-white">{file.name}</p>
+                      <p>{Math.round(file.size / 1024)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeEvidence(index)}
+                      className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-300 transition hover:bg-white/10"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <p className="text-xs text-gray-500">Your report is anonymous and confidential.</p>
 

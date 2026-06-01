@@ -1,5 +1,5 @@
 // Pages Structure for Junto App
-// Feature Specification v1.0 - All 40 Features Implemented
+// Feature Specification v1.0 - Feature map and implementation tracker
 
 export const PAGE_STRUCTURE = {
   MAIN_NAVIGATION: {
@@ -71,11 +71,13 @@ export const PAGE_STRUCTURE = {
     },
 
     TRAVEL_AND_PREMIUM: {
-      travelMode: 'Travel Mode for paid users (10 supported cities)',
+      travelMode: 'Travel Mode for paid users (10 supported cities, saved search management)',
       // Features included:
       // - Virtual and Physical event distinction
       // - Tour Guide listings
       // - Visible to Travelers toggle
+      // - Saved search rename/delete
+      // - Stale saved-search cleanup
     },
 
     PREMIUM_SERVICES: {
@@ -191,15 +193,15 @@ export const PAGE_STRUCTURE = {
   ],
 
   NEXT_STEPS: [
-    '1. Create EventCard component enhancements',
-    '2. Implement EventsMap with real-time events',
-    '3. Add Messaging service with Socket.io',
-    '4. Set up Backend API endpoints',
-    '5. Implement Authentication (JWT + OTP)',
-    '6. Add Payment integration (Paystack/Stripe)',
-    '7. Set up Database (PostgreSQL + Prisma)',
-    '8. Implement GPS & proximity verification',
-    '9. Add push notifications (Firebase FCM)',
+    '1. Finish profile verification provider integration',
+    '2. Add server-backed safety review, SMS, and emergency escalation integrations',
+    '3. Tighten Nearby Mode matching and empty states',
+    '4. Add real-time messaging and calls',
+    '5. Finish OTP authentication and session handling',
+    '6. Add payment and billing integrations',
+    '7. Set up database and file storage infrastructure',
+    '8. Add push notifications and background jobs',
+    '9. Harden anti-fraud and trust automation',
     '10. Deploy to production',
   ],
 };

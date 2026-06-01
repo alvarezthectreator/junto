@@ -4,6 +4,12 @@ import { useAppContext } from "../context/AppContext";
 import * as API from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, Info } from "lucide-react";
+import {
+  cleanupTravelSearches,
+  readTravelSearches,
+  writeTravelSearches,
+  type TravelSearchRecord,
+} from '../utils/localActivity';
 
 type ToastMessage = { id: string; text: string; type: 'success' | 'error' | 'info' };
 
@@ -99,6 +105,7 @@ export const TravelMode = () => {
   const { currentUser } = useAppContext();
   const [isLightMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Lagos");
+  const [citySearch, setCitySearch] = useState("");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
   const [travelModeEnabled, setTravelModeEnabled] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(false);
@@ -111,10 +118,35 @@ export const TravelMode = () => {
   const [travelEvents, setTravelEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState('');
+  const [savedSearches, setSavedSearches] = useState<TravelSearchRecord[]>([]);
+  const storagePrefix = 'junto-travel-mode';
+  const [editingSearchId, setEditingSearchId] = useState<string | null>(null);
+  const [editingSearchLabel, setEditingSearchLabel] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setHeaderVisible(true), 50);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const savedTripsRaw = localStorage.getItem(`${storagePrefix}-trips`);
+      if (savedTripsRaw) {
+        const parsedTrips = JSON.parse(savedTripsRaw);
+        if (Array.isArray(parsedTrips)) {
+          setSavedTrips(parsedTrips);
+        }
+      }
+
+      const cleanedSearches = cleanupTravelSearches(14);
+      if (cleanedSearches.length > 0) {
+        setSavedSearches(cleanedSearches);
+      } else {
+        setSavedSearches(readTravelSearches());
+      }
+    } catch {
+      // Ignore bad cached data.
+    }
   }, []);
 
   useEffect(() => {
@@ -253,7 +285,29 @@ export const TravelMode = () => {
         startDate: tripStartDate,
         endDate: tripEndDate || tripStartDate,
       };
-      setSavedTrips([...savedTrips, newTrip]);
+      const nextTrips = [...savedTrips, newTrip];
+      setSavedTrips(nextTrips);
+      localStorage.setItem(`${storagePrefix}-trips`, JSON.stringify(nextTrips));
+
+      const nextSearch: TravelSearchRecord = {
+        id: `${selectedCity}-${eventType}`.toLowerCase().replace(/\s+/g, '-'),
+        city: selectedCity,
+        eventType,
+        label: `${selectedCity} · ${eventType}`,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString(),
+      };
+      const dedupedSearches = [
+        nextSearch,
+        ...savedSearches
+          .filter((search) => !(search.city === nextSearch.city && search.eventType === nextSearch.eventType))
+          .map((search) => ({
+            ...search,
+            lastUsedAt: search.lastUsedAt || search.createdAt,
+          })),
+      ].slice(0, 6);
+      setSavedSearches(dedupedSearches);
+      writeTravelSearches(dedupedSearches);
     } catch (error) {
       console.error('Failed to save travel destination:', error);
       showToast('Failed to save travel destination', 'error');
@@ -263,7 +317,9 @@ export const TravelMode = () => {
   };
 
   const deleteTrip = (id: string) => {
-    setSavedTrips(savedTrips.filter(trip => trip.id !== id));
+    const nextTrips = savedTrips.filter(trip => trip.id !== id);
+    setSavedTrips(nextTrips);
+    localStorage.setItem(`${storagePrefix}-trips`, JSON.stringify(nextTrips));
   };
 
   const loadTrip = (trip: typeof savedTrips[0]) => {
@@ -271,6 +327,53 @@ export const TravelMode = () => {
     setTripStartDate(trip.startDate);
     setTripEndDate(trip.endDate);
     setShowSavedTrips(false);
+  };
+
+  const handleSelectSavedSearch = (city: string, type: "all" | "virtual" | "physical") => {
+    setSelectedCity(city);
+    setEventType(type);
+    setCitySearch(city);
+    const nextSearches = savedSearches.map((search) =>
+      search.city === city && search.eventType === type
+        ? { ...search, lastUsedAt: new Date().toISOString() }
+        : search
+    );
+    setSavedSearches(nextSearches);
+    writeTravelSearches(nextSearches);
+    showToast(`Loaded saved search for ${city}`, 'info');
+  };
+
+  const beginRenameSavedSearch = (search: TravelSearchRecord) => {
+    setEditingSearchId(search.id);
+    setEditingSearchLabel(search.label || `${search.city} · ${search.eventType}`);
+  };
+
+  const saveRenamedSearch = () => {
+    if (!editingSearchId) return;
+
+    const trimmedLabel = editingSearchLabel.trim();
+    const nextSearches = savedSearches.map((search) =>
+      search.id === editingSearchId
+        ? { ...search, label: trimmedLabel || `${search.city} · ${search.eventType}` }
+        : search
+    );
+
+    setSavedSearches(nextSearches);
+    writeTravelSearches(nextSearches);
+    setEditingSearchId(null);
+    setEditingSearchLabel('');
+    showToast('Saved search renamed', 'success');
+  };
+
+  const deleteSavedSearch = (searchId: string) => {
+    const nextSearches = savedSearches.filter((search) => search.id !== searchId);
+    setSavedSearches(nextSearches);
+    writeTravelSearches(nextSearches);
+    if (editingSearchId === searchId) {
+      setEditingSearchId(null);
+      setEditingSearchLabel('');
+    }
+    showToast('Saved search removed', 'info');
   };
 
   const cities = [
@@ -285,6 +388,12 @@ export const TravelMode = () => {
     { label: "🇺🇸 New York", value: "New York" },
     { label: "🇫🇷 Paris", value: "Paris" },
   ];
+
+  const filteredCities = cities.filter((city) => {
+    const query = citySearch.trim().toLowerCase();
+    if (!query) return true;
+    return city.label.toLowerCase().includes(query) || city.value.toLowerCase().includes(query);
+  });
 
   const filteredEvents = travelEvents.filter((e) => {
     if (eventType === "all") return true;
@@ -429,8 +538,24 @@ export const TravelMode = () => {
               <label style={{ fontSize: 12, fontWeight: 700, color: isLightMode ? "#7a674f" : "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, display: "block" }}>
               Select City
             </label>
+            <div style={{ marginBottom: 12 }}>
+              <input
+                value={citySearch}
+                onChange={(e) => setCitySearch(e.target.value)}
+                placeholder="Search cities"
+                style={{
+                  width: "100%",
+                  padding: "11px 14px",
+                  borderRadius: 12,
+                  border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                  background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                  color: isLightMode ? "#241b10" : "#fff",
+                  fontSize: 13,
+                }}
+              />
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-              {cities.map((city) => {
+              {filteredCities.map((city) => {
                 const isSelected = selectedCity === city.value;
                 return (
                   <button
@@ -465,6 +590,19 @@ export const TravelMode = () => {
                 );
               })}
             </div>
+            {citySearch.trim() && filteredCities.length === 0 && (
+              <div style={{
+                marginTop: 12,
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                color: isLightMode ? "#7a674f" : "#aaa",
+                fontSize: 12,
+              }}>
+                No cities found. Try a different search.
+              </div>
+            )}
           </div>
 
           {/* Event Type Filter */}
@@ -743,6 +881,169 @@ export const TravelMode = () => {
               <li>Share your profile with trusted contacts for safety</li>
             </ul>
           </div>
+
+          {savedSearches.length > 0 && (
+            <div
+              style={{
+                background: isLightMode ? "rgba(255,250,242,0.9)" : "rgba(12,12,15,0.95)",
+                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 16,
+                padding: "16px",
+                marginBottom: 24,
+              }}
+            >
+              <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#F69D11", textTransform: "uppercase" }}>
+                Saved Searches
+              </h4>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {savedSearches.map((search, index) => (
+                  <div
+                    key={search.id || `${search.city}-${search.eventType}-${index}`}
+                    style={{
+                      border: "1px solid rgba(246,157,17,0.2)",
+                      background: "rgba(246,157,17,0.08)",
+                      color: "#F69D11",
+                      borderRadius: 16,
+                      padding: "10px 12px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                      minWidth: 180,
+                    }}
+                  >
+                    <button
+                      onClick={() => handleSelectSavedSearch(search.city, search.eventType as "all" | "virtual" | "physical")}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#F69D11",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        padding: 0,
+                      }}
+                    >
+                      {search.label || `${search.city} · ${search.eventType}`}
+                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => beginRenameSavedSearch(search)}
+                        style={{
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff",
+                          borderRadius: 999,
+                          padding: "5px 8px",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => deleteSavedSearch(search.id)}
+                        style={{
+                          background: "rgba(239,68,68,0.12)",
+                          border: "1px solid rgba(239,68,68,0.18)",
+                          color: "#fca5a5",
+                          borderRadius: 999,
+                          padding: "5px 8px",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {editingSearchId && (
+                <div style={{
+                  marginTop: 12,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}>
+                  <input
+                    value={editingSearchLabel}
+                    onChange={(e) => setEditingSearchLabel(e.target.value)}
+                    placeholder="Rename saved search"
+                    style={{
+                      flex: 1,
+                      minWidth: 220,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                      background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                      color: isLightMode ? "#241b10" : "#fff",
+                      fontSize: 12,
+                    }}
+                  />
+                  <button
+                    onClick={saveRenamedSearch}
+                    style={{
+                      padding: "10px 12px",
+                      background: "#F69D11",
+                      color: "#000",
+                      border: "none",
+                      borderRadius: 12,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingSearchId(null);
+                      setEditingSearchLabel('');
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      background: "transparent",
+                      color: isLightMode ? "#7a674f" : "#aaa",
+                      border: `1px solid ${isLightMode ? 'rgba(36,27,16,0.1)' : '#1a1a1a'}`,
+                      borderRadius: 12,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!eventsLoading && !eventsError && filteredEvents.length === 0 && (
+            <div
+              style={{
+                background: isLightMode ? "#fffaf2" : "#0a0a0a",
+                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                borderRadius: 16,
+                padding: "18px",
+                marginBottom: 24,
+                color: isLightMode ? "#8d7758" : "#aaa",
+                fontSize: 13,
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
+                No matching events right now
+              </p>
+              <p style={{ margin: "6px 0 0" }}>
+                Try another city, switch event type, or save your current search for later.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Toast Notifications */}

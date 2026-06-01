@@ -36,6 +36,14 @@ export interface UserProfile {
   travel_destination_city?: string;
   intro_video_url?: string;
   date_of_birth?: string;
+  reliability_score?: number;
+  reliabilityScore?: number;
+  trust_score?: number;
+  profile_completion_score?: number;
+  profile_completion_percent?: number;
+  phone_verified?: boolean;
+  email_verified?: boolean;
+  verification_status?: string;
 }
 
 export interface Event {

@@ -11,15 +11,15 @@
 |----------|--------|-----------|
 | **Core Infrastructure** | ✅ Complete | 100% |
 | **Authentication & Onboarding** | ✅ Complete | 100% |
-| **Events System** | 🟡 Partial | 60% |
-| **Nearby Mode** | 🟡 Partial | 40% |
-| **Messaging** | ❌ Not Started | 0% |
-| **Safety & Security** | 🟡 Partial | 30% |
-| **User Profiles** | 🟡 Partial | 50% |
+| **Events System** | 🟡 Partial | 70% |
+| **Nearby Mode** | 🟡 Partial | 70% |
+| **Messaging** | 🟡 Partial | 20% |
+| **Safety & Security** | 🟡 Partial | 40% |
+| **User Profiles** | 🟡 Partial | 75% |
 | **Animations & UX** | ✅ Complete | 100% |
 | **Responsive Design** | ✅ Complete | 100% |
 
-**Overall Progress: 47.5%**
+**Overall Progress: 63%**
 
 ---
 
@@ -262,7 +262,7 @@
 
 ## 🟡 PARTIAL FEATURES
 
-### 1. **Event Detail Page** (60%)
+### 1. **Event Detail Page** (75%)
 **File:** `src/pages/EventDetail.tsx`
 
 **What's Done:**
@@ -289,33 +289,33 @@
 ```
 
 **Missing:**
-- ❌ Apply/Interested button working
 - ❌ Map preview of location
-- ❌ Actual data loading
-- ❌ Dynamic routing
+- ❌ Dynamic routing polish
 - ❌ Share functionality
 - ❌ Guest list (accepted attendees)
+- ❌ More complete application history integration
 
 ---
 
-### 2. **Nearby Mode / Swipe Page** (40%)
+### 2. **Nearby Mode / Swipe Page** (70%)
 **File:** `src/pages/Nearby.tsx`
 
 **What's Done:**
+- ✅ Swipe deck UI
+- ✅ Gesture detection
+- ✅ Like/pass actions
+- ✅ Match confirmation modal
 - ✅ Page structure
 - ✅ Map component
 - ✅ Basic layout
 - ✅ Typography/styling
 
 **Missing:**
-- ❌ Swipe card stack UI
-- ❌ Profile cards (photos, name, bio)
-- ❌ Swipe gesture detection
-- ❌ Like/Pass buttons
-- ❌ Match animation
-- ❌ Location tracking
-- ❌ Match confirmation modal
+- ❌ Better card stack polish
+- ❌ Richer profile cards/media
+- ❌ Location-aware ranking
 - ❌ No-more-matches state
+- ❌ Deeper match persistence
 
 **To Build:**
 Need full swipe interface with:
@@ -380,7 +380,7 @@ Need full swipe interface with:
 
 ---
 
-### 5. **Safety Centre** (30%)
+### 5. **Safety Centre** (40%)
 **Files:** 
 - `src/pages/Safety.tsx` (basic)
 - `src/pages/SafetyCentre.tsx` (basic)
@@ -391,11 +391,11 @@ Need full swipe interface with:
 - ✅ Icons and headings
 
 **Missing:**
-- ❌ Trusted contacts management (add/edit/remove)
-- ❌ SOS button with location tracking
-- ❌ Block/report functionality
+- ❌ Trusted contacts management polish
+- ❌ SOS delivery and escalation
+- ❌ Block/report persistence
 - ❌ Safety tips/resources
-- ❌ Anti-fraud guidelines
+- ❌ Anti-fraud automation
 - ❌ Incident report form
 - ❌ Safety checklist
 
@@ -410,7 +410,7 @@ Need full swipe interface with:
 
 ---
 
-### 6. **Profile Page** (50%)
+### 6. **Profile Page** (75%)
 **File:** `src/pages/Profile.tsx`
 
 **What's Done:**
@@ -418,15 +418,13 @@ Need full swipe interface with:
 - ✅ Avatar display area
 - ✅ Basic info layout
 - ✅ Stats section
-- ✅ Edit button placeholder
+- ✅ Edit/save flow
+- ✅ Photo upload handling
 - ✅ Responsive design
 
 **Missing:**
-- ❌ Actual user data loading
-- ❌ Photo upload/gallery
-- ❌ Edit profile modal
-- ❌ Bio editing
-- ❌ Interests selection
+- ❌ Profile picture cropping
+- ❌ Stronger validation
 - ❌ Verify phone/email
 - ❌ Profile completion progress
 - ❌ View profile as others see it
@@ -442,24 +440,25 @@ Need full swipe interface with:
 
 ---
 
-### 7. **Travel Mode Page** (50%)
+### 7. **Travel Mode Page** (65%)
 **File:** `src/pages/TravelMode.tsx`
 
 **What's Done:**
 - ✅ Page structure
 - ✅ City selector layout
+- ✅ Destination persistence
+- ✅ Live event loading
+- ✅ Toggle on/off state
 - ✅ Responsive design
 - ✅ Header
 
 **Missing:**
 - ❌ City input/search
 - ❌ Suggested cities
-- ✅ Current location display
-- ❌ Set destination button
 - ❌ Map preview of destination
-- ❌ Events in that city
-- ❌ Toggle on/off state
-- ❌ Disable/cancel
+- ❌ Better empty states
+- ❌ More refined city filtering
+- ❌ Disable/cancel polish
 
 **To Build:**
 - Searchable city selector
@@ -559,24 +558,21 @@ Need full swipe interface with:
 
 ---
 
-### 3. **Event Application Flow** (20%)
-**Current State:** Button exists but non-functional
+### 3. **Event Application Flow** (75%)
+**Current State:** Apply flow has preview, host review, and backend hooks, but attendee history still needs work
 
 **What Needs Building:**
-- Application modal component
-- Financial agreement preview
-- Personal note input
-- Submit application button
-- Success confirmation
-- Host review interface
 - Application timeline view
+- User-facing application history
+- Consistent persistence across pages
+- Follow-up flow after acceptance/decline
 
 **Complexity:** MEDIUM  
 **Priority:** ⭐⭐⭐⭐⭐
 
 ---
 
-### 4. **Real-time Notifications** (0%)
+### 4. **Real-time Notifications** (90%)
 **Required Components:**
 - Notification center page
 - Notification badge (unread count)
@@ -584,18 +580,17 @@ Need full swipe interface with:
 - Notification settings
 
 **What Needs Building:**
-- Notification history page
 - Real-time badge update
 - Sound/vibration settings
 - Notification preferences
-- Mark as read functionality
+- OS-level badge integration
 
 **Complexity:** MEDIUM  
 **Priority:** ⭐⭐⭐
 
 ---
 
-### 5. **Block & Report System** (0%)
+### 5. **Block & Report System** (40%)
 **Required Components:**
 - Block confirmation modal
 - Report form with details
@@ -604,19 +599,17 @@ Need full swipe interface with:
 - Confirmation
 
 **What Needs Building:**
-- Block interface in profiles
-- Report submission form
-- Category selection (fraud, harassment, etc.)
-- Description input
-- Screenshot/evidence upload
-- Submit & confirmation
+- Persistent block/report actions
+- Evidence upload
+- Case tracking and moderation review
+- Better confirmations
 
 **Complexity:** MEDIUM  
 **Priority:** ⭐⭐⭐ (Safety feature)
 
 ---
 
-### 6. **Trusted Contacts Management** (0%)
+### 6. **Trusted Contacts Management** (20%)
 **Required Components:**
 - Trusted contacts list
 - Add contact modal
@@ -637,7 +630,7 @@ Need full swipe interface with:
 
 ---
 
-### 7. **Event Creation Form** (0%)
+### 7. **Event Creation Form** (85%)
 **Required Components:**
 - Event form with steps
 - Photo upload
@@ -646,7 +639,7 @@ Need full swipe interface with:
 - Agreement acceptance
 
 **What Needs Building:**
-- Multi-step form
+- Multi-step polish
 - Title & description input
 - Event type selector
 - Date & time picker
@@ -776,15 +769,15 @@ src/
 ├── pages/
 │   ├── Landing.tsx ✅ 100%
 │   ├── Discover.tsx ✅ 70%
-│   ├── EventDetail.tsx 🟡 60%
+│   ├── EventDetail.tsx 🟡 75%
 │   ├── MyRequests.tsx 🟡 30%
 │   ├── HostDashboard.tsx 🟡 40%
-│   ├── Nearby.tsx 🟡 40%
+│   ├── Nearby.tsx 🟡 70%
 │   ├── Messages.tsx ❌ 0%
-│   ├── Safety.tsx 🟡 30%
+│   ├── Safety.tsx 🟡 40%
 │   ├── SafetyCentre.tsx 🟡 30%
-│   ├── Profile.tsx 🟡 50%
-│   ├── TravelMode.tsx 🟡 50%
+│   ├── Profile.tsx 🟡 75%
+│   ├── TravelMode.tsx 🟡 65%
 │   ├── MyHost.tsx 🟡 40%
 │   ├── Premium.tsx 🟡 30%
 │   └── Help.tsx ❌ 0%
@@ -814,9 +807,9 @@ src/
 ## 🚀 NEXT IMMEDIATE STEPS
 
 ### Today/This Week:
-1. **Build Messaging UI** - Start with message list page
-2. **Complete Event Application Flow** - Make Apply button work
-3. **Implement Nearby Swipe** - Create swipe card component
+1. **Finish messaging backend wiring** - Connect the existing chat UI to real API data
+2. **Harden safety actions** - Persist block/report/SOS flows and delivery
+3. **Polish the event application flow** - Add history, notifications, and status tracking
 
 ### Dependencies to Check:
 - Backend API endpoints (messaging, applications, events)
@@ -843,14 +836,14 @@ src/
 |---------|------|--------|----------|------------|
 | Landing | Landing.tsx | ✅ 100% | ⭐ | ✓ |
 | Discover | Discover.tsx | ✅ 70% | ⭐⭐⭐⭐⭐ | 1 day |
-| Event Detail | EventDetail.tsx | 🟡 60% | ⭐⭐⭐⭐ | 2 days |
-| Messaging | Messages.tsx | ❌ 0% | ⭐⭐⭐⭐⭐ | 4 days |
-| Nearby Swipe | Nearby.tsx | 🟡 40% | ⭐⭐⭐⭐⭐ | 3 days |
+| Event Detail | EventDetail.tsx | 🟡 75% | ⭐⭐⭐⭐ | 1-2 days |
+| Messaging | Messages.tsx | 🟡 20% | ⭐⭐⭐⭐⭐ | 3-4 days |
+| Nearby Swipe | Nearby.tsx | 🟡 70% | ⭐⭐⭐⭐⭐ | 1-2 days |
 | My Requests | MyRequests.tsx | 🟡 30% | ⭐⭐⭐⭐ | 2 days |
 | Host Dashboard | HostDashboard.tsx | 🟡 40% | ⭐⭐⭐⭐ | 3 days |
-| Safety | Safety.tsx | 🟡 30% | ⭐⭐⭐ | 2 days |
-| Profile | Profile.tsx | 🟡 50% | ⭐⭐⭐ | 2 days |
-| Travel Mode | TravelMode.tsx | 🟡 50% | ⭐⭐⭐ | 1 day |
+| Safety | Safety.tsx | 🟡 40% | ⭐⭐⭐ | 2-3 days |
+| Profile | Profile.tsx | 🟡 75% | ⭐⭐⭐ | 1 day |
+| Travel Mode | TravelMode.tsx | 🟡 65% | ⭐⭐⭐ | 1 day |
 | Calls | (new) | ❌ 0% | ⭐⭐⭐⭐ | 5+ days |
 | Premium | Premium.tsx | 🟡 30% | ⭐⭐ | 2 days |
 | Help | Help.tsx | ❌ 0% | ⭐ | 1 day |
@@ -877,11 +870,10 @@ src/
 1. All 30+ animation variants are ready to use
 2. Toast notification system is integrated
 3. Responsive design is complete across all breakpoints
-4. Database/backend integration needed for real data
-5. Real-time features require WebSocket setup
-6. Authentication system needs backend connection
-7. Payment processing for Premium tier needed
+4. Database/backend integration still needed for the remaining live features
+5. Real-time messaging still needs WebSocket setup
+6. Authentication system still needs production backend connection
+7. Payment processing for Premium tier still needs a provider
 
-**Ready to start:** ✅ Messaging system  
-**Blocked by:** Backend API endpoints
-
+**Ready to start:** ✅ Messaging backend integration  
+**Blocked by:** Backend API endpoints and environment wiring
