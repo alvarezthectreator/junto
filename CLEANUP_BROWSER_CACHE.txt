@@ -1,0 +1,8 @@
+// Run this in browser console to clean up localStorage
+// Press F12 → Console → Paste and run this
+
+// Clear the stored created events (will sync from backend)
+localStorage.removeItem('junto-created-events');
+localStorage.removeItem('junto-deleted-events');
+console.log('✅ Cleared event cache from localStorage');
+console.log('🔄 Refresh the page to reload from backend...');
