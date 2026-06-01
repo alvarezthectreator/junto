@@ -342,6 +342,7 @@ function CreateEventModal({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -375,25 +376,32 @@ function CreateEventModal({
   };
 
   const handleSubmit = async () => {
-    if (validateForm()) {
-      await onSubmit({
-        ...formData,
-        id: String(Date.now()),
-        joined: 0,
-        applications: 0,
-        applicants: [],
-      });
-      setFormData({
-        title: "",
-        date: "",
-        time: "",
-        location: "",
-        capacity: 4,
-        description: "",
-        imageFile: null,
-        imagePreview: "",
-      });
-      onClose();
+    if (validateForm() && !isSubmitting) {
+      setIsSubmitting(true);
+      try {
+        await onSubmit({
+          ...formData,
+          id: String(Date.now()),
+          joined: 0,
+          applications: 0,
+          applicants: [],
+        });
+        setFormData({
+          title: "",
+          date: "",
+          time: "",
+          location: "",
+          capacity: 4,
+          description: "",
+          imageFile: null,
+          imagePreview: "",
+        });
+        onClose();
+      } catch (error) {
+        console.error('Error creating event:', error);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -890,28 +898,33 @@ function CreateEventModal({
             </button>
             <button
               onClick={handleSubmit}
+              disabled={isSubmitting}
               style={{
                 flex: 1,
                 padding: "11px 16px",
-                background: "#F69D11",
+                background: isSubmitting ? "#ccc" : "#F69D11",
                 border: "none",
                 borderRadius: 10,
-                color: "#000",
+                color: isSubmitting ? "#666" : "#000",
                 fontSize: 13,
                 fontWeight: 800,
-                cursor: "pointer",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                opacity: isSubmitting ? 0.6 : 1,
                 transition: "all 0.15s ease",
               } as React.CSSProperties}
               onMouseEnter={(e) => {
-                (e.currentTarget as any).style.background = "#ffd700";
-                (e.currentTarget as any).style.transform = "scale(1.02)";
+                if (!isSubmitting) {
+                  (e.currentTarget as any).style.background = "#ffd700";
+                  (e.currentTarget as any).style.transform = "scale(1.02)";
+                }
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as any).style.background = "#F69D11";
-                (e.currentTarget as any).style.transform = "scale(1)";
+                if (!isSubmitting) {
+                  (e.currentTarget as any).style.background = "#F69D11";
+                }
               }}
             >
-              Create Event
+              {isSubmitting ? "Creating..." : "Create Event"}
             </button>
           </div>
         </div>
