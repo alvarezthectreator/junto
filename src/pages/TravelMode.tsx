@@ -100,6 +100,7 @@ export const TravelMode = () => {
   const [isLightMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Lagos");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
+  const [travelModeEnabled, setTravelModeEnabled] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(false);
   const [tripStartDate, setTripStartDate] = useState("");
   const [tripEndDate, setTripEndDate] = useState("");
@@ -107,11 +108,120 @@ export const TravelMode = () => {
   const [showSavedTrips, setShowSavedTrips] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [travelEvents, setTravelEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setHeaderVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const hydrateTravelSettings = async () => {
+      if (!currentUser?.id) {
+        return;
+      }
+
+      try {
+        const profile = await API.getUserProfile(currentUser.id);
+        if (!mounted) {
+          return;
+        }
+
+        if (profile.travel_destination_city) {
+          setSelectedCity(profile.travel_destination_city);
+        }
+
+        setTravelModeEnabled(Boolean(profile.travel_mode_enabled));
+      } catch (error) {
+        console.error('Failed to load travel settings:', error);
+      }
+    };
+
+    hydrateTravelSettings();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fallbackEvents = [
+      {
+        id: "1",
+        title: "Rooftop Wine Tasting",
+        type: "physical",
+        location: "VI, Lagos",
+        host: "Amina K.",
+        interested: 12,
+        isGuide: false,
+      },
+      {
+        id: "2",
+        title: "Language Exchange - Spanish 101",
+        type: "virtual",
+        location: "Online",
+        host: "Carlos M.",
+        interested: 28,
+        isGuide: false,
+      },
+      {
+        id: "3",
+        title: "Lekki Conservation Centre Tour",
+        type: "physical",
+        location: "Lekki, Lagos",
+        host: "Tunde O.",
+        interested: 34,
+        isGuide: true,
+      },
+    ];
+
+    const loadTravelEvents = async () => {
+      try {
+        setEventsLoading(true);
+        setEventsError('');
+
+        const response = await API.getEvents({ city: selectedCity });
+        const mappedEvents = (response?.events || []).map((event: any) => {
+          const eventTypeValue = String(event.event_type || event.type || 'physical').toLowerCase();
+          return {
+            id: String(event.id),
+            title: event.title,
+            type: eventTypeValue.includes('virtual') ? 'virtual' : 'physical',
+            location: event.location_address || event.location_city || selectedCity,
+            host: event.display_name || 'Junto host',
+            interested: Number(event.current_guests_count || 0),
+            isGuide: Boolean(event.is_tour_guide),
+          };
+        });
+
+        if (mounted) {
+          setTravelEvents(mappedEvents.length > 0 ? mappedEvents : fallbackEvents);
+        }
+      } catch (error) {
+        console.error('Failed to load travel events:', error);
+        if (mounted) {
+          setTravelEvents(fallbackEvents);
+          setEventsError('Could not load live events right now.');
+        }
+      } finally {
+        if (mounted) {
+          setEventsLoading(false);
+        }
+      }
+    };
+
+    loadTravelEvents();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedCity]);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString();
@@ -130,9 +240,11 @@ export const TravelMode = () => {
     setIsSaving(true);
     try {
       if (currentUser?.id) {
-        // selectedCity is already just the city name (e.g., "Lagos", "Abuja")
-        await API.updateTravelDestination(currentUser.id, selectedCity);
-        showToast(`✈️ Travel destination saved to ${selectedCity}!`, 'success');
+        await API.updateUserProfile(currentUser.id, {
+          travel_mode_enabled: travelModeEnabled,
+          travel_destination_city: selectedCity,
+        });
+        showToast(`${travelModeEnabled ? '✈️ Travel mode saved' : 'Travel destination saved'} for ${selectedCity}!`, 'success');
       }
 
       const newTrip = {
@@ -162,52 +274,44 @@ export const TravelMode = () => {
   };
 
   const cities = [
-    "🇳🇬 Lagos",
-    "🇳🇬 Abuja",
-    "🇬🇭 Accra",
-    "🇰🇪 Nairobi",
-    "🇿🇦 Johannesburg",
-    "🇬🇧 London",
-    "🇯🇵 Tokyo",
-    "🇦🇪 Dubai",
-    "🇺🇸 New York",
-    "🇫🇷 Paris",
+    { label: "🇳🇬 Lagos", value: "Lagos" },
+    { label: "🇳🇬 Abuja", value: "Abuja" },
+    { label: "🇬🇭 Accra", value: "Accra" },
+    { label: "🇰🇪 Nairobi", value: "Nairobi" },
+    { label: "🇿🇦 Johannesburg", value: "Johannesburg" },
+    { label: "🇬🇧 London", value: "London" },
+    { label: "🇯🇵 Tokyo", value: "Tokyo" },
+    { label: "🇦🇪 Dubai", value: "Dubai" },
+    { label: "🇺🇸 New York", value: "New York" },
+    { label: "🇫🇷 Paris", value: "Paris" },
   ];
 
-  const events = [
-    {
-      id: "1",
-      title: "Rooftop Wine Tasting",
-      type: "physical",
-      location: "VI, Lagos",
-      host: "Amina K.",
-      interested: 12,
-      isGuide: false,
-    },
-    {
-      id: "2",
-      title: "Language Exchange - Spanish 101",
-      type: "virtual",
-      location: "Online",
-      host: "Carlos M.",
-      interested: 28,
-      isGuide: false,
-    },
-    {
-      id: "3",
-      title: "Lekki Conservation Centre Tour",
-      type: "physical",
-      location: "Lekki, Lagos",
-      host: "Tunde O.",
-      interested: 34,
-      isGuide: true,
-    },
-  ];
-
-  const filteredEvents = events.filter((e) => {
+  const filteredEvents = travelEvents.filter((e) => {
     if (eventType === "all") return true;
     return e.type === eventType;
   });
+
+  const handleToggleTravelMode = async () => {
+    const nextEnabled = !travelModeEnabled;
+    setTravelModeEnabled(nextEnabled);
+
+    if (!currentUser?.id) {
+      showToast('Sign in to save travel mode', 'error');
+      return;
+    }
+
+    try {
+      await API.updateUserProfile(currentUser.id, {
+        travel_mode_enabled: nextEnabled,
+        travel_destination_city: selectedCity,
+      });
+      showToast(nextEnabled ? 'Travel mode enabled' : 'Travel mode disabled', 'success');
+    } catch (error) {
+      console.error('Failed to update travel mode:', error);
+      setTravelModeEnabled(!nextEnabled);
+      showToast('Failed to update travel mode', 'error');
+    }
+  };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: isLightMode ? "#f7f3ea" : "#050505", color: isLightMode ? "#241b10" : "#fff", fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
@@ -275,6 +379,51 @@ export const TravelMode = () => {
             </div>
           </div>
 
+          <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 20,
+          }}>
+            <div style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 14px",
+              borderRadius: 999,
+              background: travelModeEnabled ? "rgba(34,197,94,0.12)" : (isLightMode ? "#fffaf2" : "#0a0a0a"),
+              border: travelModeEnabled ? "1px solid rgba(34,197,94,0.2)" : (isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a"),
+            }}>
+              <span style={{ fontSize: 18 }}>{travelModeEnabled ? '🟢' : '✈️'}</span>
+              <div>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
+                  {travelModeEnabled ? 'Travel mode enabled' : 'Travel mode off'}
+                </p>
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#888" }}>
+                  {travelModeEnabled ? `Showing live events for ${selectedCity}` : 'Turn it on to save your destination'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => void handleToggleTravelMode()}
+              style={{
+                padding: "10px 14px",
+                background: travelModeEnabled ? "#22c55e" : "#F69D11",
+                color: "#000",
+                border: "none",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              {travelModeEnabled ? 'Disable' : 'Enable'} travel mode
+            </button>
+          </div>
+
           {/* City Selector */}
           <div style={{ marginBottom: 28 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: isLightMode ? "#7a674f" : "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, display: "block" }}>
@@ -282,12 +431,11 @@ export const TravelMode = () => {
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
               {cities.map((city) => {
-                const cityName = city.split(" ")[1];
-                const isSelected = selectedCity === cityName;
+                const isSelected = selectedCity === city.value;
                 return (
                   <button
-                    key={city}
-                    onClick={() => setSelectedCity(cityName)}
+                    key={city.value}
+                    onClick={() => setSelectedCity(city.value)}
                     style={{
                       padding: "10px 14px",
                       background: isSelected ? "#F69D11" : (isLightMode ? "#fffaf2" : "#0a0a0a"),
@@ -312,7 +460,7 @@ export const TravelMode = () => {
                       }
                     }}
                   >
-                    {city}
+                    {city.label}
                   </button>
                 );
               })}
@@ -538,6 +686,34 @@ export const TravelMode = () => {
           )}
 
           {/* Events List */}
+          {eventsLoading && (
+            <div style={{
+              background: isLightMode ? "#fffaf2" : "#0a0a0a",
+              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+              borderRadius: 16,
+              padding: "16px",
+              marginBottom: 24,
+              color: isLightMode ? "#8d7758" : "#aaa",
+              fontSize: 13,
+            }}>
+              Loading live events for {selectedCity}...
+            </div>
+          )}
+
+          {!eventsLoading && eventsError && (
+            <div style={{
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: 16,
+              padding: "16px",
+              marginBottom: 24,
+              color: "#fca5a5",
+              fontSize: 13,
+            }}>
+              {eventsError}
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
             {filteredEvents.length > 0 ? (
               filteredEvents.map((event, idx) => <TravelEventCard key={event.id} event={event} index={idx} isLightMode={isLightMode} />)

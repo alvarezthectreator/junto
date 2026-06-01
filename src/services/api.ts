@@ -23,13 +23,19 @@ export interface UserProfile {
   user_id: string;
   name: string;
   display_name?: string;
+  full_name?: string;
   bio?: string;
   profile_photo?: string;
   profile_photos?: string[];
   interests?: string[];
+  city?: string;
+  occupation?: string;
+  gender?: string;
   location?: string;
   travel_mode_enabled?: boolean;
   travel_destination_city?: string;
+  intro_video_url?: string;
+  date_of_birth?: string;
 }
 
 export interface Event {
@@ -162,6 +168,43 @@ async function apiCall(
   }
 }
 
+function parseMaybeJsonArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
+
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map(String);
+    }
+  } catch {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return undefined;
+}
+
+function normalizeUserProfile(profile: any): UserProfile {
+  if (!profile || typeof profile !== 'object') {
+    return profile;
+  }
+
+  return {
+    ...profile,
+    name: profile.name || profile.display_name || profile.full_name || '',
+    interests: parseMaybeJsonArray(profile.interests) || profile.interests,
+    profile_photos: parseMaybeJsonArray(profile.profile_photos) || profile.profile_photos,
+  };
+}
+
 // ==================== AUTH ====================
 
 export async function login(username: string, password: string): Promise<{ session_token: string; user: User }> {
@@ -218,7 +261,8 @@ export function getLastSessionActivity(): number {
 // ==================== USERS ====================
 
 export async function getUserById(userId: string): Promise<User> {
-  return apiCall(`/users/${userId}`);
+  const response = await apiCall(`/users/${userId}`);
+  return response.user || response;
 }
 
 export async function deleteUserAccount(userId: string): Promise<{ success: boolean; message?: string }> {
@@ -241,11 +285,13 @@ export async function getReferralInfo(userId: string): Promise<{
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
-  return apiCall(`/users/${userId}/profile`);
+  const response = await apiCall(`/users/${userId}/profile`);
+  return normalizeUserProfile(response.profile || response.user || response);
 }
 
 export async function updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile> {
-  return apiCall(`/users/${userId}/profile`, 'PUT', profile);
+  const response = await apiCall(`/users/${userId}/profile`, 'PUT', profile);
+  return normalizeUserProfile(response.profile || (await getUserProfile(userId)));
 }
 
 export async function searchUsers(query: string): Promise<User[]> {

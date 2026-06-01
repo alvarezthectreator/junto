@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
+import { compressImageDataUrl } from '../utils/imageCompression';
 
 interface ProfileProps {
   selectedUser?: any;
@@ -44,6 +45,27 @@ interface ProfileProps {
 }
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
+
+function getAgeFromDob(dob?: string) {
+  if (!dob) {
+    return 26;
+  }
+
+  const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) {
+    return 26;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDelta = today.getMonth() - birthDate.getMonth();
+
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return Math.max(age, 18);
+}
 
 // --- PREMIUM REUSABLE SUB-COMPONENTS ---
 
@@ -145,6 +167,7 @@ export const Profile: React.FC<ProfileProps> = ({
   const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [idVerified, setIdVerified] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState(() => {
@@ -212,11 +235,14 @@ export const Profile: React.FC<ProfileProps> = ({
           const userProfile = await API.getUserProfile(currentUser.id);
           setProfile(prev => ({
             ...prev,
-            name: userProfile.name || userProfile.display_name || prev.name,
+            name: userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
+            age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : prev.age,
+            dob: userProfile.date_of_birth || prev.dob,
             bio: userProfile.bio || prev.bio,
             interests: userProfile.interests || prev.interests,
             photos: userProfile.profile_photos || prev.photos,
-            location: userProfile.location || prev.location,
+            introVideo: userProfile.intro_video_url || prev.introVideo,
+            location: userProfile.location || userProfile.city || prev.location,
           }));
         }
       } catch (error) {
@@ -274,16 +300,16 @@ export const Profile: React.FC<ProfileProps> = ({
     });
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const newPhotoUrl = event.target?.result as string;
-        setProfile({
-          ...profile,
-          photos: [newPhotoUrl, ...profile.photos]
-        });
+      reader.onload = async (event) => {
+        const newPhotoUrl = await compressImageDataUrl(String(event.target?.result || ''));
+        setProfile((current) => ({
+          ...current,
+          photos: [newPhotoUrl, ...current.photos].slice(0, 8),
+        }));
         setShowPhotoUpload(false);
         setShowMessage('Photo added!');
         setTimeout(() => setShowMessage(''), 2000);
@@ -292,10 +318,61 @@ export const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  const handleSaveProfile = () => {
-    setShowMessage('Profile saved successfully!');
-    setIsEditing(false);
-    setTimeout(() => setShowMessage(''), 2000);
+  const handleSaveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+
+      if (currentUser?.id) {
+        const updatedProfile = await API.updateUserProfile(currentUser.id, {
+          display_name: profile.name,
+          bio: profile.bio,
+          city: profile.location,
+          occupation: profile.occupation,
+          interests: profile.interests,
+          profile_photos: profile.photos,
+          intro_video_url: profile.introVideo || undefined,
+          date_of_birth: profile.dob || undefined,
+        });
+
+        setProfile((current) => ({
+          ...current,
+          name: updatedProfile.display_name || updatedProfile.full_name || updatedProfile.name || current.name,
+          bio: updatedProfile.bio || current.bio,
+          interests: updatedProfile.interests || current.interests,
+          photos: updatedProfile.profile_photos || current.photos,
+          location: updatedProfile.location || updatedProfile.city || current.location,
+          introVideo: updatedProfile.intro_video_url || current.introVideo,
+          dob: updatedProfile.date_of_birth || current.dob,
+          age: updatedProfile.date_of_birth ? getAgeFromDob(updatedProfile.date_of_birth) : current.age,
+        }));
+
+        try {
+          const storedUserRaw = localStorage.getItem('currentUser');
+          const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+          localStorage.setItem(
+            'currentUser',
+            JSON.stringify({
+              ...storedUser,
+              name: profile.name,
+              username: storedUser.username || profile.name,
+              profile_id: currentUser.profile_id || storedUser.profile_id,
+            })
+          );
+        } catch (storageError) {
+          console.error('Failed to update stored user snapshot:', storageError);
+        }
+      }
+
+      setShowMessage('Profile saved successfully!');
+      setIsEditing(false);
+      setTimeout(() => setShowMessage(''), 2000);
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      setShowMessage('Failed to save profile. Please try again.');
+      setTimeout(() => setShowMessage(''), 2500);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -403,11 +480,32 @@ export const Profile: React.FC<ProfileProps> = ({
 
                 <motion.button
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+                  onClick={() => {
+                    if (isSavingProfile) {
+                      return;
+                    }
+
+                    if (isEditing) {
+                      void handleSaveProfile();
+                      return;
+                    }
+
+                    setIsEditing(true);
+                  }}
+                  disabled={isSavingProfile}
                   className="h-10 flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-5 text-xs font-bold text-black shadow-lg shadow-yellow-500/10 hover:brightness-105 transition-all"
                 >
-                  <Edit2 size={13} />
-                  <span>{isEditing ? 'Save Changes' : 'Edit Profile'}</span>
+                  {isSavingProfile ? (
+                    <>
+                      <Loader size={13} className="animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Edit2 size={13} />
+                      <span>{isEditing ? 'Save Changes' : 'Edit Profile'}</span>
+                    </>
+                  )}
                 </motion.button>
 
                 {isEditing && (

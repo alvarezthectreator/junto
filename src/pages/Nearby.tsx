@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User, Heart, X, Toast } from "lucide-react";
+import { Bell, Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User, Heart, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
@@ -111,6 +111,7 @@ export const Nearby: React.FC<NearbyProps> = ({
   const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
   const [dislikedUserIds, setDislikedUserIds] = useState<Set<string>>(new Set());
   const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
+  const [matchPerson, setMatchPerson] = useState<NearbyPerson | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -152,7 +153,7 @@ export const Nearby: React.FC<NearbyProps> = ({
   }, [currentUser?.id]);
 
   const filteredPeople = useMemo(() => {
-    let filtered = people.filter(person => !dislikedUserIds.has(person.id));
+    let filtered = people.filter(person => !dislikedUserIds.has(person.id) && !likedUserIds.has(person.id));
     
     switch (activeFilter) {
       case "Verified":
@@ -164,7 +165,10 @@ export const Nearby: React.FC<NearbyProps> = ({
       default:
         return filtered;
     }
-  }, [activeFilter, people, dislikedUserIds]);
+  }, [activeFilter, people, dislikedUserIds, likedUserIds]);
+
+  const swipeDeck = useMemo(() => filteredPeople.slice(0, 3), [filteredPeople]);
+  const activeSwipePerson = swipeDeck[0];
 
   useEffect(() => {
     if (!filteredPeople.some((person) => person.id === selectedPersonId)) {
@@ -189,7 +193,11 @@ export const Nearby: React.FC<NearbyProps> = ({
       setLikedUserIds(newLiked);
       setSwipeMessage({ text: `❤️ Liked ${people.find(p => p.id === personId)?.name}!`, type: 'like' });
       
-      await API.swipeUser(currentUser.id, personId, 'right');
+      const response = await API.swipeUser(currentUser.id, personId, 'right');
+      if (response?.match) {
+        const matched = people.find((person) => person.id === personId) || null;
+        setMatchPerson(matched);
+      }
       
       setTimeout(() => setSwipeMessage(null), 2000);
     } catch (error) {
@@ -292,6 +300,86 @@ export const Nearby: React.FC<NearbyProps> = ({
             </div>
           </section>
 
+          {swipeMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-md"
+              style={{
+                borderColor: swipeMessage.type === 'like' ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)',
+                background: swipeMessage.type === 'like' ? 'rgba(16,185,129,0.14)' : 'rgba(245,158,11,0.14)',
+                color: swipeMessage.type === 'like' ? '#34d399' : '#FCD34D',
+              }}
+            >
+              <Bell size={14} />
+              {swipeMessage.text}
+            </motion.div>
+          )}
+
+          {matchPerson && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+              onClick={() => setMatchPerson(null)}
+            >
+              <div
+                className="w-full max-w-md rounded-[2rem] border p-6 shadow-2xl"
+                style={{ borderColor, background: panelBg }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500 text-4xl">
+                    ❤️
+                  </div>
+                  <p className="text-xs uppercase tracking-[0.24em]" style={{ color: mutedText }}>
+                    It&apos;s a match
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold">{matchPerson.name}</h3>
+                  <p className="mt-2 text-sm" style={{ color: mutedText }}>
+                    You both liked each other. Start the conversation while the energy is fresh.
+                  </p>
+                </div>
+
+                <div className="mt-5 rounded-2xl p-4" style={{ background: isLightMode ? "#fff" : "#14141b" }}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: isLightMode ? "#f4ead7" : "#1f1f28", color: pageText }}>
+                      {matchPerson.avatar}
+                    </div>
+                    <div>
+                      <p className="font-bold">{matchPerson.name}</p>
+                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
+                        {matchPerson.profileId}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex gap-3">
+                  <button
+                    onClick={() => setMatchPerson(null)}
+                    className="flex-1 rounded-full border px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                    style={{ borderColor, color: pageText }}
+                  >
+                    Keep Browsing
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMatchPerson(null);
+                      openMessages();
+                    }}
+                    className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                    style={{ background: "#F59E0B", color: "#111" }}
+                  >
+                    Message now
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <section className="grid gap-6 lg:grid-cols-[1.35fr_0.95fr]">
             <div
               style={{
@@ -316,6 +404,166 @@ export const Nearby: React.FC<NearbyProps> = ({
                 >
                   Back to Discover
                 </button>
+              </div>
+
+              <div
+                className="mb-5 rounded-[1.75rem] border p-4"
+                style={{ borderColor, background: panelBg }}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
+                      Swipe deck
+                    </p>
+                    <h3 className="text-lg font-bold">Drag left or right to decide</h3>
+                  </div>
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
+                  >
+                    {swipeDeck.length} cards left
+                  </span>
+                </div>
+
+                {activeSwipePerson ? (
+                  <div className="relative mx-auto flex min-h-[440px] w-full max-w-md items-center justify-center">
+                    {swipeDeck.slice(1).map((person, index) => (
+                      <div
+                        key={person.id}
+                        className="absolute inset-x-0 mx-auto rounded-[2rem] border p-4"
+                        style={{
+                          maxWidth: '26rem',
+                          borderColor,
+                          background: isLightMode ? 'rgba(255,255,255,0.92)' : 'rgba(26,26,33,0.88)',
+                          transform: `translateY(${(index + 1) * 12}px) scale(${0.96 - index * 0.03})`,
+                          opacity: 0.55 - index * 0.08,
+                          zIndex: 10 - index,
+                        }}
+                      >
+                        <div className="overflow-hidden rounded-[1.5rem]" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
+                          <div className="flex h-56 items-center justify-center text-6xl">
+                            {person.avatar}
+                          </div>
+                          <div className="space-y-2 border-t p-4" style={{ borderColor }}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <h4 className="text-lg font-bold">{person.name}</h4>
+                                <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
+                                  {person.profileId}
+                                </p>
+                              </div>
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
+                              >
+                                {person.proximityLabel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <motion.div
+                      key={activeSwipePerson.id}
+                      drag="x"
+                      dragElastic={0.18}
+                      dragMomentum={false}
+                      onDragEnd={(_, info) => {
+                        if (info.offset.x > 120) {
+                          void handleLikePerson(activeSwipePerson.id);
+                        } else if (info.offset.x < -120) {
+                          void handleDislikePerson(activeSwipePerson.id);
+                        }
+                      }}
+                      className="relative z-20 w-full max-w-md rounded-[2rem] border p-4 shadow-2xl"
+                      style={{
+                        borderColor: 'rgba(245,158,11,0.28)',
+                        background: isLightMode ? 'rgba(255,255,255,0.96)' : 'rgba(18,18,23,0.98)',
+                        boxShadow: isLightMode ? '0 24px 70px rgba(120,53,15,0.12)' : '0 24px 70px rgba(0,0,0,0.34)',
+                      }}
+                    >
+                      <div className="overflow-hidden rounded-[1.5rem]" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
+                        <div className="flex h-64 items-center justify-center text-7xl">
+                          {activeSwipePerson.avatar}
+                        </div>
+                        <div className="border-t p-4" style={{ borderColor }}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-2xl font-bold">{activeSwipePerson.name}</h3>
+                                {activeSwipePerson.isVerified && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400">
+                                    <ShieldCheck size={12} />
+                                    Verified
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
+                                {activeSwipePerson.profileId} · {activeSwipePerson.city}
+                              </p>
+                            </div>
+                            <span
+                              className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                              style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
+                            >
+                              {activeSwipePerson.proximityLabel}
+                            </span>
+                          </div>
+
+                          <p className="mt-3 text-sm leading-6" style={{ color: mutedText }}>
+                            {activeSwipePerson.bio}
+                          </p>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {activeSwipePerson.badges.map((badge) => (
+                              <span
+                                key={badge}
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                style={{
+                                  background: isLightMode ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.06)',
+                                  color: pageText,
+                                }}
+                              >
+                                {badge}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-3">
+                        <button
+                          onClick={() => void handleDislikePerson(activeSwipePerson.id)}
+                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                          style={{ background: '#6B7280', color: '#fff' }}
+                        >
+                          Pass
+                        </button>
+                        <button
+                          onClick={() => {
+                            void handleLikePerson(activeSwipePerson.id);
+                          }}
+                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                          style={{ background: '#10B981', color: '#fff' }}
+                        >
+                          Like
+                        </button>
+                        <button
+                          onClick={openMessages}
+                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                          style={{ background: '#F59E0B', color: '#111' }}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                ) : (
+                  <div className="rounded-[1.5rem] border p-5 text-sm" style={{ borderColor, color: mutedText }}>
+                    No more people in this filter. Try switching tabs or come back later.
+                  </div>
+                )}
               </div>
 
               {loading ? (

@@ -1398,6 +1398,30 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 <p className="mt-1 text-sm font-medium text-white">{event.title}</p>
               </div>
 
+              <div className="rounded-2xl border border-[#F59E0B]/20 bg-[#F59E0B]/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#FBBF24]">Agreement preview</p>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {event.billingTier === 'HOST_ALL'
+                        ? 'Host covers everything'
+                        : event.billingTier === 'HOST_NO_TRANSPORT'
+                          ? 'Host covers venue, guests cover transport'
+                          : event.billingTier === 'SPLIT'
+                            ? 'Costs are split between guests'
+                            : 'You cover your own way, host covers theirs'}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-gray-300">
+                    <p>{event.estimatedCost}</p>
+                    <p>{event.ageRestriction}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-gray-200">
+                  By applying, you&apos;re saying you understand the event terms, the timing, and the billing setup for this outing.
+                </p>
+              </div>
+
               <textarea
                 value={applicationText}
                 onChange={(e) => setApplicationText(e.target.value)}

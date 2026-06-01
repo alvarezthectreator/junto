@@ -72,10 +72,22 @@ export async function getUserProfile(req, res) {
 export async function updateUserProfile(req, res) {
   try {
     const { userId } = req.params;
-    const { display_name, bio, gender, city, occupation, interests, travel_mode_enabled, travel_destination_city } = req.body;
+    const {
+      display_name,
+      bio,
+      gender,
+      city,
+      occupation,
+      interests,
+      travel_mode_enabled,
+      travel_destination_city,
+      profile_photos,
+      intro_video_url,
+      date_of_birth,
+    } = req.body;
 
     // Update user table
-    if (display_name || bio || gender || city || occupation) {
+    if (display_name || bio || gender || city || occupation || intro_video_url || date_of_birth) {
       const updates = [];
       const params = [];
       let paramCount = 1;
@@ -105,6 +117,16 @@ export async function updateUserProfile(req, res) {
         params.push(occupation);
         paramCount++;
       }
+      if (intro_video_url !== undefined) {
+        updates.push(`intro_video_url = $${paramCount}`);
+        params.push(intro_video_url || null);
+        paramCount++;
+      }
+      if (date_of_birth) {
+        updates.push(`date_of_birth = $${paramCount}`);
+        params.push(date_of_birth);
+        paramCount++;
+      }
 
       if (updates.length > 0) {
         updates.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -118,7 +140,12 @@ export async function updateUserProfile(req, res) {
     }
 
     // Update user_profiles table
-    if (interests !== undefined || travel_mode_enabled !== undefined || travel_destination_city) {
+    if (
+      interests !== undefined ||
+      travel_mode_enabled !== undefined ||
+      travel_destination_city !== undefined ||
+      profile_photos !== undefined
+    ) {
       const updates = [];
       const params = [];
       let paramCount = 1;
@@ -138,6 +165,11 @@ export async function updateUserProfile(req, res) {
         params.push(travel_destination_city);
         paramCount++;
       }
+      if (profile_photos !== undefined) {
+        updates.push(`profile_photos = $${paramCount}`);
+        params.push(JSON.stringify(profile_photos));
+        paramCount++;
+      }
 
       if (updates.length > 0) {
         updates.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -150,7 +182,19 @@ export async function updateUserProfile(req, res) {
       }
     }
 
-    res.json({ success: true, message: 'Profile updated' });
+    const refreshed = await query(
+      `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE u.id = $1`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Profile updated',
+      profile: refreshed.rows[0] || null,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
