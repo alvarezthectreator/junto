@@ -25,52 +25,7 @@ interface NearbyPerson {
   proximityLabel: string;
 }
 
-const mockNearbyPeople: NearbyPerson[] = [
-  {
-    id: "u-ada",
-    name: "Ada",
-    profileId: "JNT-2048-ADA",
-    city: "Lagos",
-    bio: "Usually down for coffee, rooftop plans, and spontaneous city walks.",
-    avatar: "👩🏽‍🦱",
-    badges: ["Coffee", "Weekends", "Music"],
-    isVerified: true,
-    proximityLabel: "0.8 km away",
-  },
-  {
-    id: "u-tunde",
-    name: "Tunde",
-    profileId: "JNT-3194-TUN",
-    city: "Lagos",
-    bio: "Weekend explorer who likes brunch, football, and trying new spots.",
-    avatar: "👨🏾‍🦱",
-    badges: ["Brunch", "Sports", "Travel"],
-    isVerified: true,
-    proximityLabel: "1.4 km away",
-  },
-  {
-    id: "u-zara",
-    name: "Zara",
-    profileId: "JNT-4821-ZAR",
-    city: "Lagos",
-    bio: "Looking for people to catch movies, art shows, and late night food with.",
-    avatar: "👩🏼",
-    badges: ["Movies", "Art", "Food"],
-    isVerified: false,
-    proximityLabel: "2.1 km away",
-  },
-  {
-    id: "u-oge",
-    name: "Oge",
-    profileId: "JNT-7416-OGE",
-    city: "Lagos",
-    bio: "Beach days, live music, and good conversations only.",
-    avatar: "👩🏾",
-    badges: ["Beach", "Music", "Events"],
-    isVerified: true,
-    proximityLabel: "2.9 km away",
-  },
-];
+const mockNearbyPeople: NearbyPerson[] = [];
 
 function initials(name: string) {
   return name
