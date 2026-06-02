@@ -209,20 +209,6 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
       answer:
         "If you don't check in 60 minutes after the event starts, the system flags a no-show. Your reliability score drops -25 points. Your trusted contacts are notified. You can submit an explanation to appeal.",
     },
-    {
-      id: "11",
-      category: "Premium",
-      question: "What's included in Premium?",
-      answer:
-        "Premium gives you unlimited event joins (vs 10/day free), unlimited swipes, unlimited saved searches, access to Travel Mode, and up to 3 Host Me events per month. Cancel anytime.",
-    },
-    {
-      id: "12",
-      category: "Premium",
-      question: "Can I get a refund?",
-      answer:
-        "We offer a 7-day money-back guarantee. If you're not satisfied within 7 days of purchase, contact support and we'll refund you fully. After 7 days, refunds are case-by-case.",
-    },
   ];
 
   const filteredFaqs = faqs.filter(

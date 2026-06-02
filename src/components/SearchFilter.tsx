@@ -8,7 +8,6 @@ interface SearchFilterProps {
 export const SearchFilter: React.FC<SearchFilterProps> = ({ onSearch }) => {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState('');
-  const [billingTier, setBillingTier] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -29,7 +28,7 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({ onSearch }) => {
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const response = await searchEvents(keyword, category, billingTier ? parseInt(billingTier) : undefined);
+      const response = await searchEvents(keyword, category);
       onSearch(response.events);
     } catch (error) {
       console.error('Search failed:', error);
@@ -66,21 +65,6 @@ export const SearchFilter: React.FC<SearchFilterProps> = ({ onSearch }) => {
                     {cat.icon} {cat.label}
                   </option>
                 ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-gray-300">Billing Tier</label>
-              <select
-                value={billingTier}
-                onChange={(e) => setBillingTier(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
-              >
-                <option value="">All Tiers</option>
-                <option value="1">💚 100% Covered</option>
-                <option value="2">💙 ~75% Covered</option>
-                <option value="3">💜 50% Covered</option>
-                <option value="4">👑 Host Me</option>
               </select>
             </div>
           </div>

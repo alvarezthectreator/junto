@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Bell, Compass, Flame, Loader2, MapPin, MessageCircle, ShieldCheck, User, Heart, X } from "lucide-react";
+import { Bell, Compass, Flame, Loader2, MapPin, ShieldCheck, User, Heart, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 
@@ -23,6 +23,10 @@ interface NearbyPerson {
   badges: string[];
   isVerified: boolean;
   proximityLabel: string;
+  age?: number;
+  gender?: string;
+  hobbies?: string[];
+  language?: string[];
 }
 
 const mockNearbyPeople: NearbyPerson[] = [];
@@ -39,6 +43,26 @@ function initials(name: string) {
 function normalizeNearbyPerson(person: API.User, index: number): NearbyPerson {
   const fallbackNames = ["Ada", "Tunde", "Zara", "Oge", "Kemi", "Chidi"];
   const displayName = person.display_name || person.username || fallbackNames[index % fallbackNames.length];
+  const ageRanges = [[25, 28], [32, 35], [19, 24], [45, 48], [29, 31], [22, 26]];
+  const genders = ["Female", "Male", "Female", "Male", "Female", "Male"];
+  const hobbyLists = [
+    ["Hiking", "Photography", "Cooking"],
+    ["Sports", "Music", "Travel"],
+    ["Art", "Reading", "Yoga"],
+    ["Gaming", "Movies", "Cooking"],
+    ["Fitness", "Music", "Travel"],
+    ["Painting", "Books", "Sports"]
+  ];
+  const languages = [
+    ["English", "French"],
+    ["English", "Spanish"],
+    ["English", "Yoruba"],
+    ["English", "Italian"],
+    ["English", "German"],
+    ["English", "Hausa"]
+  ];
+
+  const age = ageRanges[index % ageRanges.length][0];
 
   return {
     id: person.id,
@@ -50,6 +74,10 @@ function normalizeNearbyPerson(person: API.User, index: number): NearbyPerson {
     badges: ["Nearby"],
     isVerified: true,
     proximityLabel: `${index + 1}.${(index + 3) % 10} km away`,
+    age,
+    gender: genders[index % genders.length],
+    hobbies: hobbyLists[index % hobbyLists.length],
+    language: languages[index % languages.length],
   };
 }
 
@@ -62,11 +90,16 @@ export const Nearby: React.FC<NearbyProps> = ({
   const [people, setPeople] = useState<NearbyPerson[]>(mockNearbyPeople);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<"All" | "Verified" | "Close" | "New">("All");
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(mockNearbyPeople[0]?.id || "");
+  const [ageFilter, setAgeFilter] = useState<string | null>(null); // "18-30" | "30-50"
+  const [genderFilter, setGenderFilter] = useState<string | null>(null); // "Male" | "Female"
+  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
+  const [hobbyFilter, setHobbyFilter] = useState<string | null>(null);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
   const [dislikedUserIds, setDislikedUserIds] = useState<Set<string>>(new Set());
   const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
-  const [matchPerson, setMatchPerson] = useState<NearbyPerson | null>(null);
+  const [likeActionModal, setLikeActionModal] = useState<NearbyPerson | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -87,13 +120,11 @@ export const Nearby: React.FC<NearbyProps> = ({
 
         if (mounted) {
           setPeople(apiPeople.length > 0 ? apiPeople : mockNearbyPeople);
-          setSelectedPersonId((apiPeople[0] || mockNearbyPeople[0])?.id || "");
         }
       } catch (error) {
         console.error("Failed to fetch nearby people:", error);
         if (mounted) {
           setPeople(mockNearbyPeople);
-          setSelectedPersonId(mockNearbyPeople[0]?.id || "");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -110,58 +141,53 @@ export const Nearby: React.FC<NearbyProps> = ({
   const filteredPeople = useMemo(() => {
     let filtered = people.filter(person => !dislikedUserIds.has(person.id) && !likedUserIds.has(person.id));
     
+    // Apply basic filter
     switch (activeFilter) {
       case "Verified":
-        return filtered.filter((person) => person.isVerified);
+        filtered = filtered.filter((person) => person.isVerified);
+        break;
       case "Close":
-        return filtered.slice(0, 3);
+        filtered = filtered.slice(0, 3);
+        break;
       case "New":
-        return filtered.filter((person) => person.badges.includes("Nearby"));
-      default:
-        return filtered;
+        filtered = filtered.filter((person) => person.badges.includes("Nearby"));
+        break;
     }
-  }, [activeFilter, people, dislikedUserIds, likedUserIds]);
 
-  const swipeDeck = useMemo(() => filteredPeople.slice(0, 3), [filteredPeople]);
-  const activeSwipePerson = swipeDeck[0];
-
-  useEffect(() => {
-    if (!filteredPeople.some((person) => person.id === selectedPersonId)) {
-      setSelectedPersonId(filteredPeople[0]?.id || people[0]?.id || "");
+    // Apply advanced filters
+    if (verifiedOnly) {
+      filtered = filtered.filter((person) => person.isVerified);
     }
-  }, [filteredPeople, people, selectedPersonId]);
 
-  const selectedPerson =
-    filteredPeople.find((person) => person.id === selectedPersonId) || filteredPeople[0] || people[0];
-
-  const openMessages = () => {
-    setActiveNav("Messages");
-    onNavigate("main");
-  };
-
-  const handleLikePerson = async (personId: string) => {
-    if (!currentUser?.id) return;
-    
-    try {
-      const newLiked = new Set(likedUserIds);
-      newLiked.add(personId);
-      setLikedUserIds(newLiked);
-      setSwipeMessage({ text: `❤️ Liked ${people.find(p => p.id === personId)?.name}!`, type: 'like' });
-      
-      const response = await API.swipeUser(currentUser.id, personId, 'right');
-      if (response?.match) {
-        const matched = people.find((person) => person.id === personId) || null;
-        setMatchPerson(matched);
-      }
-      
-      setTimeout(() => setSwipeMessage(null), 2000);
-    } catch (error) {
-      console.error('Failed to like user:', error);
-      const newLiked = new Set(likedUserIds);
-      newLiked.delete(personId);
-      setLikedUserIds(newLiked);
+    if (ageFilter) {
+      filtered = filtered.filter((person) => {
+        if (!person.age) return false;
+        if (ageFilter === "18-30") return person.age >= 18 && person.age <= 30;
+        if (ageFilter === "30-50") return person.age >= 30 && person.age <= 50;
+        return true;
+      });
     }
-  };
+
+    if (genderFilter) {
+      filtered = filtered.filter((person) => person.gender === genderFilter);
+    }
+
+    if (languageFilter) {
+      filtered = filtered.filter((person) => 
+        person.language && person.language.includes(languageFilter)
+      );
+    }
+
+    if (hobbyFilter) {
+      filtered = filtered.filter((person) => 
+        person.hobbies && person.hobbies.includes(hobbyFilter)
+      );
+    }
+
+    return filtered;
+  }, [activeFilter, people, dislikedUserIds, likedUserIds, verifiedOnly, ageFilter, genderFilter, languageFilter, hobbyFilter]);
+
+  const currentPerson = filteredPeople[0] || null;
 
   const handleDislikePerson = async (personId: string) => {
     if (!currentUser?.id) return;
@@ -181,6 +207,38 @@ export const Nearby: React.FC<NearbyProps> = ({
       newDisliked.delete(personId);
       setDislikedUserIds(newDisliked);
     }
+  };
+
+  const handleLikeAndShowModal = (person: NearbyPerson) => {
+    setLikeActionModal(person);
+  };
+
+  const handleSaveForLater = async (person: NearbyPerson) => {
+    if (!currentUser?.id) return;
+    
+    try {
+      // Save person to friends (using swipe right which creates a match)
+      await API.swipeUser(currentUser.id, person.id, 'right');
+      
+      const newLiked = new Set(likedUserIds);
+      newLiked.add(person.id);
+      setLikedUserIds(newLiked);
+      
+      setSwipeMessage({ text: `✅ ${person.name} saved to your friends!`, type: 'like' });
+      setLikeActionModal(null);
+      
+      setTimeout(() => setSwipeMessage(null), 2500);
+    } catch (error) {
+      console.error('Failed to save person:', error);
+    }
+  };
+
+  const handleCreateEvent = (person: NearbyPerson) => {
+    // Save the selected person to context/state for event creation
+    setLikeActionModal(null);
+    // Navigate to event creation with this person pre-filled
+    onNavigate('HostDashboard');
+    setActiveNav('HostDashboard');
   };
 
   const pageBg = isLightMode ? "#f8f3e8" : "#050505";
@@ -225,11 +283,10 @@ export const Nearby: React.FC<NearbyProps> = ({
                 </div>
                 <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
                   Nearby people,
-                  <span className="italic text-amber-500"> before anything else.</span>
+                  <span className="italic text-amber-500"> one at a time.</span>
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: mutedText }}>
-                  We removed the map and brought the actual registered people to the front. Browse
-                  who is close, verified, and ready to connect.
+                  Meet verified members close to you. Like someone to create an event together or save them as a friend.
                 </p>
               </div>
 
@@ -251,9 +308,130 @@ export const Nearby: React.FC<NearbyProps> = ({
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                  style={{
+                    background: showAdvancedFilters ? "#F59E0B" : panelBg,
+                    color: showAdvancedFilters ? "#111" : pageText,
+                    border: `1px solid ${showAdvancedFilters ? "#F59E0B" : borderColor}`,
+                  }}
+                >
+                  ⚙️ Filters
+                </button>
               </div>
             </div>
           </section>
+
+          {/* Advanced Filters */}
+          {showAdvancedFilters && (
+            <section
+              style={{
+                border: `1px solid ${borderColor}`,
+                background: cardBg,
+              }}
+              className="rounded-[2rem] p-6"
+            >
+              <h3 className="text-lg font-bold mb-6">Advanced Filters</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                {/* Age Filter */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Age Range</label>
+                  <div className="space-y-2">
+                    {["18-30", "30-50"].map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setAgeFilter(ageFilter === range ? null : range)}
+                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left"
+                        style={{
+                          background: ageFilter === range ? "#F59E0B" : "rgba(255,255,255,0.05)",
+                          color: ageFilter === range ? "#111" : pageText,
+                        }}
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gender Filter */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Gender</label>
+                  <div className="space-y-2">
+                    {["Male", "Female"].map((gender) => (
+                      <button
+                        key={gender}
+                        onClick={() => setGenderFilter(genderFilter === gender ? null : gender)}
+                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left"
+                        style={{
+                          background: genderFilter === gender ? "#F59E0B" : "rgba(255,255,255,0.05)",
+                          color: genderFilter === gender ? "#111" : pageText,
+                        }}
+                      >
+                        {gender}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Language Filter */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Language</label>
+                  <div className="space-y-2">
+                    {["English", "French", "Spanish", "German"].map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setLanguageFilter(languageFilter === lang ? null : lang)}
+                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left truncate"
+                        style={{
+                          background: languageFilter === lang ? "#F59E0B" : "rgba(255,255,255,0.05)",
+                          color: languageFilter === lang ? "#111" : pageText,
+                        }}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hobbies Filter */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Hobbies</label>
+                  <div className="space-y-2">
+                    {["Hiking", "Sports", "Music", "Travel"].map((hobby) => (
+                      <button
+                        key={hobby}
+                        onClick={() => setHobbyFilter(hobbyFilter === hobby ? null : hobby)}
+                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left truncate"
+                        style={{
+                          background: hobbyFilter === hobby ? "#F59E0B" : "rgba(255,255,255,0.05)",
+                          color: hobbyFilter === hobby ? "#111" : pageText,
+                        }}
+                      >
+                        {hobby}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Verified Only */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Verification</label>
+                  <button
+                    onClick={() => setVerifiedOnly(!verifiedOnly)}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left flex items-center gap-2"
+                    style={{
+                      background: verifiedOnly ? "#10B981" : "rgba(255,255,255,0.05)",
+                      color: verifiedOnly ? "#fff" : pageText,
+                    }}
+                  >
+                    <ShieldCheck size={16} />
+                    Verified Only
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {swipeMessage && (
             <motion.div
@@ -272,487 +450,192 @@ export const Nearby: React.FC<NearbyProps> = ({
             </motion.div>
           )}
 
-          {matchPerson && (
+          {/* Like Action Modal */}
+          {likeActionModal && (
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
-              onClick={() => setMatchPerson(null)}
+              onClick={() => setLikeActionModal(null)}
             >
               <div
                 className="w-full max-w-md rounded-[2rem] border p-6 shadow-2xl"
                 style={{ borderColor, background: panelBg }}
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="text-center">
-                  <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500 text-4xl">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-amber-500 text-5xl">
                     ❤️
                   </div>
-                  <p className="text-xs uppercase tracking-[0.24em]" style={{ color: mutedText }}>
-                    It&apos;s a match
-                  </p>
-                  <h3 className="mt-2 text-2xl font-bold">{matchPerson.name}</h3>
+                  <h3 className="text-2xl font-bold">You liked {likeActionModal.name}!</h3>
                   <p className="mt-2 text-sm" style={{ color: mutedText }}>
-                    You both liked each other. Start the conversation while the energy is fresh.
+                    What would you like to do next?
                   </p>
                 </div>
 
-                <div className="mt-5 rounded-2xl p-4" style={{ background: isLightMode ? "#fff" : "#14141b" }}>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: isLightMode ? "#f4ead7" : "#1f1f28", color: pageText }}>
-                      {matchPerson.avatar}
-                    </div>
-                    <div>
-                      <p className="font-bold">{matchPerson.name}</p>
-                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                        {matchPerson.profileId}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex gap-3">
+                <div className="space-y-3">
                   <button
-                    onClick={() => setMatchPerson(null)}
-                    className="flex-1 rounded-full border px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                    style={{ borderColor, color: pageText }}
-                  >
-                    Keep Browsing
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMatchPerson(null);
-                      openMessages();
-                    }}
-                    className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                    onClick={() => handleCreateEvent(likeActionModal)}
+                    className="w-full rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
                     style={{ background: "#F59E0B", color: "#111" }}
                   >
-                    Message now
+                    ✨ Create an event with {likeActionModal.name}
+                  </button>
+                  <button
+                    onClick={() => handleSaveForLater(likeActionModal)}
+                    className="w-full rounded-full border px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                    style={{ borderColor, color: pageText }}
+                  >
+                    💾 Save for later
+                  </button>
+                  <button
+                    onClick={() => setLikeActionModal(null)}
+                    className="w-full rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
+                    style={{ background: "#6B7280", color: "#fff" }}
+                  >
+                    Close
                   </button>
                 </div>
               </div>
             </motion.div>
           )}
 
-          <section className="grid gap-6 lg:grid-cols-[1.35fr_0.95fr]">
-            <div
-              style={{
-                border: `1px solid ${borderColor}`,
-                background: cardBg,
-                boxShadow: isLightMode ? "0 18px 50px rgba(120,53,15,0.08)" : "0 18px 50px rgba(0,0,0,0.3)",
-              }}
-              className="rounded-[2rem] p-4 sm:p-5"
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <User size={16} color="#F59E0B" />
-                  <h2 className="text-lg font-bold">People close to you</h2>
-                </div>
-                <button
-                  onClick={() => {
-                    setActiveNav("Discover");
-                    onNavigate("main");
-                  }}
-                  className="rounded-full px-3 py-1.5 text-xs font-bold transition hover:opacity-80"
-                  style={{ background: "#F59E0B", color: "#111" }}
-                >
-                  Back to Discover
-                </button>
-              </div>
-
+          {/* Single Card Display */}
+          <section className="mx-auto max-w-2xl">
+            {loading ? (
               <div
-                className="mb-5 rounded-[1.75rem] border p-4"
-                style={{ borderColor, background: panelBg }}
+                className="flex items-center justify-center gap-3 rounded-[2rem] border p-8"
+                style={{ borderColor, background: cardBg }}
               >
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                      Swipe deck
-                    </p>
-                    <h3 className="text-lg font-bold">Drag left or right to decide</h3>
-                  </div>
-                  <span
-                    className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
-                  >
-                    {swipeDeck.length} cards left
-                  </span>
+                <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
+                <span className="text-sm" style={{ color: subText }}>Loading nearby people...</span>
+              </div>
+            ) : currentPerson ? (
+              <motion.div
+                key={currentPerson.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3 }}
+                className="rounded-[2rem] border overflow-hidden"
+                style={{
+                  borderColor: 'rgba(245,158,11,0.28)',
+                  background: isLightMode ? 'rgba(255,255,255,0.96)' : 'rgba(18,18,23,0.98)',
+                  boxShadow: isLightMode ? '0 24px 70px rgba(120,53,15,0.12)' : '0 24px 70px rgba(0,0,0,0.34)',
+                }}
+              >
+                {/* Avatar Section */}
+                <div
+                  className="flex h-80 items-center justify-center text-9xl"
+                  style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}
+                >
+                  {currentPerson.avatar}
                 </div>
 
-                {activeSwipePerson ? (
-                  <div className="relative mx-auto flex min-h-[440px] w-full max-w-md items-center justify-center">
-                    {swipeDeck.slice(1).map((person, index) => (
-                      <div
-                        key={person.id}
-                        className="absolute inset-x-0 mx-auto rounded-[2rem] border p-4"
+                {/* Info Section */}
+                <div className="p-6 space-y-4">
+                  <div className="border-b pb-4" style={{ borderColor }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-3xl font-bold">{currentPerson.name}{currentPerson.age && `, ${currentPerson.age}`}</h2>
+                          {currentPerson.isVerified && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400">
+                              <ShieldCheck size={12} />
+                              Verified
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm uppercase tracking-[0.2em]" style={{ color: mutedText }}>
+                          {currentPerson.gender && `${currentPerson.gender} · `}{currentPerson.profileId} · {currentPerson.proximityLabel}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-base leading-6" style={{ color: mutedText }}>
+                      {currentPerson.bio}
+                    </p>
+                  </div>
+
+                  {/* Languages */}
+                  {currentPerson.language && currentPerson.language.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: mutedText }}>Languages</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {currentPerson.language.map((lang) => (
+                          <span key={lang} className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
+                            {lang}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hobbies */}
+                  {currentPerson.hobbies && currentPerson.hobbies.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: mutedText }}>Interests</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {currentPerson.hobbies.map((hobby) => (
+                          <span key={hobby} className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(236,72,153,0.15)', color: '#EC4899' }}>
+                            {hobby}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {currentPerson.badges.map((badge) => (
+                      <span
+                        key={badge}
+                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
                         style={{
-                          maxWidth: '26rem',
-                          borderColor,
-                          background: isLightMode ? 'rgba(255,255,255,0.92)' : 'rgba(26,26,33,0.88)',
-                          transform: `translateY(${(index + 1) * 12}px) scale(${0.96 - index * 0.03})`,
-                          opacity: 0.55 - index * 0.08,
-                          zIndex: 10 - index,
+                          background: isLightMode ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.14)',
+                          color: isLightMode ? '#b45309' : '#FCD34D',
                         }}
                       >
-                        <div className="overflow-hidden rounded-[1.5rem]" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
-                          <div className="flex h-56 items-center justify-center text-6xl">
-                            {person.avatar}
-                          </div>
-                          <div className="space-y-2 border-t p-4" style={{ borderColor }}>
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <h4 className="text-lg font-bold">{person.name}</h4>
-                                <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                                  {person.profileId}
-                                </p>
-                              </div>
-                              <span
-                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
-                              >
-                                {person.proximityLabel}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        📍 {badge}
+                      </span>
                     ))}
+                  </div>
 
-                    <motion.div
-                      key={activeSwipePerson.id}
-                      drag="x"
-                      dragElastic={0.18}
-                      dragMomentum={false}
-                      onDragEnd={(_, info) => {
-                        if (info.offset.x > 120) {
-                          void handleLikePerson(activeSwipePerson.id);
-                        } else if (info.offset.x < -120) {
-                          void handleDislikePerson(activeSwipePerson.id);
-                        }
-                      }}
-                      className="relative z-20 w-full max-w-md rounded-[2rem] border p-4 shadow-2xl"
-                      style={{
-                        borderColor: 'rgba(245,158,11,0.28)',
-                        background: isLightMode ? 'rgba(255,255,255,0.96)' : 'rgba(18,18,23,0.98)',
-                        boxShadow: isLightMode ? '0 24px 70px rgba(120,53,15,0.12)' : '0 24px 70px rgba(0,0,0,0.34)',
-                      }}
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => void handleDislikePerson(currentPerson.id)}
+                      className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 flex items-center justify-center gap-2"
+                      style={{ background: '#6B7280', color: '#fff' }}
                     >
-                      <div className="overflow-hidden rounded-[1.5rem]" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
-                        <div className="flex h-64 items-center justify-center text-7xl">
-                          {activeSwipePerson.avatar}
-                        </div>
-                        <div className="border-t p-4" style={{ borderColor }}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-2xl font-bold">{activeSwipePerson.name}</h3>
-                                {activeSwipePerson.isVerified && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400">
-                                    <ShieldCheck size={12} />
-                                    Verified
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-1 text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                                {activeSwipePerson.profileId} · {activeSwipePerson.city}
-                              </p>
-                            </div>
-                            <span
-                              className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                              style={{ background: 'rgba(245,158,11,0.12)', color: isLightMode ? '#b45309' : '#FCD34D' }}
-                            >
-                              {activeSwipePerson.proximityLabel}
-                            </span>
-                          </div>
-
-                          <p className="mt-3 text-sm leading-6" style={{ color: mutedText }}>
-                            {activeSwipePerson.bio}
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {activeSwipePerson.badges.map((badge) => (
-                              <span
-                                key={badge}
-                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                style={{
-                                  background: isLightMode ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.06)',
-                                  color: pageText,
-                                }}
-                              >
-                                {badge}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-3 gap-3">
-                        <button
-                          onClick={() => void handleDislikePerson(activeSwipePerson.id)}
-                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                          style={{ background: '#6B7280', color: '#fff' }}
-                        >
-                          Pass
-                        </button>
-                        <button
-                          onClick={() => {
-                            void handleLikePerson(activeSwipePerson.id);
-                          }}
-                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                          style={{ background: '#10B981', color: '#fff' }}
-                        >
-                          Like
-                        </button>
-                        <button
-                          onClick={openMessages}
-                          className="rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                          style={{ background: '#F59E0B', color: '#111' }}
-                        >
-                          Message
-                        </button>
-                      </div>
-                    </motion.div>
-                  </div>
-                ) : (
-                  <div className="rounded-[1.5rem] border p-5 text-sm" style={{ borderColor, color: mutedText }}>
-                    No more people in this filter. Try switching tabs or come back later.
-                  </div>
-                )}
-              </div>
-
-              {loading ? (
-                <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-5 text-sm" style={{ color: subText }}>
-                  <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                  Loading nearby people...
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {filteredPeople.map((person) => {
-                    const selected = selectedPerson?.id === person.id;
-                    return (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      key={person.id}
-                      onClick={() => setSelectedPersonId(person.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedPersonId(person.id);
-                        }
-                      }}
-                      className="w-full rounded-[1.5rem] border p-4 text-left transition hover:translate-y-[-1px]"
-                      style={{
-                        borderColor: selected ? "rgba(245,158,11,0.45)" : borderColor,
-                        background: selected ? "rgba(245,158,11,0.10)" : panelBg,
-                      }}
+                      <X size={18} />
+                      Pass
+                    </button>
+                    <button
+                      onClick={() => handleLikeAndShowModal(currentPerson)}
+                      className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 flex items-center justify-center gap-2"
+                      style={{ background: '#10B981', color: '#fff' }}
                     >
-                        <div className="flex items-start gap-4">
-                          <div
-                            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-black"
-                            style={{
-                              background: selected ? "#F59E0B" : isLightMode ? "#f4ead7" : "#1f1f28",
-                              color: selected ? "#111" : pageText,
-                            }}
-                          >
-                            {person.avatar}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-base font-bold">{person.name}</h3>
-                              {person.isVerified && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400">
-                                  <ShieldCheck size={12} />
-                                  Verified
-                                </span>
-                              )}
-                              <span
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
-                                style={{ background: "rgba(245,158,11,0.12)", color: isLightMode ? "#b45309" : "#FCD34D" }}
-                              >
-                                  <MapPin size={12} />
-                                  {person.proximityLabel}
-                                </span>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleLikePerson(person.id);
-                                }}
-                                disabled={likedUserIds.has(person.id)}
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90 disabled:opacity-50"
-                                style={{ 
-                                  background: likedUserIds.has(person.id) ? "#EF4444" : "#10B981",
-                                  color: "#fff" 
-                                }}
-                              >
-                                <Heart size={12} fill={likedUserIds.has(person.id) ? "#fff" : "none"} />
-                                Like
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleDislikePerson(person.id);
-                                }}
-                                disabled={dislikedUserIds.has(person.id)}
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90 disabled:opacity-50"
-                                style={{ 
-                                  background: dislikedUserIds.has(person.id) ? "#6B7280" : "#F59E0B",
-                                  color: "#111" 
-                                }}
-                              >
-                                <X size={12} />
-                                Pass
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openMessages();
-                                }}
-                                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition hover:opacity-90"
-                                style={{ background: "#F59E0B", color: "#111" }}
-                              >
-                                <MessageCircle size={12} />
-                                Message
-                              </button>
-                            </div>
-
-                            <p className="mt-1 text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                              {person.profileId} · {person.city}
-                            </p>
-
-                            <p className="mt-3 text-sm leading-6" style={{ color: mutedText }}>
-                              {person.bio}
-                            </p>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {person.badges.map((badge) => (
-                                <span
-                                  key={badge}
-                                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                  style={{
-                                    background: isLightMode ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.06)",
-                                    color: pageText,
-                                  }}
-                                >
-                                  {badge}
-                                </span>
-                              ))}
-                            </div>
-                            </div>
-                        </div>
-                    </div>
-                  );
-                })}
+                      <Heart size={18} />
+                      Like
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                border: `1px solid ${borderColor}`,
-                background: cardBg,
-                boxShadow: isLightMode ? "0 18px 50px rgba(120,53,15,0.08)" : "0 18px 50px rgba(0,0,0,0.3)",
-              }}
-              className="rounded-[2rem] p-4 sm:p-5"
-            >
-              <div className="mb-4 flex items-center gap-2">
-                <Compass size={16} color="#F59E0B" />
-                <h2 className="text-lg font-bold">Close To You</h2>
+              </motion.div>
+            ) : (
+              <div
+                className="rounded-[2rem] border p-8 text-center"
+                style={{ borderColor, background: cardBg }}
+              >
+                <div className="text-5xl mb-3">🎉</div>
+                <h3 className="text-xl font-bold mb-2">No more people!</h3>
+                <p style={{ color: mutedText }}>
+                  You've browsed all nearby members. Try switching filters or check back later.
+                </p>
               </div>
-
-              {selectedPerson ? (
-                <div
-                  className="overflow-hidden rounded-[1.5rem] border"
-                  style={{ borderColor, background: panelBg }}
-                >
-                  <div className="flex items-center justify-between gap-3 border-b px-4 py-4" style={{ borderColor }}>
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                        Selected member
-                      </p>
-                      <h3 className="truncate text-xl font-bold">{selectedPerson.name}</h3>
-                    </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500 text-lg font-black text-black">
-                      {selectedPerson.avatar}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 px-4 py-4">
-                    <p className="text-sm leading-6" style={{ color: mutedText }}>
-                      {selectedPerson.bio}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPerson.badges.map((badge) => (
-                        <span
-                          key={badge}
-                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                          style={{
-                            background: isLightMode ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.14)",
-                            color: isLightMode ? "#b45309" : "#FCD34D",
-                          }}
-                        >
-                          {badge}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="rounded-2xl p-4" style={{ background: isLightMode ? "#fff" : "#14141b" }}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                            Profile ID
-                          </p>
-                          <p className="mt-1 font-mono text-sm">{selectedPerson.profileId}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                            Nearby
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">{selectedPerson.proximityLabel}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => handleLikePerson(selectedPerson.id)}
-                        disabled={likedUserIds.has(selectedPerson.id)}
-                        className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                        style={{ background: likedUserIds.has(selectedPerson.id) ? "#EF4444" : "#10B981", color: "#fff" }}
-                      >
-                        <Heart size={16} fill={likedUserIds.has(selectedPerson.id) ? "#fff" : "none"} />
-                        Like
-                      </button>
-                      <button
-                        onClick={() => handleDislikePerson(selectedPerson.id)}
-                        disabled={dislikedUserIds.has(selectedPerson.id)}
-                        className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-                        style={{ background: dislikedUserIds.has(selectedPerson.id) ? "#6B7280" : "#F59E0B", color: "#111" }}
-                      >
-                        <X size={16} />
-                        Pass
-                      </button>
-                      <button
-                        onClick={openMessages}
-                        className="flex-1 rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                        style={{ background: "#F59E0B", color: "#111" }}
-                      >
-                        Message
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-[1.5rem] border p-5 text-sm" style={{ borderColor, color: mutedText }}>
-                  No nearby people found right now.
-                </div>
-              )}
-            </div>
+            )}
           </section>
         </motion.div>
       </main>

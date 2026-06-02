@@ -84,16 +84,6 @@ export const PrivateInviteCard: React.FC<PrivateInviteCardProps> = ({ invite, on
         </div>
       </div>
 
-      <div>
-        <p className="text-xs text-gray-500">Billing Tier</p>
-        <p className="text-sm text-white">
-          {invite.billing_tier === 1 && '💚 100% Covered'}
-          {invite.billing_tier === 2 && '💙 ~75% Covered'}
-          {invite.billing_tier === 3 && '💜 50% Covered'}
-          {invite.billing_tier === 4 && '👑 Host Me'}
-        </p>
-      </div>
-
       {invite.personal_note && (
         <div>
           <p className="text-xs text-gray-500">Message from {invite.host_name}</p>

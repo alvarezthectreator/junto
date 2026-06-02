@@ -20,7 +20,8 @@ import {
   Bell,
   MapPin,
   AlertCircle,
-  Loader2
+  Loader2,
+  Heart
 } from 'lucide-react';
 import * as API from '../services/api';
 import { compressImageDataUrl } from '../utils/imageCompression';
@@ -591,7 +592,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
   const [userApplicationsLoading, setUserApplicationsLoading] = useState(true);
   const [userApplicationsError, setUserApplicationsError] = useState('');
   const [eventActivityFeed, setEventActivityFeed] = useState<EventActivity[]>([]);
-  const tabs = ['Active', 'Past', 'Drafts'];
+  const tabs = ['Active', 'Past', 'My Applications'];
 
   // Get current user ID from localStorage
   const getCurrentUserId = () => {
@@ -1839,20 +1840,92 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               </div>
             )}
 
-            {activeTab === 'Drafts' &&
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                  <Edit3 className="text-gray-500" size={24} />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  No drafts saved ✏️
-                </h3>
-                <p className="text-gray-400 max-w-sm">
-                  Start creating a post and save it for later if you're not ready to
-                  publish.
-                </p>
+            {activeTab === 'My Applications' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {userApplications.length > 0 ? (
+                  userApplications.map((app) => (
+                    <div
+                      key={app.id}
+                      className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col"
+                    >
+                      <div className="h-32 w-full relative overflow-hidden bg-gradient-to-br from-[#F59E0B]/20 to-[#4ECDC4]/20 flex items-center justify-center">
+                        <Calendar className="text-white/30" size={48} />
+                      </div>
+                      <div className="p-6 flex flex-col flex-1 relative z-10 -mt-4">
+                        <div className="flex justify-between items-start mb-3 gap-3">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-white leading-tight">
+                              {app.eventTitle}
+                            </h3>
+                            <p className="text-sm text-gray-400 mt-1">{app.hostName}</p>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
+                              app.status === 'accepted'
+                                ? 'bg-green-500/20 text-green-400'
+                                : app.status === 'declined'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-amber-500/20 text-amber-400'
+                            }`}
+                          >
+                            {app.status === 'pending' && <><Clock size={12} className="inline mr-1" />Pending</>}
+                            {app.status === 'accepted' && <><Check size={12} className="inline mr-1" />Accepted</>}
+                            {app.status === 'declined' && <><X size={12} className="inline mr-1" />Declined</>}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 mb-6 text-sm text-gray-400">
+                          <div className="flex items-center gap-2">
+                            <Calendar size={14} />
+                            {app.city}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            Applied {formatRelativeTime(app.submittedAt)}
+                          </div>
+                        </div>
+
+                        {app.note && (
+                          <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/5">
+                            <p className="text-xs font-semibold text-gray-400 mb-1">Your message:</p>
+                            <p className="text-sm text-gray-300">{app.note}</p>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-auto">
+                          {app.status === 'accepted' && (
+                            <span className="flex-1 py-2 px-3 rounded-lg bg-green-500/10 text-green-400 text-sm font-medium text-center">
+                              ✅ You're in!
+                            </span>
+                          )}
+                          {app.status === 'pending' && (
+                            <span className="flex-1 py-2 px-3 rounded-lg bg-amber-500/10 text-amber-400 text-sm font-medium text-center">
+                              ⏳ Waiting for response...
+                            </span>
+                          )}
+                          {app.status === 'declined' && (
+                            <span className="flex-1 py-2 px-3 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium text-center">
+                              ❌ Not accepted this time
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                      <Heart className="text-gray-500" size={24} />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No applications yet
+                    </h3>
+                    <p className="text-gray-400 max-w-sm">
+                      Browse events and click "I'm interested" to apply. Your applications will appear here!
+                    </p>
+                  </div>
+                )}
               </div>
-            }
+            )}
             </div>
 
             <InterestedModal />

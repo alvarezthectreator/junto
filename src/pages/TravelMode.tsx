@@ -466,28 +466,6 @@ export const TravelMode = () => {
         </div>
 
         <div style={{ padding: "24px 28px", maxWidth: 720, width: "100%", flex: 1, overflowY: "auto" }}>
-          {/* Premium Badge */}
-          <div
-            style={{
-              background: isLightMode ? "rgba(245,158,11,0.10)" : "rgba(246,157,17,0.08)",
-              border: isLightMode ? "1px solid rgba(245,158,11,0.18)" : "1px solid rgba(246,157,17,0.2)",
-              borderRadius: 12,
-              padding: "12px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 24,
-            }}
-          >
-            <span style={{ fontSize: 20 }}>✈️</span>
-            <div>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#F69D11", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Premium Feature
-              </p>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#888" }}>Paid members unlock travel discovery</p>
-            </div>
-          </div>
-
           <div style={{
             display: "flex",
             flexWrap: "wrap",

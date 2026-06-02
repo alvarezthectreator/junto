@@ -361,10 +361,19 @@ export function App() {
                   >
                     <button
                       onClick={() => {
-                        setCurrentPage('main');
+                        setCurrentPage('premium');
                         setShowMenu(false);
                       }}
                       className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      Premium
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentPage('main');
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
                     >
                       Help
                     </button>
