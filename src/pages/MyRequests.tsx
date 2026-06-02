@@ -212,7 +212,7 @@ function mapApplicationToPerson(application: any): InterestedPerson {
     eventId: application.event_id ? String(application.event_id) : undefined,
     applicationId: String(application.id || application.application_id || ''),
     backendId: application.backend_id ? String(application.backend_id) : undefined,
-    name: application.user_name || application.name || 'Guest',
+    name: application.user_name || application.name || 'Unknown User',
     avatar: application.user_avatar || '👤',
     joinedAt: formatRelativeTime(rawJoinedAt),
     joinedAtRaw: rawJoinedAt,
@@ -951,6 +951,9 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
     return 0; // recent is default order
   });
 
+  // Combined requests for "Received" tab (active + past)
+  const allReceivedRequests = [...sortedRequests, ...pastRequests];
+
   const openInterestedModal = (eventId: string) => {
     setSelectedEventId(eventId);
     setShowInterestedModal(true);
@@ -1681,14 +1684,16 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
 
               {activeTab === 'Received' && !loading && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {sortedRequests.length > 0 ? (
-                    sortedRequests.map((req) => (
+                  {allReceivedRequests.length > 0 ? (
+                    allReceivedRequests.map((req) => {
+                      const isExpired = isEventExpired(req.event_date, req.event_time, req.status);
+                      return (
                       <div
                         key={req.id}
-                        className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col"
+                        className={`bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col ${isExpired ? 'opacity-90' : ''}`}
                       >
                         <div
-                          className="h-36 w-full relative overflow-hidden bg-cover bg-center"
+                          className={`h-36 w-full relative overflow-hidden bg-cover bg-center ${isExpired ? 'grayscale-[15%]' : ''}`}
                           style={{
                             backgroundImage: `linear-gradient(to top, rgba(26,26,33,0.95), rgba(26,26,33,0.2)), url(${req.cover_photo_url || req.coverImage || fallbackCoverImage})`,
                           }}
@@ -1704,10 +1709,10 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                             </h3>
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                req.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                                isExpired ? 'bg-gray-500/20 text-gray-300' : 'bg-green-500/20 text-green-400'
                               }`}
                             >
-                              {req.status}
+                              {isExpired ? 'Expired' : 'Active'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
@@ -1763,7 +1768,8 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                           </div>
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
                       <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
@@ -1866,8 +1872,6 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 )}
               </div>
             )}
-
-            {/* My Applications section removed - now shown under Send tab */}
             </div>
 
             <InterestedModal />
