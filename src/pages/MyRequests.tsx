@@ -1436,7 +1436,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
 
 
             {/* Header */}
-            <div className="mb-10">
+            <div className="mb-8">
               <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 tracking-tight">
                 Your <span className="italic text-gradient font-normal">vibes.</span>
               </h2>
@@ -1445,7 +1445,29 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               </p>
             </div>
 
-            {/* Stats Row */}
+            {/* Tab Buttons - Top */}
+            <div className="mb-8 flex items-center gap-3">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className="px-6 py-3 rounded-full font-semibold transition-all"
+                    style={{
+                      background: isActive ? '#F59E0B' : 'rgba(255,255,255,0.08)',
+                      color: isActive ? '#111' : '#fff',
+                      border: `1px solid ${isActive ? '#F59E0B' : 'rgba(255,255,255,0.1)'}`,
+                    }}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Stats Row - Only show for Received tab */}
+            {activeTab === 'Received' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
               <div className="bg-[#1A1A21] border border-white/5 rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-[#F59E0B]/10 flex items-center justify-center">
@@ -1474,8 +1496,11 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                   <p className="text-xl font-bold text-white">{pastRequests.length}</p>
                 </div>
               </div>
-            </div>
+              </div>
+            )}
 
+            {/* Event History Feed - Only show for Received tab */}
+            {activeTab === 'Received' && (
             <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1516,7 +1541,10 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 </div>
               )}
             </div>
+            )}
 
+            {/* Attendee history - Only show for Send tab */}
+            {activeTab === 'Send' && (
             <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1624,34 +1652,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 </div>
               )}
             </div>
-
-            {/* Tabs */}
-            <div className="flex items-center gap-6 border-b border-white/5 mb-8">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab;
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`pb-4 text-sm font-medium transition-colors relative ${isActive ? 'text-white' : 'text-gray-400 hover:text-white'}`}>
-                    
-                    {tab}
-                    {isActive &&
-                    <motion.div
-                      layoutId="myRequestsTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#F59E0B]"
-                      initial={false}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 300,
-                        damping: 30
-                      }} />
-
-                    }
-                  </button>);
-
-              })}
-            </div>
+            )}
 
             {/* Sorting Controls */}
             {activeTab === 'Received' && (
