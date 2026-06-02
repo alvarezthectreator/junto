@@ -6,6 +6,7 @@ import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
 import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
+import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -22,6 +23,10 @@ import reportRoutes from './api/routes/reports.js';
 import ratingRoutes from './api/routes/ratings.js';
 import inviteRoutes from './api/routes/invites.js';
 import verificationRoutes from './api/routes/verification.js';
+import squadsRoutes from './api/routes/squads.js';
+import checkInsRoutes from './api/routes/checkIns.js';
+import notificationPreferencesRoutes from './api/routes/notificationPreferences.js';
+import fraudDetectionRoutes from './api/routes/fraudDetection.js';
 
 // Load environment variables
 dotenv.config();
@@ -67,6 +72,10 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/invites', inviteRoutes);
 app.use('/api/verification', verificationRoutes);
+app.use('/api/squads', squadsRoutes);
+app.use('/api/check-ins', checkInsRoutes);
+app.use('/api/notification-preferences', notificationPreferencesRoutes);
+app.use('/api/fraud', fraudDetectionRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -95,6 +104,15 @@ async function startServer() {
     
     // Start event expiry cleanup scheduler
     startExpiryCleanupScheduler();
+    
+    // Start event reminder scheduler
+    setTimeout(() => {
+      global.db.run('SELECT 1', (err) => {
+        if (!err) {
+          initializeReminderScheduler(global.db);
+        }
+      });
+    }, 2000);
     
     // Create HTTP server for both Express and WebSocket
     const server = http.createServer(app);

@@ -337,6 +337,7 @@ function CreateEventModal({
     location: "",
     capacity: 4,
     description: "",
+    cancellationPolicy: "moderate",
     imageFile: null as File | null,
     imagePreview: "",
   });
@@ -393,6 +394,7 @@ function CreateEventModal({
           location: "",
           capacity: 4,
           description: "",
+          cancellationPolicy: "moderate",
           imageFile: null,
           imagePreview: "",
         });
@@ -824,6 +826,59 @@ function CreateEventModal({
             )}
           </div>
 
+          {/* Cancellation Policy */}
+          <div>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#999",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 6,
+                display: "block",
+              }}
+            >
+              Cancellation Policy
+            </label>
+            <select
+              value={formData.cancellationPolicy}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  cancellationPolicy: e.target.value,
+                }))
+              }
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                background: isLightMode ? "#fffaf2" : "#050505",
+                border: `1px solid ${isLightMode ? "rgba(36,27,16,0.1)" : "#1a1a1a"}`,
+                borderRadius: 10,
+                color: isLightMode ? "#241b10" : "#fff",
+                fontSize: 14,
+                outline: "none",
+                transition: "all 0.2s ease",
+                cursor: "pointer",
+              } as React.CSSProperties}
+              onFocus={(e) => {
+                (e.currentTarget as any).style.borderColor = "#F69D11";
+              }}
+              onBlur={(e) => {
+                (e.currentTarget as any).style.borderColor = isLightMode ? "rgba(36,27,16,0.1)" : "#1a1a1a";
+              }}
+            >
+              <option value="strict">Strict - No refunds (until 48h before)</option>
+              <option value="moderate">Moderate - 50% refund (until 24h before)</option>
+              <option value="flexible">Flexible - Full refund (until 12h before)</option>
+            </select>
+            <p style={{ fontSize: 11, color: "#999", marginTop: 6, fontStyle: "italic" }}>
+              {formData.cancellationPolicy === 'strict' && '❌ No refunds allowed'}
+              {formData.cancellationPolicy === 'moderate' && '⚠️ 50% refund if cancelled 24+ hours before'}
+              {formData.cancellationPolicy === 'flexible' && '✅ Full refund if cancelled 12+ hours before'}
+            </p>
+          </div>
+
           {/* Description */}
           <div>
             <label
@@ -1006,6 +1061,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         event_time: eventData.time, // Format: HH:MM
         cover_photo_url: uploadedImage || eventData.cover_photo_url,
         max_guests: eventData.capacity,
+        cancellation_policy: eventData.cancellationPolicy || 'moderate',
         host_id: userId,
         billing_tier: 1, // Default tier
         host_fee: 0, // Can be updated later

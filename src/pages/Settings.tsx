@@ -34,6 +34,8 @@ import {
   getUserId,
   logout as clearSession,
   unblockUser,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 } from '../services/api';
 import {
   readBlockedUserRecords,
@@ -155,6 +157,50 @@ export function Settings({
     );
   }, []);
 
+  // Load notification preferences from backend
+  useEffect(() => {
+    let active = true;
+
+    const loadPreferences = async () => {
+      if (!userId) {
+        return;
+      }
+
+      try {
+        const response = await getNotificationPreferences(userId);
+        if (active && response?.preferences) {
+          const prefs = response.preferences;
+          setNotificationSettings((current) =>
+            current.map((setting) => {
+              switch (setting.id) {
+                case 'interests':
+                  return { ...setting, enabled: prefs.interests_enabled !== false };
+                case 'messages':
+                  return { ...setting, enabled: prefs.messages_enabled !== false };
+                case 'reminders':
+                  return { ...setting, enabled: prefs.reminders_enabled !== false };
+                case 'promotions':
+                  return { ...setting, enabled: prefs.promotions_enabled === true };
+                case 'push':
+                  return { ...setting, enabled: prefs.push_enabled !== false };
+                default:
+                  return setting;
+              }
+            })
+          );
+        }
+      } catch (error) {
+        console.error('Error loading notification preferences:', error);
+      }
+    };
+
+    loadPreferences();
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   useEffect(() => {
     let active = true;
 
@@ -234,6 +280,15 @@ export function Settings({
         current.map((setting) => (setting.id === id ? { ...setting, enabled: granted } : setting))
       );
       setPushEnabled(granted);
+
+      // Save to backend
+      if (userId) {
+        try {
+          await updateNotificationPreferences(userId, { push_enabled: granted });
+        } catch (error) {
+          console.error('Error updating push preference:', error);
+        }
+      }
       return;
     }
 
@@ -247,6 +302,33 @@ export function Settings({
         return { ...setting, enabled: nextEnabled };
       })
     );
+
+    // Save updated preference to backend
+    if (userId) {
+      try {
+        const updateData: any = {};
+        switch (id) {
+          case 'interests':
+            updateData.interests_enabled = !target?.enabled;
+            break;
+          case 'messages':
+            updateData.messages_enabled = !target?.enabled;
+            break;
+          case 'reminders':
+            updateData.reminders_enabled = !target?.enabled;
+            break;
+          case 'promotions':
+            updateData.promotions_enabled = !target?.enabled;
+            break;
+          case 'push':
+            updateData.push_enabled = !target?.enabled;
+            break;
+        }
+        await updateNotificationPreferences(userId, updateData);
+      } catch (error) {
+        console.error('Error updating notification preference:', error);
+      }
+    }
   };
 
   const togglePrivacy = (id: string) => {

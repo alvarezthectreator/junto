@@ -4,7 +4,8 @@ import {
   getUserApplications,
   getEventApplications,
   updateApplicationStatus,
-  withdrawApplication
+  withdrawApplication,
+  getEventCapacityInfo
 } from '../controllers/applications.js';
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const router = express.Router();
 router.post('/', applyToEvent);
 router.get('/user/:userId', getUserApplications);
 router.get('/event/:eventId', getEventApplications);
+router.get('/event/:eventId/capacity', getEventCapacityInfo);
 router.put('/:applicationId/status', updateApplicationStatus);
 router.delete('/:applicationId', withdrawApplication);
 

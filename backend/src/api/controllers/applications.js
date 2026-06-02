@@ -19,11 +19,35 @@ export async function applyToEvent(req, res) {
       return res.status(400).json({ error: 'Already applied to this event' });
     }
 
+    // Check event capacity
+    const eventRes = await query(
+      'SELECT max_guests FROM events WHERE id = ?',
+      [event_id]
+    );
+
+    if (!eventRes.rows || eventRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const event = eventRes.rows[0];
+    const maxGuests = event.max_guests || 999;
+
+    // Count accepted applications (excluding declined/waitlisted)
+    const countRes = await query(
+      `SELECT COUNT(*) as count FROM event_applications 
+       WHERE event_id = ? AND status IN ('pending', 'accepted')`,
+      [event_id]
+    );
+
+    const currentApplications = countRes.rows && countRes.rows[0]?.count || 0;
+    const isAtCapacity = currentApplications >= maxGuests;
+    const applicationStatus = isAtCapacity ? 'waitlisted' : 'pending';
+
     const applicationId = uuidv4();
     const result = await query(
       `INSERT INTO event_applications (id, event_id, user_id, personal_note, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))`,
-      [applicationId, event_id, user_id, message || null]
+       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [applicationId, event_id, user_id, message || null, applicationStatus]
     );
 
     // Get the inserted record
@@ -33,22 +57,38 @@ export async function applyToEvent(req, res) {
     );
 
     // Get event and user info for notification
-    const eventRes = await query('SELECT title, host_id FROM events WHERE id = ?', [event_id]);
     const userRes = await query('SELECT display_name FROM users WHERE id = ?', [user_id]);
 
-    if (eventRes.rows && eventRes.rows.length > 0 && userRes.rows && userRes.rows.length > 0) {
-      const event = eventRes.rows[0];
+    if (userRes.rows && userRes.rows.length > 0) {
       const user = userRes.rows[0];
+      const eventInfo = await query('SELECT title, host_id FROM events WHERE id = ?', [event_id]);
 
-      // Notify host
-      await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [uuidv4(), event.host_id, 'new_application', user_id, 'New Event Application', `${user.display_name} applied to "${event.title}"`]
-      );
+      if (eventInfo.rows && eventInfo.rows.length > 0) {
+        const eventData = eventInfo.rows[0];
+
+        // Notify host
+        const notificationText = isAtCapacity 
+          ? `${user.display_name} joined the waitlist for "${eventData.title}"`
+          : `${user.display_name} applied to "${eventData.title}"`;
+
+        await query(
+          `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+          [uuidv4(), eventData.host_id, 'new_application', user_id, 'New Event Application', notificationText]
+        );
+      }
     }
 
-    res.status(201).json({ application: appRes.rows && appRes.rows[0], message: '✅ Application submitted' });
+    const responseMessage = isAtCapacity 
+      ? '✅ Added to waitlist (event is full)' 
+      : '✅ Application submitted';
+
+    res.status(201).json({ 
+      application: appRes.rows && appRes.rows[0], 
+      message: responseMessage,
+      isWaitlisted: isAtCapacity,
+      remainingCapacity: Math.max(0, maxGuests - currentApplications)
+    });
   } catch (error) {
     console.error('Apply error:', error);
     res.status(500).json({ error: error.message });
@@ -170,6 +210,52 @@ export async function withdrawApplication(req, res) {
     );
 
     res.json({ success: true, message: '✅ Application withdrawn' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function getEventCapacityInfo(req, res) {
+  try {
+    const { eventId } = req.params;
+
+    // Get event capacity
+    const eventRes = await query(
+      'SELECT max_guests FROM events WHERE id = ?',
+      [eventId]
+    );
+
+    if (!eventRes.rows || eventRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const event = eventRes.rows[0];
+    const maxGuests = event.max_guests || 999;
+
+    // Count applications by status
+    const countRes = await query(
+      `SELECT 
+        COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted,
+        COUNT(CASE WHEN status IN ('pending', 'accepted') THEN 1 END) as total,
+        COUNT(CASE WHEN status = 'waitlisted' THEN 1 END) as waitlisted
+       FROM event_applications 
+       WHERE event_id = ?`,
+      [eventId]
+    );
+
+    const counts = countRes.rows && countRes.rows[0] || { accepted: 0, total: 0, waitlisted: 0 };
+    const atCapacity = counts.total >= maxGuests;
+    const remainingSpots = Math.max(0, maxGuests - counts.total);
+
+    res.json({
+      maxCapacity: maxGuests,
+      acceptedApplications: counts.accepted,
+      totalApplications: counts.total,
+      waitlistedApplications: counts.waitlisted,
+      atCapacity,
+      remainingSpots,
+      capacityPercentage: (counts.total / maxGuests) * 100
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

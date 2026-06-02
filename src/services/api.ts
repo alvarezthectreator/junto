@@ -374,6 +374,10 @@ export async function withdrawApplication(applicationId: string): Promise<void> 
   return apiCall(`/applications/${applicationId}`, 'DELETE');
 }
 
+export async function getEventCapacityInfo(eventId: string): Promise<any> {
+  return apiCall(`/applications/event/${eventId}/capacity`);
+}
+
 // ==================== MESSAGES ====================
 
 export async function sendMessage(
@@ -669,4 +673,132 @@ export async function registerForPushNotifications(userId: string): Promise<bool
     console.error('Push registration failed:', error);
     return false;
   }
+}
+
+// ==================== SQUADS ====================
+
+export async function createSquad(name: string, description?: string, isPublic?: boolean, maxMembers?: number): Promise<any> {
+  return apiCall('/squads', 'POST', {
+    name,
+    description,
+    isPublic,
+    maxMembers
+  });
+}
+
+export async function getUserSquads(userId: string): Promise<any[]> {
+  const response = await apiCall(`/squads/user/${userId}`);
+  return response || [];
+}
+
+export async function getSquadDetails(squadId: string): Promise<any> {
+  return apiCall(`/squads/${squadId}`);
+}
+
+export async function inviteUsersToSquad(squadId: string, userIds: string[]): Promise<any> {
+  return apiCall(`/squads/${squadId}/invite`, 'POST', { userIds });
+}
+
+export async function acceptSquadInvite(inviteId: string): Promise<any> {
+  return apiCall(`/squads/invite/${inviteId}/accept`, 'PUT');
+}
+
+export async function declineSquadInvite(inviteId: string): Promise<any> {
+  return apiCall(`/squads/invite/${inviteId}/decline`, 'PUT');
+}
+
+export async function removeSquadMember(squadId: string, userId: string): Promise<any> {
+  return apiCall(`/squads/${squadId}/members/${userId}`, 'DELETE');
+}
+
+export async function deleteSquad(squadId: string): Promise<any> {
+  return apiCall(`/squads/${squadId}`, 'DELETE');
+}
+
+// ==================== CHECK-INS ====================
+
+export async function checkIntoEvent(
+  eventId: string,
+  userLocationLat: number,
+  userLocationLon: number,
+  eventLocationLat?: number,
+  eventLocationLon?: number,
+  distanceFromEvent?: number
+): Promise<any> {
+  return apiCall('/check-ins', 'POST', {
+    eventId,
+    userLocationLat,
+    userLocationLon,
+    eventLocationLat,
+    eventLocationLon,
+    distanceFromEvent,
+  });
+}
+
+export async function getUserCheckIns(userId: string): Promise<any[]> {
+  const response = await apiCall(`/check-ins/user/${userId}`);
+  return response || [];
+}
+
+export async function getEventCheckIns(eventId: string): Promise<any> {
+  return apiCall(`/check-ins/event/${eventId}`);
+}
+
+export async function hasCheckedIn(eventId: string, userId: string): Promise<any> {
+  return apiCall(`/check-ins/event/${eventId}/user/${userId}`);
+}
+
+// ==================== NOTIFICATION PREFERENCES ====================
+
+export async function getNotificationPreferences(userId: string): Promise<any> {
+  return apiCall(`/notification-preferences/${userId}`);
+}
+
+export async function updateNotificationPreferences(userId: string, preferences: any): Promise<any> {
+  return apiCall(`/notification-preferences/${userId}`, 'PUT', preferences);
+}
+
+export async function resetNotificationPreferences(userId: string): Promise<any> {
+  return apiCall(`/notification-preferences/${userId}/reset`, 'POST');
+}
+
+// ==================== FRAUD DETECTION ====================
+
+export async function getUserFraudStatus(userId: string): Promise<any> {
+  return apiCall(`/fraud/${userId}/status`);
+}
+
+export async function calculateUserRiskScore(userId: string): Promise<any> {
+  return apiCall(`/fraud/${userId}/calculate-risk`, 'POST');
+}
+
+export async function createFraudFlag(userId: string, flagType: string, severity: string, description: string): Promise<any> {
+  return apiCall(`/fraud/${userId}/flags`, 'POST', { flagType, severity, description });
+}
+
+export async function getAccountFlags(userId: string, reviewed?: boolean): Promise<any> {
+  const query = reviewed !== undefined ? `?reviewed=${reviewed}` : '';
+  return apiCall(`/fraud/${userId}/flags${query}`);
+}
+
+export async function reviewAccountFlag(flagId: string, reviewedBy: string, actionTaken: string, notes: string): Promise<any> {
+  return apiCall(`/fraud/flags/${flagId}`, 'PUT', { reviewedBy, actionTaken, notes });
+}
+
+export async function getSuspiciousActivities(userId: string, resolved?: boolean): Promise<any> {
+  const query = resolved !== undefined ? `?resolved=${resolved}` : '';
+  return apiCall(`/fraud/${userId}/suspicious-activities${query}`);
+}
+
+export async function resolveSuspiciousActivity(activityId: string, resolution_reason: string): Promise<any> {
+  return apiCall(`/fraud/activities/${activityId}/resolve`, 'PUT', { resolution_reason });
+}
+
+export async function getFraudLogs(userId: string, eventType?: string): Promise<any> {
+  const query = eventType ? `?eventType=${eventType}` : '';
+  return apiCall(`/fraud/${userId}/logs${query}`);
+}
+
+export async function getHighRiskUsers(threshold: number = 80, limit: number = 20): Promise<any> {
+  return apiCall(`/fraud?threshold=${threshold}&limit=${limit}`);
 }

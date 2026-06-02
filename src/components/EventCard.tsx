@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MessageCircle, Heart } from 'lucide-react';
+import { Calendar, MessageCircle, Heart, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import * as API from '../services/api';
+import { isEventExpired, getRemainingCapacity, getCapacityPercentage } from '../utils/eventUtils';
 
 interface EventCardProps {
   userInitial: string;
@@ -25,6 +26,10 @@ interface EventCardProps {
   onInterested?: () => void;
   onOpenUser?: (user: any) => void;
   userAvatar?: string;
+  eventTime?: string;
+  maxCapacity?: number;
+  currentAttendees?: number;
+  status?: string;
 }
 
 export function EventCard({
@@ -48,10 +53,20 @@ export function EventCard({
   currentUserId,
   onInterested,
   onOpenUser,
-  userAvatar
+  userAvatar,
+  eventTime = '',
+  maxCapacity,
+  currentAttendees = 0,
+  status = 'active'
 }: EventCardProps) {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Check if event is expired
+  const eventExpired = isEventExpired(date, eventTime) || status === 'expired';
+  const isAtCapacity = maxCapacity ? currentAttendees >= maxCapacity : false;
+  const remainingCapacity = maxCapacity ? getRemainingCapacity(currentAttendees, maxCapacity) : 0;
+  const capacityPercentage = maxCapacity ? getCapacityPercentage(currentAttendees, maxCapacity) : 0;
 
   useEffect(() => {
     // Check if event is already saved
@@ -115,20 +130,40 @@ export function EventCard({
         ease: 'easeOut'
       }}
       whileHover={{
-        y: -4
+        y: eventExpired ? 0 : -4
       }}
-      className="bg-[#1A1A21] rounded-3xl border border-white/5 hover:border-white/10 transition-colors relative overflow-hidden flex flex-col h-full group">
+      className={`bg-[#1A1A21] rounded-3xl border transition-colors relative overflow-hidden flex flex-col h-full group ${
+        eventExpired 
+          ? 'opacity-60 border-white/5 hover:border-white/5' 
+          : 'border-white/5 hover:border-white/10'
+      }`}>
       
       {/* Top Accent Stripe */}
-      <div className={`absolute top-0 left-0 w-full h-1 z-20 ${accentColor}`} />
+      <div className={`absolute top-0 left-0 w-full h-1 z-20 ${eventExpired ? 'bg-gray-500' : accentColor}`} />
+
+      {/* Expired Badge */}
+      {eventExpired && (
+        <div className="absolute top-3 right-3 z-30 bg-red-500/90 text-white px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
+          <AlertCircle size={14} />
+          Expired
+        </div>
+      )}
+
+      {/* Capacity Badge */}
+      {isAtCapacity && !eventExpired && (
+        <div className="absolute top-3 right-3 z-30 bg-amber-500/90 text-white px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shadow-lg">
+          <AlertCircle size={14} />
+          Full
+        </div>
+      )}
 
       {/* Cover Image */}
       {coverImage &&
-      <div className="w-full h-28 sm:h-32 md:h-40 relative overflow-hidden bg-[#0F0F13]">
+      <div className={`w-full h-28 sm:h-32 md:h-40 relative overflow-hidden ${eventExpired ? 'bg-gray-900' : 'bg-[#0F0F13]'}`}>
           <img
           src={coverImage}
           alt={actionText}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${eventExpired ? 'opacity-40' : ''}`} />
         
           <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A21] via-transparent to-transparent opacity-90"></div>
         </div>
@@ -222,13 +257,44 @@ export function EventCard({
           </div>
         </div>
 
+        {/* Capacity Bar (if max capacity is set) */}
+        {maxCapacity && (
+          <div className="mb-3 sm:mb-4 md:mb-6">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[9px] sm:text-xs text-gray-400 font-medium">
+                Capacity
+              </span>
+              <span className={`text-[9px] sm:text-xs font-semibold ${
+                isAtCapacity ? 'text-red-400' : 'text-emerald-400'
+              }`}>
+                {isAtCapacity ? 'Full' : `${remainingCapacity} spot${remainingCapacity !== 1 ? 's' : ''} left`}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  isAtCapacity ? 'bg-red-500' : 'bg-emerald-500'
+                }`}
+                style={{ width: `${Math.min(100, capacityPercentage)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3 mt-auto w-full">
           <button
             onClick={onInterested}
-            className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity hover:opacity-90 shadow-sm ${accentColor || 'bg-[#F59E0B]'} ${accentColor?.includes('text-gray-900') ? 'text-gray-900' : 'text-white'}`}>
+            disabled={eventExpired || isAtCapacity}
+            className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity ${
+              eventExpired 
+                ? 'bg-gray-600 text-gray-300 cursor-not-allowed opacity-50'
+                : isAtCapacity
+                ? 'bg-red-600/50 text-red-100 cursor-not-allowed opacity-75'
+                : `${accentColor || 'bg-[#F59E0B]'} ${accentColor?.includes('text-gray-900') ? 'text-gray-900' : 'text-white'} hover:opacity-90`
+            } shadow-sm`}>
             
-            View event →
+            {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : 'View event →'}
           </button>
           <button 
             onClick={handleSaveToggle}

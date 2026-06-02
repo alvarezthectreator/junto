@@ -8,6 +8,7 @@ import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
 import { useAppContext } from '../context/AppContext';
 import * as API from '../services/api';
+import { isEventExpired, getRemainingCapacity, isEventAtCapacity } from '../utils/eventUtils';
 import { compressImageDataUrl } from '../utils/imageCompression';
 import {
   appendEventActivity,
@@ -221,6 +222,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const [eventActivities, setEventActivities] = useState<EventActivity[]>([]);
+  const [isWaitlisted, setIsWaitlisted] = useState(false);
   const [editDraft, setEditDraft] = useState({
     title: '',
     description: '',
@@ -298,6 +300,11 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const canEditEvent = Boolean(event.host_id && currentUserId && event.host_id === currentUserId);
   const eventCoords = event.coords ?? [6.4281, 3.4219];
   const mapUrl = `https://www.google.com/maps?q=${eventCoords[0]},${eventCoords[1]}`;
+  
+  // Check event expiry and capacity
+  const eventExpired = useMemo(() => isEventExpired(event.date, event.time) || event.status === 'expired', [event.date, event.time, event.status]);
+  const atCapacity = useMemo(() => isEventAtCapacity(event.currentAttendees, event.totalSpots), [event.currentAttendees, event.totalSpots]);
+  const remainingCapacity = useMemo(() => getRemainingCapacity(event.currentAttendees, event.totalSpots), [event.currentAttendees, event.totalSpots]);
   const currentAttendees = event.attendees ?? [];
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
   const reviews = event.reviews ?? [];
@@ -547,7 +554,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   };
 
   const handleJoin = () => {
-    if (isJoined || applicationStatus === 'pending') {
+    if (isJoined || applicationStatus === 'pending' || eventExpired || atCapacity) {
       return;
     }
 
@@ -637,6 +644,12 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     if (currentUser?.id) {
       API.applyToEvent(currentUser.id, event.id, applicationText.trim())
         .then((response) => {
+          // Check if user was waitlisted
+          if (response?.isWaitlisted) {
+            setIsWaitlisted(true);
+            setShareState('Added to waitlist (event is full)');
+          }
+
           try {
             const backendId = String(response?.id || response?.application_id || '');
             if (!backendId) return;
@@ -951,17 +964,29 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 rounded-2xl border border-[#F59E0B]/25 bg-[#F59E0B]/10 p-4"
+                  className={`mb-4 rounded-2xl p-4 border ${
+                    isWaitlisted 
+                      ? 'border-amber-500/25 bg-amber-500/10' 
+                      : 'border-[#F59E0B]/25 bg-[#F59E0B]/10'
+                  }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-[#FBBF24]">Application pending</p>
+                      <p className={`text-sm font-semibold ${isWaitlisted ? 'text-amber-400' : 'text-[#FBBF24]'}`}>
+                        {isWaitlisted ? 'On Waitlist' : 'Application pending'}
+                      </p>
                       <p className="text-xs text-gray-300">
-                        You applied to join this event. The host will see your note and can approve it.
+                        {isWaitlisted 
+                          ? 'You\'re on the waitlist! The host will notify you if a spot opens up.'
+                          : 'You applied to join this event. The host will see your note and can approve it.'}
                       </p>
                     </div>
-                    <span className="inline-flex w-fit items-center rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-2.5 py-1 text-[10px] font-semibold text-[#FBBF24]">
-                      Pending review
+                    <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                      isWaitlisted
+                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+                        : 'border-[#F59E0B]/20 bg-[#F59E0B]/10 text-[#FBBF24]'
+                    }`}>
+                      {isWaitlisted ? 'Waitlisted' : 'Pending review'}
                     </span>
                   </div>
                   {applicationNote && (
@@ -1232,6 +1257,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                           </p>
                         </div>
                       </div>
+                    </motion.div>
+
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-blue-400">Cancellation Policy</h3>
+                      <p className="text-sm text-gray-300">
+                        {event.cancellation_policy === 'strict' && '❌ No refunds allowed. Cancellations accepted until 48 hours before the event.'}
+                        {event.cancellation_policy === 'moderate' && '⚠️ 50% refund available. Cancellations accepted until 24 hours before the event.'}
+                        {event.cancellation_policy === 'flexible' && '✅ Full refund available. Cancellations accepted until 12 hours before the event.'}
+                        {!event.cancellation_policy && '📋 Host has set a cancellation policy. Check details before applying.'}
+                      </p>
                     </motion.div>
 
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
@@ -1772,12 +1807,22 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
         <div className="mx-auto max-w-6xl">
           {applicationStatus === 'none' ? (
             <div className="grid gap-2 sm:grid-cols-[1.4fr_0.8fr_0.8fr]">
-              <button
-                onClick={handleJoin}
-                className="w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-bold text-white transition hover:opacity-90"
-              >
-                I&apos;m Interested →
-              </button>
+              {eventExpired ? (
+                <div className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 py-3 font-bold text-red-300">
+                  <AlertCircle size={18} /> Event has expired
+                </div>
+              ) : atCapacity ? (
+                <div className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 py-3 font-bold text-amber-300">
+                  <AlertCircle size={18} /> Event is full
+                </div>
+              ) : (
+                <button
+                  onClick={handleJoin}
+                  className="w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-bold text-white transition hover:opacity-90"
+                >
+                  I&apos;m Interested → {remainingCapacity > 0 && `(${remainingCapacity} spot${remainingCapacity !== 1 ? 's' : ''} left)`}
+                </button>
+              )}
               <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 <MessageCircle size={16} /> Message
               </button>

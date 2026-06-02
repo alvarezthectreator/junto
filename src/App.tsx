@@ -21,6 +21,8 @@ import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
 import { Notifications } from './pages/Notifications';
 import { PublicHostProfile } from './pages/PublicHostProfile';
+import SquadsPage from './pages/Squads';
+import { AdminModerator } from './pages/AdminModerator';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
@@ -314,6 +316,8 @@ export function App() {
     if (currentPage === 'settings') return <Settings onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode />;
+    if (currentPage === 'squads') return <SquadsPage />;
+    if (currentPage === 'admin') return <AdminModerator onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
     if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
     if (currentPage === 'public-profile' && publicHostId) return <PublicHostProfile hostId={publicHostId} onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
 
