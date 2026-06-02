@@ -573,7 +573,7 @@ function EditEventModalForm({
 export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyRequestsProps) {
   const navigate = useNavigate();
   const { setSelectedUser } = useAppContext();
-  const [activeTab, setActiveTab] = useState('Active');
+  const [activeTab, setActiveTab] = useState('Received');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -592,7 +592,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
   const [userApplicationsLoading, setUserApplicationsLoading] = useState(true);
   const [userApplicationsError, setUserApplicationsError] = useState('');
   const [eventActivityFeed, setEventActivityFeed] = useState<EventActivity[]>([]);
-  const tabs = ['Active', 'Past', 'My Applications'];
+  const tabs = ['Received', 'Send'];
 
   // Get current user ID from localStorage
   const getCurrentUserId = () => {
@@ -1651,7 +1651,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
             </div>
 
             {/* Sorting Controls */}
-            {activeTab === 'Active' && (
+            {activeTab === 'Received' && (
               <div className="mb-8 flex gap-3">
                 <select
                   value={sortBy}
@@ -1679,7 +1679,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 </div>
               )}
 
-              {activeTab === 'Active' && !loading && (
+              {activeTab === 'Received' && !loading && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {sortedRequests.length > 0 ? (
                     sortedRequests.map((req) => (
@@ -1780,67 +1780,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               </div>
             )}
 
-            {activeTab === 'Past' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {pastRequests.length > 0 ? (
-                  pastRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="bg-[#1A1A21] border border-white/5 rounded-3xl overflow-hidden group hover:border-white/10 transition-colors flex flex-col opacity-90"
-                    >
-                      <div
-                        className="h-36 w-full relative overflow-hidden bg-cover bg-center grayscale-[15%]"
-                        style={{
-                          backgroundImage: `linear-gradient(to top, rgba(26,26,33,0.96), rgba(26,26,33,0.25)), url(${req.cover_photo_url || req.coverImage || fallbackCoverImage})`,
-                        }}
-                      />
-                      <div className="p-6 flex flex-col flex-1 relative z-10 -mt-6">
-                        <div className="flex justify-between items-start mb-2 gap-3">
-                          <h3 className="text-xl font-semibold text-white leading-tight">
-                            {req.title}
-                          </h3>
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-500/20 text-gray-300">
-                            expired
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
-                          <Calendar size={14} />
-                          {req.event_date} {req.event_time && `· ${req.event_time}`}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500 mb-6">
-                          <MapPin size={12} /> {req.location_city}
-                        </div>
-                        <p className="text-sm text-gray-400 mb-6">
-                          This event is no longer visible on Discover, but you can update the date, time, or image and republish it here.
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => openEditModal(req)}
-                            className="flex-1 py-3 rounded-2xl bg-[#F59E0B] text-white font-semibold text-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
-                          >
-                            <Edit3 size={16} /> Edit and republish
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-center col-span-full">
-                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                      <ImageIcon className="text-gray-500" size={24} />
-                    </div>
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      No past hangouts yet 👀
-                    </h3>
-                    <p className="text-gray-400 max-w-sm">
-                      When an event expires, it will move here and you can bring it back by changing the date.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'My Applications' && (
+            {activeTab === 'Send' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {userApplications.length > 0 ? (
                   userApplications.map((app) => (
@@ -1926,6 +1866,8 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 )}
               </div>
             )}
+
+            {/* My Applications section removed - now shown under Send tab */}
             </div>
 
             <InterestedModal />
