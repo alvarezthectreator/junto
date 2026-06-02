@@ -1453,7 +1453,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className="px-6 py-3 rounded-full font-semibold transition-all"
+                    className="flex-1 px-6 py-3 rounded-full font-semibold transition-all"
                     style={{
                       background: isActive ? '#F59E0B' : 'rgba(255,255,255,0.08)',
                       color: isActive ? '#111' : '#fff',
