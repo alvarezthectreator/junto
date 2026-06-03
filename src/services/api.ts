@@ -802,3 +802,25 @@ export async function getFraudLogs(userId: string, eventType?: string): Promise<
 export async function getHighRiskUsers(threshold: number = 80, limit: number = 20): Promise<any> {
   return apiCall(`/fraud?threshold=${threshold}&limit=${limit}`);
 }
+
+// ==================== FOLLOW-UP MANAGEMENT ====================
+
+export async function getEventFollowups(eventId: string): Promise<any> {
+  return apiCall(`/followups/event/${eventId}`);
+}
+
+export async function respondToFollowup(eventId: string, userId: string, responseType: string): Promise<any> {
+  return apiCall(`/followups/event/${eventId}/user/${userId}/respond`, 'POST', { response_type: responseType });
+}
+
+export async function getHostFollowupAnalytics(hostId: string): Promise<any> {
+  return apiCall(`/followups/host/${hostId}/analytics`);
+}
+
+export async function getUserFollowups(userId: string): Promise<any> {
+  return apiCall(`/followups/user/${userId}`);
+}
+
+export async function resendFollowup(eventId: string, userIds: string[]): Promise<any> {
+  return apiCall(`/followups/${eventId}/resend`, 'POST', { userIds });
+}

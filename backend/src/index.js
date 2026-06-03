@@ -7,6 +7,7 @@ import { seedDatabase } from './db/seed.js';
 import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
+import { initializeFollowupScheduler } from './services/followupScheduler.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -27,6 +28,7 @@ import squadsRoutes from './api/routes/squads.js';
 import checkInsRoutes from './api/routes/checkIns.js';
 import notificationPreferencesRoutes from './api/routes/notificationPreferences.js';
 import fraudDetectionRoutes from './api/routes/fraudDetection.js';
+import followupRoutes from './api/routes/followup.js';
 
 // Load environment variables
 dotenv.config();
@@ -76,6 +78,7 @@ app.use('/api/squads', squadsRoutes);
 app.use('/api/check-ins', checkInsRoutes);
 app.use('/api/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/fraud', fraudDetectionRoutes);
+app.use('/api/followups', followupRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -110,6 +113,7 @@ async function startServer() {
       global.db.run('SELECT 1', (err) => {
         if (!err) {
           initializeReminderScheduler(global.db);
+          initializeFollowupScheduler(global.db);
         }
       });
     }, 2000);

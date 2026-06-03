@@ -252,6 +252,13 @@ function ensureProductionTables() {
     }
   });
 
+  // Add followup_sent column to event_applications if it doesn't exist
+  db.run('ALTER TABLE event_applications ADD COLUMN followup_sent BOOLEAN DEFAULT 0;', (err) => {
+    if (err && !err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      // Ignore errors if column already exists
+    }
+  });
+
   // Create fraud detection tables
   const createFraudScoresTable = `
     CREATE TABLE IF NOT EXISTS fraud_scores (
