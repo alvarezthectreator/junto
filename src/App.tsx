@@ -23,6 +23,7 @@ import { Notifications } from './pages/Notifications';
 import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
 import { AdminModerator } from './pages/AdminModerator';
+import { OTPLogin } from './pages/OTPLogin';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
@@ -256,11 +257,15 @@ export function App() {
   }, []);
 
   const content = (() => {
-    // Show Landing page first
+    // Show OTP Login page if not authenticated
     if (!isAuthenticated) {
       return (
-        <Landing 
-          onLogin={handleLogin}
+        <OTPLogin
+          onSuccess={(token, user) => {
+            localStorage.setItem('junto-session-token', token);
+            handleLogin(token, user);
+          }}
+          onNavigate={setCurrentPage}
         />
       );
     }

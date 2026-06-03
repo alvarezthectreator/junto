@@ -824,3 +824,21 @@ export async function getUserFollowups(userId: string): Promise<any> {
 export async function resendFollowup(eventId: string, userIds: string[]): Promise<any> {
   return apiCall(`/followups/${eventId}/resend`, 'POST', { userIds });
 }
+
+// ==================== OTP AUTHENTICATION ====================
+
+export async function requestOTP(email: string): Promise<any> {
+  return apiCall(`/auth/request-otp`, 'POST', { email });
+}
+
+export async function verifyOTP(email: string, code: string): Promise<any> {
+  return apiCall(`/auth/verify-otp`, 'POST', { email, code });
+}
+
+export async function resendOTP(email: string): Promise<any> {
+  return apiCall(`/auth/otp/resend`, 'POST', { email });
+}
+
+export async function getOTPExpiry(email: string): Promise<any> {
+  return apiCall(`/auth/otp/expiry?email=${encodeURIComponent(email)}`);
+}

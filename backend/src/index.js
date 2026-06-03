@@ -8,6 +8,7 @@ import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 import { initializeFollowupScheduler } from './services/followupScheduler.js';
+import { initializeEmailTransporter } from './services/otpService.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -29,6 +30,7 @@ import checkInsRoutes from './api/routes/checkIns.js';
 import notificationPreferencesRoutes from './api/routes/notificationPreferences.js';
 import fraudDetectionRoutes from './api/routes/fraudDetection.js';
 import followupRoutes from './api/routes/followup.js';
+import otpRoutes from './api/routes/otp.js';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +63,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', otpRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/applications', applicationRoutes);
@@ -99,6 +102,10 @@ async function startServer() {
   try {
     console.log('📚 Initializing database...');
     await initializeDatabase();
+    
+    // Initialize email transporter for OTP
+    console.log('📧 Initializing email transporter...');
+    initializeEmailTransporter();
     
     if (process.env.MOCK_DATA === 'true') {
       console.log('🌱 Seeding database with mock data...');

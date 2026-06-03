@@ -259,6 +259,28 @@ function ensureProductionTables() {
     }
   });
 
+  // Create OTP codes table for authentication
+  const createOtpCodesTable = `
+    CREATE TABLE IF NOT EXISTS otp_codes (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      code VARCHAR(6) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+  db.run(createOtpCodesTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create otp_codes table:', err.message);
+    } else {
+      console.log('✅ Ensured otp_codes table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON otp_codes(expires_at);');
+    }
+  });
+
   // Create fraud detection tables
   const createFraudScoresTable = `
     CREATE TABLE IF NOT EXISTS fraud_scores (
