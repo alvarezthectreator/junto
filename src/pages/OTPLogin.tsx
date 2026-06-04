@@ -86,6 +86,7 @@ export function OTPLogin({ onSuccess, onNavigate }: OTPLoginProps) {
       const result = await verifyOTP(email, otp);
       if (result.success) {
         setSuccess('✅ Login successful!');
+        localStorage.setItem('sessionToken', result.token);
         localStorage.setItem('junto-session-token', result.token);
         
         setTimeout(() => {

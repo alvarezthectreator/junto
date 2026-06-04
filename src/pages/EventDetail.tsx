@@ -3,6 +3,7 @@ import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, Ex
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
+import { EventReviewPanel } from '../components/EventReviewPanel';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { discoverEvents, getDiscoverEventById, toEventDetail } from '../data/discoverEvents';
@@ -340,6 +341,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const currentAttendees = event.attendees ?? [];
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
   const reviews = event.reviews ?? [];
+  const canLeaveEventReview = eventExpired && Boolean(currentUserId) && (isJoined || applicationStatus === 'accepted');
   const applicationStorageKey = `junto-event-application-${event.id}`;
   const billingDetails = getBillingTierDetails(event);
   const isSquadEvent = Boolean((event as any).is_squad_event || (event as any).squad_event);

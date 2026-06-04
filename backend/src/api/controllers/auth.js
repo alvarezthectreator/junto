@@ -1,6 +1,7 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { generateToken } from '../middleware/auth.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -85,9 +86,17 @@ export async function login(req, res) {
         id: userData.id,
         username: userData.username,
         display_name: userData.display_name || userData.username,
-        profile_id: userData.profile_id
+        profile_id: userData.profile_id,
+        gender: userData.gender || null,
+        date_of_birth: userData.date_of_birth || null,
+        occupation: userData.occupation || null
       },
-      session_token: `session-${uuidv4()}`,
+      session_token: generateToken({
+        id: userData.id,
+        email: userData.email,
+        username: userData.username,
+        display_name: userData.display_name,
+      }),
       message: '✅ Logged in successfully'
     });
   } catch (error) {
@@ -98,7 +107,7 @@ export async function login(req, res) {
 
 export async function signup(req, res) {
   try {
-    const { username, fullName, password, referralCode } = req.body;
+    const { username, fullName, password, dateOfBirth, referralCode, gender } = req.body;
 
     if (!username || !fullName || !password) {
       return res.status(400).json({ error: 'Username, full name, and password required' });
@@ -125,16 +134,16 @@ export async function signup(req, res) {
     }
 
     await query(
-      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, referred_by_user_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash, referredByUserId]
+      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, referred_by_user_id, gender, occupation, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash, referredByUserId, gender || null, null]
     );
 
     // Create profile
     await query(
-      `INSERT INTO user_profiles (id, user_id, last_active, created_at, updated_at)
-       VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))`,
-      [uuidv4(), userId]
+      `INSERT INTO user_profiles (id, user_id, date_of_birth, last_active, created_at, updated_at)
+       VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'))`,
+      [uuidv4(), userId, dateOfBirth || null]
     );
 
     res.json({
@@ -144,9 +153,17 @@ export async function signup(req, res) {
         username: username,
         display_name: fullName,
         profile_id: profileId,
-        referred_by_user_id: referredByUserId
+        referred_by_user_id: referredByUserId,
+        date_of_birth: dateOfBirth || null,
+        gender: gender || null,
+        occupation: null
       },
-      session_token: `session-${uuidv4()}`,
+      session_token: generateToken({
+        id: userId,
+        email: username.toLowerCase(),
+        username: username.toLowerCase(),
+        display_name: fullName.split(' ')[0],
+      }),
       message: '✅ Account created successfully'
     });
   } catch (error) {
@@ -157,8 +174,31 @@ export async function signup(req, res) {
 
 export async function verifySession(req, res) {
   try {
-    // For now, just return success - real auth comes later
-    res.json({ valid: true, message: 'Session valid' });
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ valid: false, error: 'Session missing or invalid' });
+    }
+
+    const user = await query('SELECT * FROM users WHERE id = ?', [userId]);
+    if (user.rows.length === 0) {
+      return res.status(401).json({ valid: false, error: 'Session user not found' });
+    }
+
+    const userData = user.rows[0];
+    res.json({
+      valid: true,
+      user: {
+        id: userData.id,
+        username: userData.username,
+        display_name: userData.display_name || userData.username,
+        profile_id: userData.profile_id,
+        gender: userData.gender || null,
+        date_of_birth: userData.date_of_birth || null,
+        occupation: userData.occupation || null,
+      },
+      message: 'Session valid'
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

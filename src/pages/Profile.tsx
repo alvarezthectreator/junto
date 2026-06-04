@@ -42,18 +42,86 @@ interface ProfileProps {
   onCloseSidebar?: () => void;
   currentUser?: any;
   handleLogout?: () => void;
+  startEditing?: boolean;
 }
 
 const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
+const DEFAULT_AVATAR =
+  "data:image/svg+xml;charset=UTF-8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Avatar placeholder">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#2b2a3d"/>
+          <stop offset="100%" stop-color="#151622"/>
+        </linearGradient>
+        <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f59e0b"/>
+          <stop offset="100%" stop-color="#fcd34d"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="400" rx="48" fill="url(#bg)"/>
+      <circle cx="200" cy="162" r="72" fill="#f6d2b8"/>
+      <path d="M116 156c0-48 38-87 84-87s84 39 84 87c0 2-1 6-1 9-12-22-37-37-66-37-28 0-54 14-66 35-18 1-32 7-41 21-2-10-4-21-4-28Z" fill="#2a2438"/>
+      <path d="M136 145c12-36 40-56 72-56 31 0 58 18 71 52-16-11-39-18-68-18-27 0-53 9-75 22Z" fill="url(#hair)"/>
+      <circle cx="174" cy="161" r="8" fill="#3b2f2a"/>
+      <circle cx="226" cy="161" r="8" fill="#3b2f2a"/>
+      <path d="M172 188c9 10 20 15 28 15 10 0 19-4 28-13" fill="none" stroke="#c46a55" stroke-width="8" stroke-linecap="round"/>
+      <path d="M122 336c14-52 46-79 78-79s64 26 78 79" fill="#f59e0b"/>
+      <path d="M147 253c16 13 33 19 53 19 19 0 37-6 53-18l29 20c-18 30-43 46-82 46-38 0-65-17-82-47l29-20Z" fill="#f6d2b8"/>
+    </svg>
+  `);
+
+const INTEREST_EMOJIS: Record<string, string> = {
+  Music: '🎵',
+  Food: '🍜',
+  Travel: '✈️',
+  Fitness: '💪',
+  Movies: '🎬',
+  Photography: '📸',
+  Art: '🎨',
+  Books: '📚',
+  Gaming: '🎮',
+  Nightlife: '🌃',
+  Comedy: '😂',
+  Wellness: '🧘',
+  Hiking: '🥾',
+  Coffee: '☕',
+};
+
+const LOCATION_FLAGS: Record<string, string> = {
+  Lagos: '🇳🇬',
+  Abuja: '🇳🇬',
+  'Port Harcourt': '🇳🇬',
+  Ibadan: '🇳🇬',
+  Kano: '🇳🇬',
+  Enugu: '🇳🇬',
+  Accra: '🇬🇭',
+  Nairobi: '🇰🇪',
+};
+
+function getInterestEmoji(interest: string) {
+  return INTEREST_EMOJIS[interest] || '✨';
+}
+
+function getLocationFlag(location?: string) {
+  if (!location) return '📍';
+  const matched = Object.entries(LOCATION_FLAGS).find(([key]) => location.toLowerCase().includes(key.toLowerCase()));
+  return matched?.[1] || '📍';
+}
+
+function isDefaultAvatar(src?: string) {
+  return !src || src === DEFAULT_AVATAR;
+}
 
 function getAgeFromDob(dob?: string) {
   if (!dob) {
-    return 26;
+    return null;
   }
 
   const birthDate = new Date(dob);
   if (Number.isNaN(birthDate.getTime())) {
-    return 26;
+    return null;
   }
 
   const today = new Date();
@@ -64,7 +132,11 @@ function getAgeFromDob(dob?: string) {
     age--;
   }
 
-  return Math.max(age, 18);
+  return age >= 0 ? age : null;
+}
+
+function getAvatarSrc(avatarImage?: string) {
+  return avatarImage && avatarImage.trim() ? avatarImage : DEFAULT_AVATAR;
 }
 
 function clampScore(value: number) {
@@ -75,6 +147,7 @@ function calculateReliabilityScore(profile: {
   bio: string;
   interests: string[];
   photos: string[];
+  avatarImage: string;
   introVideo: string;
   dob: string;
   occupation: string;
@@ -82,7 +155,8 @@ function calculateReliabilityScore(profile: {
   const completenessScore =
     (profile.bio.trim().length >= 80 ? 14 : profile.bio.trim().length >= 40 ? 8 : 0) +
     (profile.interests.length >= 4 ? 12 : profile.interests.length >= 2 ? 7 : 0) +
-    (profile.photos.length >= 4 ? 14 : profile.photos.length >= 2 ? 8 : 0) +
+    (!isDefaultAvatar(profile.avatarImage) ? 10 : 0) +
+    (profile.photos.length >= 2 ? 12 : profile.photos.length >= 1 ? 8 : 0) +
     (profile.introVideo ? 8 : 0) +
     (profile.dob ? 12 : 0) +
     (profile.occupation.trim() ? 6 : 0);
@@ -91,7 +165,8 @@ function calculateReliabilityScore(profile: {
     25 +
     (profile.bio.trim().length >= 80 ? 5 : 0) +
     (profile.interests.length >= 3 ? 5 : 0) +
-    (profile.photos.length >= 3 ? 4 : 0) +
+    (!isDefaultAvatar(profile.avatarImage) ? 4 : 0) +
+    (profile.photos.length >= 2 ? 4 : 0) +
     (profile.introVideo ? 5 : 0);
 
   return clampScore(Math.max(42, Math.min(98, completenessScore + trustSignals)));
@@ -102,6 +177,7 @@ function getProfileCompletion(profile: {
   bio: string;
   interests: string[];
   photos: string[];
+  avatarImage: string;
   introVideo: string;
   dob: string;
   occupation: string;
@@ -110,7 +186,8 @@ function getProfileCompletion(profile: {
   const checklist = [
     { key: 'name', label: 'Name', done: profile.name.trim().length >= 2, weight: 12 },
     { key: 'bio', label: 'Bio', done: profile.bio.trim().length >= 40, weight: 16 },
-    { key: 'photos', label: 'Photos', done: profile.photos.length >= 2, weight: 18 },
+    { key: 'avatar', label: 'Avatar', done: !isDefaultAvatar(profile.avatarImage), weight: 12 },
+    { key: 'photos', label: 'Gallery', done: profile.photos.length >= 2, weight: 16 },
     { key: 'interests', label: 'Interests', done: profile.interests.length >= 3, weight: 12 },
     { key: 'location', label: 'Location', done: profile.location.trim().length >= 2, weight: 10 },
     { key: 'occupation', label: 'Occupation', done: profile.occupation.trim().length >= 2, weight: 8 },
@@ -325,7 +402,8 @@ export const Profile: React.FC<ProfileProps> = ({
   setActiveNav = () => {},
   onCloseSidebar = () => {},
   currentUser,
-  handleLogout
+  handleLogout,
+  startEditing = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showMessage, setShowMessage] = useState('');
@@ -348,36 +426,45 @@ export const Profile: React.FC<ProfileProps> = ({
   const [photoEditorAspect, setPhotoEditorAspect] = useState('square');
   const [photoEditorBusy, setPhotoEditorBusy] = useState(false);
   const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
+  const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
+  const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState(() => {
     // Try to get user data from localStorage for initial state
     let initialName = 'Sarah Adeyemi';
     let initialProfileId = 'JTO-9201-NG';
+    let initialDob = '';
+    let initialGender = '';
+    let initialOccupation = '';
     
     try {
       const storedUser = localStorage.getItem('currentUser');
       if (storedUser) {
         const userData = JSON.parse(storedUser);
-        initialName = userData.name || userData.username || initialName;
+        initialName = userData.username || userData.name || initialName;
         initialProfileId = userData.profile_id || initialProfileId;
+        initialDob = userData.date_of_birth || '';
+        initialGender = userData.gender || '';
+        initialOccupation = userData.occupation || '';
       }
     } catch (e) {
       console.error('Failed to parse stored user:', e);
     }
     
     return {
-      name: currentUser?.name || initialName,
-      age: 26,
-      dob: '1999-08-14',
-      genderIdentity: 'Woman',
-      occupation: 'Product Designer',
-      bio: 'Adventure seeker, coffee lover, dog parent. Usually down for brunch, beach days, and spontaneous city plans.',
-      interests: ['Hiking', 'Photography', 'Coffee', 'Art'],
+      name: currentUser?.username || currentUser?.name || initialName,
+      age: currentUser?.date_of_birth ? getAgeFromDob(currentUser.date_of_birth) : (initialDob ? getAgeFromDob(initialDob) : null),
+      dob: currentUser?.date_of_birth || initialDob,
+      genderIdentity: currentUser?.gender || initialGender,
+      occupation: currentUser?.occupation || initialOccupation,
+      bio: '',
+      interests: [],
       reliabilityScore: 0,
       isVerified: true,
       location: 'Lagos, Nigeria',
       profileId: currentUser?.profile_id || initialProfileId,
+      avatarImage: DEFAULT_AVATAR,
       visibility: {
         dob: 'private',
         genderIdentity: 'private',
@@ -386,11 +473,7 @@ export const Profile: React.FC<ProfileProps> = ({
         photos: 'public',
       },
       introVideo: '',
-      photos: [
-        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
-        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600',
-        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600',
-      ],
+      photos: [],
     };
   });
 
@@ -399,13 +482,19 @@ export const Profile: React.FC<ProfileProps> = ({
   // Update profile with currentUser data when it changes
   useEffect(() => {
     if (currentUser && !selectedUser) {
-      setProfile(prev => ({
+    setProfile(prev => ({
         ...prev,
-        name: currentUser.name || currentUser.username || prev.name,
+        name: currentUser.username || currentUser.name || prev.name,
         profileId: currentUser.profile_id || prev.profileId,
       }));
     }
   }, [currentUser, selectedUser]);
+
+  useEffect(() => {
+    if (startEditing && isOwnProfile) {
+      setIsEditing(true);
+    }
+  }, [startEditing, isOwnProfile]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -413,21 +502,35 @@ export const Profile: React.FC<ProfileProps> = ({
         setLoading(true);
         if (currentUser?.id) {
           const userProfile = await API.getUserProfile(currentUser.id);
+          const serverPhotos = Array.isArray(userProfile.profile_photos) ? userProfile.profile_photos : [];
           const nextServerReliabilityScore = pickServerReliabilityScore(userProfile);
           setProfile(prev => ({
             ...prev,
-            name: userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
-            age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : prev.age,
+            name: currentUser?.username || userProfile.username || userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
+            age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : null,
             dob: userProfile.date_of_birth || prev.dob,
             bio: userProfile.bio || prev.bio,
             interests: userProfile.interests || prev.interests,
-            photos: userProfile.profile_photos || prev.photos,
+            genderIdentity: userProfile.gender || prev.genderIdentity,
+            avatarImage: getAvatarSrc(
+              userProfile.avatar_image ||
+              userProfile.profile_photo ||
+              serverPhotos[0] ||
+              prev.avatarImage
+            ),
+            photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : prev.photos,
             introVideo: userProfile.intro_video_url || prev.introVideo,
             location: userProfile.location || userProfile.city || prev.location,
             reliabilityScore: calculateReliabilityScore({
               bio: userProfile.bio || prev.bio,
               interests: userProfile.interests || prev.interests,
-              photos: userProfile.profile_photos || prev.photos,
+              photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : prev.photos,
+              avatarImage: getAvatarSrc(
+                userProfile.avatar_image ||
+                userProfile.profile_photo ||
+                serverPhotos[0] ||
+                prev.avatarImage
+              ),
               introVideo: userProfile.intro_video_url || prev.introVideo,
               dob: userProfile.date_of_birth || prev.dob,
               occupation: userProfile.occupation || prev.occupation,
@@ -449,17 +552,21 @@ export const Profile: React.FC<ProfileProps> = ({
 
   useEffect(() => {
     if (selectedUser) {
+      const selectedAvatar = getAvatarSrc(selectedUser.avatarImage || selectedUser.photo || selectedUser.avatar);
       setProfile(prev => ({
         ...prev,
         name: selectedUser.name || prev.name,
-        age: selectedUser.age || prev.age,
+        age: selectedUser.age ?? null,
         bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
         interests: selectedUser.interests || prev.interests,
         location: selectedUser.location || 'Lagos, Nigeria',
+        avatarImage: selectedAvatar,
+        genderIdentity: selectedUser.gender || prev.genderIdentity,
         reliabilityScore: selectedUser.reliabilityScore || calculateReliabilityScore({
           bio: selectedUser.bio || prev.bio,
           interests: selectedUser.interests || prev.interests,
           photos: prev.photos,
+          avatarImage: selectedAvatar,
           introVideo: prev.introVideo,
           dob: prev.dob,
           occupation: prev.occupation,
@@ -472,15 +579,35 @@ export const Profile: React.FC<ProfileProps> = ({
     }
   }, [selectedUser]);
 
+  useEffect(() => {
+    const fetchHostedEventsCount = async () => {
+      if (!isOwnProfile || !currentUser?.id) {
+        setHostedEventsCount(selectedUser?.eventsHosted ?? 0);
+        return;
+      }
+
+      try {
+        const response = await API.getHostEvents(currentUser.id);
+        setHostedEventsCount(Array.isArray(response.events) ? response.events.length : 0);
+      } catch (error) {
+        console.error('Failed to load hosted events count:', error);
+        setHostedEventsCount(0);
+      }
+    };
+
+    fetchHostedEventsCount();
+  }, [currentUser?.id, isOwnProfile, selectedUser?.eventsHosted]);
+
   const stats = {
     outings: 24,
-    hosted: 5,
+    hosted: hostedEventsCount ?? 0,
     reviews: 18,
     rating: 4.7,
   };
   const computedReliabilityScore = calculateReliabilityScore(profile);
   const displayReliabilityScore = serverReliabilityScore ?? computedReliabilityScore;
   const profileCompletion = getProfileCompletion(profile);
+  const displayAge = getAgeFromDob(profile.dob);
 
   useEffect(() => {
     setProfileCompletionProgress(profileCompletion.completion);
@@ -512,6 +639,7 @@ export const Profile: React.FC<ProfileProps> = ({
     setPhotoEditorZoom(1);
     setPhotoEditorAspect('square');
     setPhotoEditorBusy(false);
+    setPhotoUploadTarget(null);
   };
 
   const openPhotoEditorWithFile = (dataUrl: string) => {
@@ -523,8 +651,14 @@ export const Profile: React.FC<ProfileProps> = ({
     setPhotoEditorOpen(true);
   };
 
+  const beginPhotoUpload = (target: 'avatar' | { type: 'gallery'; index: number }) => {
+    setPhotoUploadTarget(target);
+    fileInputRef.current?.click();
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
       if (!file.type.startsWith('image/')) {
         setProfileValidationError('Please upload an image file.');
@@ -566,9 +700,17 @@ export const Profile: React.FC<ProfileProps> = ({
         zoom: photoEditorZoom,
       });
       const compressed = await compressImageDataUrl(edited, { maxDimension: 1280, quality: 0.84, maxBytes: 900000 });
+      const nextGallery = [...profile.photos];
+      if (photoUploadTarget && typeof photoUploadTarget === 'object' && photoUploadTarget.type === 'gallery') {
+        while (nextGallery.length <= photoUploadTarget.index) {
+          nextGallery.push('');
+        }
+        nextGallery[photoUploadTarget.index] = compressed;
+      }
       const nextProfile = {
         ...profile,
-        photos: [compressed, ...profile.photos].slice(0, 8),
+        avatarImage: photoUploadTarget === 'avatar' ? compressed : profile.avatarImage,
+        photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
       };
       setProfile({
         ...nextProfile,
@@ -600,13 +742,13 @@ export const Profile: React.FC<ProfileProps> = ({
       }
       if (profile.dob) {
         const age = getAgeFromDob(profile.dob);
-        if (age < 18) {
+        if (age !== null && age < 18) {
           setProfileValidationError('You must be at least 18 years old.');
           return;
         }
       }
-      if (profile.photos.length === 0) {
-        setProfileValidationError('Add at least one photo before saving.');
+      if (isDefaultAvatar(profile.avatarImage)) {
+        setProfileValidationError('Add a profile avatar before saving.');
         return;
       }
 
@@ -620,9 +762,10 @@ export const Profile: React.FC<ProfileProps> = ({
           display_name: profile.name,
           bio: profile.bio,
           city: profile.location,
+          gender: profile.genderIdentity,
           occupation: profile.occupation,
           interests: profile.interests,
-          profile_photos: profile.photos,
+          profile_photos: [profile.avatarImage, ...profile.photos.filter(Boolean)],
           intro_video_url: profile.introVideo || undefined,
           date_of_birth: profile.dob || undefined,
         });
@@ -632,12 +775,23 @@ export const Profile: React.FC<ProfileProps> = ({
           name: updatedProfile.display_name || updatedProfile.full_name || updatedProfile.name || current.name,
           bio: updatedProfile.bio || current.bio,
           interests: updatedProfile.interests || current.interests,
-          photos: updatedProfile.profile_photos || current.photos,
+          avatarImage: getAvatarSrc(updatedProfile.profile_photos?.[0] || current.avatarImage),
+          photos: Array.isArray(updatedProfile.profile_photos) ? updatedProfile.profile_photos.slice(1, 5) : current.photos,
           location: updatedProfile.location || updatedProfile.city || current.location,
           introVideo: updatedProfile.intro_video_url || current.introVideo,
           dob: updatedProfile.date_of_birth || current.dob,
-          age: updatedProfile.date_of_birth ? getAgeFromDob(updatedProfile.date_of_birth) : current.age,
-          reliabilityScore: nextReliabilityScore,
+          age: updatedProfile.date_of_birth ? getAgeFromDob(updatedProfile.date_of_birth) : null,
+          genderIdentity: updatedProfile.gender || current.genderIdentity,
+          occupation: updatedProfile.occupation || current.occupation,
+          reliabilityScore: calculateReliabilityScore({
+            bio: updatedProfile.bio || current.bio,
+            interests: updatedProfile.interests || current.interests,
+            photos: Array.isArray(updatedProfile.profile_photos) ? updatedProfile.profile_photos.slice(1, 5) : current.photos,
+            avatarImage: getAvatarSrc(updatedProfile.profile_photos?.[0] || current.avatarImage),
+            introVideo: updatedProfile.intro_video_url || current.introVideo,
+            dob: updatedProfile.date_of_birth || current.dob,
+            occupation: updatedProfile.occupation || current.occupation,
+          }),
         }));
 
         try {
@@ -650,6 +804,9 @@ export const Profile: React.FC<ProfileProps> = ({
               name: profile.name,
               username: storedUser.username || profile.name,
               profile_id: currentUser.profile_id || storedUser.profile_id,
+              date_of_birth: profile.dob || storedUser.date_of_birth || null,
+              gender: profile.genderIdentity || storedUser.gender || null,
+              occupation: profile.occupation || storedUser.occupation || null,
             })
           );
         } catch (storageError) {
@@ -855,11 +1012,25 @@ export const Profile: React.FC<ProfileProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 -mt-16 sm:-mt-20 mb-6">
                   {/* Avatar Engine */}
                   <div className="relative inline-block group">
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => beginPhotoUpload('avatar')}
+                        className={`mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                          isLightMode
+                            ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                            : 'border-white/[0.08] bg-white/[0.04] text-white hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        <Camera size={14} />
+                        Upload profile picture
+                      </button>
+                    )}
                     <div className={`h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border-[4px] shadow-2xl transition-transform duration-300 group-hover:scale-[1.01] ${
                       isLightMode ? 'border-[#FAF8F5] bg-white' : 'border-[#0B0B0E] bg-[#141419]'
                     }`}>
                       <img
-                        src={profile.photos[0]}
+                        src={getAvatarSrc(profile.avatarImage)}
                         alt={profile.name}
                         className="h-full w-full object-cover"
                       />
@@ -868,7 +1039,7 @@ export const Profile: React.FC<ProfileProps> = ({
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => beginPhotoUpload('avatar')}
                         className="absolute bottom-2 right-2 rounded-xl bg-yellow-500 p-2.5 text-black shadow-lg hover:bg-yellow-400 transition-all"
                       >
                         <Camera size={16} />
@@ -898,14 +1069,11 @@ export const Profile: React.FC<ProfileProps> = ({
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Age</label>
-                          <input
-                            type="number"
-                            value={profile.age}
-                            onChange={(e) => setProfile({ ...profile, age: parseInt(e.target.value || '0', 10) })}
-                            className={`w-full rounded-xl border px-4 py-2.5 text-base font-semibold outline-none transition-all ${inputStyle}`}
-                          />
+                        <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Age</label>
+                        <div className={`w-full rounded-xl border px-4 py-2.5 text-base font-semibold ${inputStyle} opacity-90`}>
+                            {displayAge !== null ? `${displayAge} years old` : 'Not set'}
                         </div>
+                      </div>
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Location</label>
                           <input
@@ -916,12 +1084,21 @@ export const Profile: React.FC<ProfileProps> = ({
                           />
                         </div>
                       </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Date of Birth</label>
+                        <input
+                          type="date"
+                          value={profile.dob}
+                          onChange={(e) => setProfile({ ...profile, dob: e.target.value })}
+                          className={`w-full rounded-xl border px-4 py-2.5 text-base font-semibold outline-none transition-all ${inputStyle}`}
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
-                          {profile.name}, <span className="opacity-80">{profile.age}</span>
+                          {profile.name}, <span className="opacity-80">{displayAge ?? '—'}</span>
                         </h2>
                         {profile.isVerified && (
                           <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-400">
@@ -933,7 +1110,7 @@ export const Profile: React.FC<ProfileProps> = ({
 
                       <div className="mt-2 flex items-center gap-2 text-sm font-medium opacity-70">
                         <MapPin size={14} className="text-yellow-500" />
-                        <span>{profile.location}</span>
+                        <span>{getLocationFlag(profile.location)} {profile.location}</span>
                       </div>
 
                       <p className={`mt-4 text-sm leading-relaxed ${isLightMode ? 'text-amber-900/80' : 'text-gray-300'}`}>
@@ -1076,7 +1253,7 @@ export const Profile: React.FC<ProfileProps> = ({
                           key={interest}
                           className="inline-flex items-center gap-1 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 text-xs font-semibold text-yellow-500"
                         >
-                          {interest}
+                          {getInterestEmoji(interest)} {interest}
                           <button onClick={() => handleRemoveInterest(interest)} className="hover:text-red-400 transition-all ml-1">
                             <X size={12} />
                           </button>
@@ -1138,7 +1315,7 @@ export const Profile: React.FC<ProfileProps> = ({
                               : 'border-yellow-500/10 bg-yellow-500/[0.04] text-yellow-400'
                           }`}
                         >
-                          {interest}
+                          {getInterestEmoji(interest)} {interest}
                         </span>
                       ))}
                     </div>
@@ -1206,47 +1383,48 @@ export const Profile: React.FC<ProfileProps> = ({
             {/* Panel Widget: Media Vault Layout */}
             <WidgetCard title="Media Gallery" subtitle="Visual presentation of your lifestyle profile" icon={<Camera size={18} />} isLightMode={isLightMode}>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                {profile.photos.slice(0, 4).map((photo, idx) => (
-                  <motion.div
-                    key={idx}
-                    whileHover={{ scale: 1.02 }}
-                    className={`group relative aspect-square overflow-hidden rounded-2xl border transition-all ${
-                      isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'
-                    }`}
-                  >
-                    <img
-                      src={photo}
-                      alt={`Asset allocation ${idx + 1}`}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  </motion.div>
-                ))}
-                
-                {isEditing && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`flex aspect-square flex-col items-center justify-center rounded-2xl border border-dashed text-sm font-semibold transition-all ${
-                      isLightMode
-                        ? 'border-amber-900/20 bg-amber-50 text-amber-900 hover:bg-amber-100/60'
-                        : 'border-white/[0.15] bg-white/[0.01] text-gray-400 hover:bg-white/[0.03]'
-                    }`}
-                  >
-                    <Plus size={20} className="mb-1 text-yellow-500" />
-                    <span>Upload</span>
-                  </motion.button>
-                )}
-
-                <div className={`flex aspect-square flex-col items-center justify-center rounded-2xl border p-4 text-center transition-all ${
-                  isLightMode ? 'border-amber-900/5 bg-amber-50/20' : 'border-white/[0.04] bg-white/[0.01]'
-                }`}>
-                  <Video size={18} className="text-yellow-500 mb-1" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider block">Intro Video</span>
-                  <span className="text-xs opacity-40 mt-1">
-                    {profile.introVideo ? 'Active Profile Clip' : 'No Video'}
-                  </span>
-                </div>
+                {Array.from({ length: 4 }, (_, idx) => {
+                  const photo = profile.photos[idx];
+                  const hasPhoto = Boolean(photo);
+                  return (
+                    <motion.button
+                      key={idx}
+                      whileHover={{ scale: isEditing ? 1.02 : 1 }}
+                      whileTap={{ scale: isEditing ? 0.98 : 1 }}
+                      onClick={() => isEditing && beginPhotoUpload({ type: 'gallery', index: idx })}
+                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition-all ${
+                        isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'
+                      } ${isEditing ? 'cursor-pointer' : 'cursor-default'}`}
+                      type="button"
+                    >
+                      {hasPhoto ? (
+                        <>
+                          <img
+                            src={photo}
+                            alt={`Gallery image ${idx + 1}`}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                          {isEditing && (
+                            <div className="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/35 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                              <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
+                                Replace
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className={`flex h-full w-full flex-col items-center justify-center rounded-2xl border border-dashed text-sm font-semibold transition-all ${
+                          isLightMode
+                            ? 'border-amber-900/20 bg-amber-50 text-amber-900 hover:bg-amber-100/60'
+                            : 'border-white/[0.15] bg-white/[0.01] text-gray-400 hover:bg-white/[0.03]'
+                        }`}>
+                          <Plus size={20} className="mb-1 text-yellow-500" />
+                          <span>{isEditing ? 'Add photo' : 'Empty slot'}</span>
+                        </div>
+                      )}
+                    </motion.button>
+                  );
+                })}
               </div>
             </WidgetCard>
 

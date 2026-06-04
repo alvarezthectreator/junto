@@ -19,6 +19,25 @@ const INTERESTS = [
   'Wellness',
 ];
 
+const INTEREST_EMOJIS: Record<string, string> = {
+  Music: '🎵',
+  Food: '🍜',
+  Travel: '✈️',
+  Fitness: '💪',
+  Movies: '🎬',
+  Photography: '📸',
+  Art: '🎨',
+  Books: '📚',
+  Gaming: '🎮',
+  Nightlife: '🌃',
+  Comedy: '😂',
+  Wellness: '🧘',
+};
+
+function getInterestEmoji(interest: string) {
+  return INTEREST_EMOJIS[interest] || '✨';
+}
+
 function getCurrentUserId(currentUser: any) {
   return currentUser?.id || API.getUserId() || '';
 }
@@ -128,7 +147,7 @@ export function OnboardingInterests({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold sm:text-base">{interest}</span>
+                    <span className="text-sm font-semibold sm:text-base">{getInterestEmoji(interest)} {interest}</span>
                     {active && <Check size={16} className="text-orange-300" />}
                   </div>
                 </button>

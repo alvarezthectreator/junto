@@ -4,6 +4,23 @@ import { motion } from 'framer-motion';
 import { DottedSurface } from '../components/ui/dotted-surface';
 import * as API from '../services/api';
 
+function calculateAgeFromDob(dob: string) {
+  if (!dob) return null;
+
+  const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDelta = today.getMonth() - birthDate.getMonth();
+
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  return age;
+}
+
 export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, token: string) => void; onSignupWithOTP?: () => void }) {
   const [mode, setMode] = useState<'landing' | 'login' | 'signup'>('landing');
   const [error, setError] = useState('');
@@ -17,8 +34,12 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
   // Signup state
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
+  const [signupDob, setSignupDob] = useState('');
+  const [signupGender, setSignupGender] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const signupAge = calculateAgeFromDob(signupDob);
+  const authMode: 'login' | 'signup' = mode === 'signup' ? 'signup' : 'login';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +67,13 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
     e.preventDefault();
     setError('');
 
-    if (!signupUsername || !signupEmail || !signupPassword) {
+    if (!signupUsername || !signupEmail || !signupDob || !signupGender || !signupPassword) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (!signupGender.trim()) {
+      setError('Please select your gender');
       return;
     }
 
@@ -66,11 +92,31 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
       return;
     }
 
+    const dobDate = new Date(signupDob);
+    if (Number.isNaN(dobDate.getTime())) {
+      setError('Please enter a valid date of birth');
+      return;
+    }
+
+    const today = new Date();
+    let age = today.getFullYear() - dobDate.getFullYear();
+    const monthDelta = today.getMonth() - dobDate.getMonth();
+    if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < dobDate.getDate())) {
+      age--;
+    }
+
+    if (age < 18) {
+      setError('You must be at least 18 years old to join Junto');
+      return;
+    }
+
     // Store signup data in sessionStorage
     sessionStorage.setItem('pendingSignup', JSON.stringify({
       username: signupUsername,
       email: signupEmail,
-      password: signupPassword
+      password: signupPassword,
+      dateOfBirth: signupDob,
+      gender: signupGender
     }));
     
     // Navigate to OTP signup page
@@ -97,7 +143,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
         minHeight: '100vh'
       }}>
         {/* Navigation */}
-        <nav style={{
+        <nav className="landing-nav" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -148,48 +194,62 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
         </nav>
 
         {/* Content */}
-        {mode === 'landing' ? (
-          // Hero Section
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            padding: 'clamp(20px, 4vw, 40px) clamp(16px, 6vw, 40px) clamp(28px, 6vw, 48px)',
-            textAlign: 'center',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              position: 'absolute',
-              top: '-80px',
-              right: '-80px',
-              width: '280px',
-              height: '280px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255, 107, 107, 0.1), transparent 70%)',
-              pointerEvents: 'none'
-            }} />
+        <div className="landing-content" style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'clamp(20px, 4vw, 40px) clamp(12px, 5vw, 24px) clamp(28px, 6vw, 44px)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div className="landing-spotlight landing-spotlight-top" style={{
+            position: 'absolute',
+            top: '-120px',
+            right: '-120px',
+            width: '320px',
+            height: '320px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255, 107, 107, 0.1), transparent 70%)',
+            pointerEvents: 'none'
+          }} />
+          <div className="landing-spotlight landing-spotlight-bottom" style={{
+            position: 'absolute',
+            bottom: '-120px',
+            left: '-120px',
+            width: '300px',
+            height: '300px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(245, 158, 11, 0.08), transparent 70%)',
+            pointerEvents: 'none'
+          }} />
 
+          <div className="landing-shell" style={{
+            width: '100%',
+            maxWidth: '980px',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.05fr) minmax(320px, 420px)',
+            gap: 'clamp(20px, 4vw, 44px)',
+            alignItems: 'center'
+          }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
+              className="landing-hero"
               style={{
                 position: 'relative',
                 zIndex: 1,
                 width: '100%',
-                maxWidth: '720px',
-                marginTop: 'clamp(8px, 5vh, 48px)'
+                textAlign: 'left'
               }}
             >
-              <div style={{ fontSize: '60px', marginBottom: '14px' }}>✨</div>
+              <div className="landing-hero-emoji" style={{ fontSize: '60px', marginBottom: '14px' }}>✨</div>
               <h1 style={{
-                fontSize: 'clamp(24px, 10vw, 48px)',
+                fontSize: 'clamp(32px, 6vw, 58px)',
                 fontWeight: '700',
                 marginBottom: '14px',
-                lineHeight: '1.2',
+                lineHeight: '1.05',
                 background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
                 backgroundClip: 'text',
                 WebkitBackgroundClip: 'text',
@@ -198,26 +258,21 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 Good People.<br />Good Times.
               </h1>
               <p style={{
-                fontSize: 'clamp(13px, 4vw, 16px)',
-                color: 'rgba(255,255,255,0.5)',
-                marginBottom: '24px',
-                maxWidth: '380px',
-                lineHeight: '1.8',
-                margin: '0 auto 24px'
+                fontSize: 'clamp(14px, 2vw, 17px)',
+                color: 'rgba(255,255,255,0.58)',
+                marginBottom: '28px',
+                maxWidth: '520px',
+                lineHeight: '1.8'
               }}>
                 Junto connects you with real people for real outings. No dating pressure. No financial surprises.
               </p>
 
-              {/* Trust badges */}
-              <div style={{
+              <div className="landing-badges" style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 'clamp(8px, 2vw, 10px)',
                 width: '100%',
-                maxWidth: '360px',
-                marginBottom: '24px',
-                marginLeft: 'auto',
-                marginRight: 'auto'
+                maxWidth: '420px'
               }}>
                 {[
                   { icon: Check, text: 'All payments at the venue — never in advance' },
@@ -231,6 +286,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.2 + i * 0.1 }}
+                      className="landing-badge"
                       style={{
                         display: 'flex',
                         gap: 'clamp(8px, 3vw, 12px)',
@@ -259,63 +315,13 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   );
                 })}
               </div>
-
-              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto', transform: 'translateY(0)' }}>
-                <motion.button
-                  whileHover={{ scale: 1.05, boxShadow: '0 12px 40px rgba(252,211,77,0.4)' }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setMode('signup')}
-                  style={{
-                    padding: 'clamp(11px, 3vw, 15px) clamp(20px, 6vw, 40px)',
-                    borderRadius: '14px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
-                    color: '#fff',
-                    fontWeight: '700',
-                    fontSize: 'clamp(13px, 4vw, 16px)',
-                    cursor: 'pointer',
-                    boxShadow: '0 8px 30px rgba(252,211,77,0.3)',
-                    width: '100%',
-                    transition: 'all 0.3s'
-                  }}
-                >
-                  Create Account
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setMode('login')}
-                  style={{
-                    padding: 'clamp(11px, 3vw, 15px) clamp(20px, 6vw, 40px)',
-                    borderRadius: '14px',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    background: 'transparent',
-                    color: '#F59E0B',
-                    fontWeight: '700',
-                    fontSize: 'clamp(13px, 4vw, 16px)',
-                    cursor: 'pointer',
-                    width: '100%',
-                    transition: 'all 0.3s'
-                  }}
-                  >
-                  Sign In
-                </motion.button>
-              </div>
             </motion.div>
-          </div>
-        ) : (
-          // Auth Forms
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'flex-start',
-            padding: 'clamp(16px, 4vw, 40px) clamp(12px, 4vw, 20px) clamp(24px, 6vw, 40px)'
-          }}>
+
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
+              className="landing-auth"
               style={{
                 background: '#111318',
                 border: '1px solid rgba(255,255,255,0.08)',
@@ -323,9 +329,53 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 padding: 'clamp(20px, 6vw, 32px) clamp(16px, 5vw, 28px)',
                 width: '100%',
                 maxWidth: '420px',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
+                boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                justifySelf: 'center'
               }}
             >
+              <div className="landing-toggle-row" style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '18px',
+                padding: '6px',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '16px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setMode('login')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: mode === 'login' ? 'linear-gradient(135deg, #FCD34D, #F59E0B)' : 'transparent',
+                    color: mode === 'login' ? '#111318' : 'rgba(255,255,255,0.7)',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('signup')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: mode === 'signup' ? 'linear-gradient(135deg, #FCD34D, #F59E0B)' : 'transparent',
+                    color: mode === 'signup' ? '#111318' : 'rgba(255,255,255,0.7)',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Create Account
+                </button>
+              </div>
+
               <h2 style={{
                 fontSize: 'clamp(18px, 6vw, 24px)',
                 fontWeight: '700',
@@ -335,19 +385,19 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}>
-                {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
               <p style={{
                 fontSize: 'clamp(12px, 3vw, 13px)',
                 color: 'rgba(255,255,255,0.5)',
                 marginBottom: '24px'
               }}>
-                {mode === 'login' 
-                  ? 'Log in with your username and password' 
+                {authMode === 'login'
+                  ? 'Log in with your username and password'
                   : 'Sign up to start meeting good people'}
               </p>
 
-              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(10px, 3vw, 14px)' }}>
+              <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(10px, 3vw, 14px)' }}>
                 {error && (
                   <div style={{
                     background: 'rgba(255, 68, 68, 0.1)',
@@ -363,7 +413,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 )}
 
                 {/* Email (Signup only) */}
-                {mode === 'signup' && (
+                {authMode === 'signup' && (
                   <div>
                     <label style={{
                       fontSize: 'clamp(10px, 2vw, 11px)',
@@ -405,6 +455,102 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   </div>
                 )}
 
+                {/* Date of Birth (Signup only) */}
+                {authMode === 'signup' && (
+                  <div>
+                    <label style={{
+                      fontSize: 'clamp(10px, 2vw, 11px)',
+                      color: 'rgba(255,255,255,0.35)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                      marginBottom: '6px',
+                      display: 'block',
+                      fontWeight: '600'
+                    }}>
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={signupDob}
+                      onChange={(e) => setSignupDob(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.02)',
+                        color: '#fff',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
+                        transition: 'all 0.2s',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                      onFocus={(e) => {
+                        (e.target as HTMLInputElement).style.borderColor = '#F59E0B';
+                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.04)';
+                      }}
+                      onBlur={(e) => {
+                        (e.target as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.1)';
+                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.02)';
+                      }}
+                    />
+                    <p style={{
+                      marginTop: '6px',
+                      fontSize: 'clamp(10px, 2.5vw, 12px)',
+                      color: 'rgba(255,255,255,0.4)'
+                    }}>
+                      {signupAge !== null ? `You are ${signupAge} years old.` : 'Used to calculate your age and improve trust & safety.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Gender (Signup only) */}
+                {authMode === 'signup' && (
+                  <div>
+                    <label style={{
+                      fontSize: 'clamp(10px, 2vw, 11px)',
+                      color: 'rgba(255,255,255,0.35)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                      marginBottom: '6px',
+                      display: 'block',
+                      fontWeight: '600'
+                    }}>
+                      Gender
+                    </label>
+                    <select
+                      value={signupGender}
+                      onChange={(e) => setSignupGender(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.02)',
+                        color: '#fff',
+                        fontSize: 'clamp(13px, 3vw, 14px)',
+                        transition: 'all 0.2s',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                      onFocus={(e) => {
+                        (e.target as HTMLSelectElement).style.borderColor = '#F59E0B';
+                        (e.target as HTMLSelectElement).style.background = 'rgba(255,255,255,0.04)';
+                      }}
+                      onBlur={(e) => {
+                        (e.target as HTMLSelectElement).style.borderColor = 'rgba(255,255,255,0.1)';
+                        (e.target as HTMLSelectElement).style.background = 'rgba(255,255,255,0.02)';
+                      }}
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Woman">Woman</option>
+                      <option value="Man">Man</option>
+                      <option value="Non-binary">Non-binary</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                )}
+
                 {/* Username */}
                 <div>
                   <label style={{
@@ -420,9 +566,9 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   </label>
                   <input
                     type="text"
-                    value={mode === 'login' ? loginUsername : signupUsername}
+                    value={authMode === 'login' ? loginUsername : signupUsername}
                     onChange={(e) => {
-                      if (mode === 'login') setLoginUsername(e.target.value);
+                      if (authMode === 'login') setLoginUsername(e.target.value);
                       else setSignupUsername(e.target.value);
                     }}
                     placeholder="johndoe"
@@ -465,9 +611,9 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   <div style={{ position: 'relative' }}>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      value={mode === 'login' ? loginPassword : signupPassword}
+                      value={authMode === 'login' ? loginPassword : signupPassword}
                       onChange={(e) => {
-                        if (mode === 'login') setLoginPassword(e.target.value);
+                        if (authMode === 'login') setLoginPassword(e.target.value);
                         else setSignupPassword(e.target.value);
                       }}
                       placeholder="••••••••"
@@ -515,7 +661,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 </div>
 
                 {/* Confirm Password (Signup only) */}
-                {mode === 'signup' && (
+                {authMode === 'signup' && (
                   <div>
                     <label style={{
                       fontSize: 'clamp(10px, 2vw, 11px)',
@@ -591,7 +737,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   }}
                 >
                   {loading && <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />}
-                  {loading ? 'Processing...' : (mode === 'login' ? 'Log In' : 'Create Account')}
+                  {loading ? 'Processing...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
                 </button>
 
                 {/* Toggle Auth Mode */}
@@ -601,13 +747,13 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   textAlign: 'center',
                   marginTop: '12px'
                 }}>
-                  {mode === 'login' 
+                  {authMode === 'login'
                     ? "Don't have an account? " 
                     : 'Already have an account? '}
                   <button
                     type="button"
                     onClick={() => {
-                      setMode(mode === 'login' ? 'signup' : 'login');
+                      setMode(authMode === 'login' ? 'signup' : 'login');
                       setError('');
                     }}
                     style={{
@@ -619,13 +765,13 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                       fontSize: '13px'
                     }}
                   >
-                    {mode === 'login' ? 'Sign Up' : 'Log In'}
+                    {authMode === 'login' ? 'Sign Up' : 'Log In'}
                   </button>
                 </p>
               </form>
             </motion.div>
           </div>
-        )}
+        </div>
       </div>
 
       <style>{`

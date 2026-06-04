@@ -1,6 +1,44 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
+function buildNearbyLocationScope(city) {
+  const normalized = String(city || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return [];
+  }
+
+  // Lagos is the only onboarding location in the app that commonly needs
+  // broader "same state" matching instead of a strict city match.
+  if (normalized === 'lagos' || normalized === 'lagos state') {
+    return [
+      'lagos',
+      'lagos state',
+      'ikeja',
+      'lekki',
+      'ikoyi',
+      'victoria island',
+      'victoria island (vi)',
+      'vi',
+      'yaba',
+      'surulere',
+      'ajah',
+      'festac',
+      'ikorodu',
+      'badagry',
+      'epe',
+      'mushin',
+      'agege',
+      'ojo',
+      'ilupeju',
+      'ibeju-lekki',
+      'ibeju lekki',
+    ];
+  }
+
+  return [normalized];
+}
+
 export async function getNearbyUsers(req, res) {
   try {
     const { userId } = req.params;
@@ -13,16 +51,19 @@ export async function getNearbyUsers(req, res) {
     }
 
     const userCity = userRes.rows[0].city;
+    const locationScope = buildNearbyLocationScope(userCity);
 
     // Get users in same city, excluding self and already swiped
+    const placeholders = locationScope.map(() => '?').join(', ');
     const result = await query(
       `SELECT DISTINCT u.* FROM users u
        LEFT JOIN swipes s ON u.id = s.swiped_user_id AND s.swiper_id = ?
        LEFT JOIN blocked_users b ON (u.id = b.blocked_user_id AND b.blocker_id = ?)
               OR (u.id = b.blocker_id AND b.blocked_user_id = ?)
-       WHERE u.city = ? AND u.id != ? AND s.id IS NULL AND b.id IS NULL
+       WHERE LOWER(COALESCE(u.city, '')) IN (${placeholders})
+       AND u.id != ? AND s.id IS NULL AND b.id IS NULL
        LIMIT ?`,
-      [userId, userId, userId, userCity, userId, limit]
+      [userId, userId, userId, ...locationScope, userId, limit]
     );
 
     res.json({ nearby_users: result.rows || [] });

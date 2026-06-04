@@ -15,6 +15,21 @@ const LOCATIONS = [
   'Nairobi',
 ];
 
+const LOCATION_FLAGS: Record<string, string> = {
+  Lagos: '🇳🇬',
+  Abuja: '🇳🇬',
+  'Port Harcourt': '🇳🇬',
+  Ibadan: '🇳🇬',
+  Kano: '🇳🇬',
+  Enugu: '🇳🇬',
+  Accra: '🇬🇭',
+  Nairobi: '🇰🇪',
+};
+
+function getLocationFlag(location: string) {
+  return LOCATION_FLAGS[location] || '📍';
+}
+
 function getCurrentUserId(currentUser: any) {
   return currentUser?.id || API.getUserId() || '';
 }
@@ -109,7 +124,7 @@ export function OnboardingLocation({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold sm:text-base">{location}</span>
+                    <span className="text-sm font-semibold sm:text-base">{getLocationFlag(location)} {location}</span>
                     {active && <Check size={16} className="text-orange-300" />}
                   </div>
                 </button>

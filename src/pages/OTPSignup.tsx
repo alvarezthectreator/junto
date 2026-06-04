@@ -119,7 +119,10 @@ export function OTPSignup({ onSuccess, onBack }: {
           const signupResponse = await API.signup(
             signupData.username,
             email, // Use email as display name
-            signupData.password
+            signupData.password,
+            signupData.dateOfBirth,
+            undefined,
+            signupData.gender
           );
           setSuccess('✓ Account created! Logging you in...');
           sessionStorage.removeItem('pendingSignup');

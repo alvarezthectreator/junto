@@ -11,7 +11,8 @@ import {
   getUserSavedEvents,
   checkEventSaved,
   rateEvent,
-  getEventRating
+  getEventRating,
+  getEventReviews
 } from '../controllers/events.js';
 
 const router = express.Router();
@@ -33,5 +34,6 @@ router.get('/:eventId/saved/:userId', checkEventSaved);
 // Event Ratings
 router.post('/rate', rateEvent);
 router.get('/:eventId/rating', getEventRating);
+router.get('/:eventId/reviews', getEventReviews);
 
 export default router;

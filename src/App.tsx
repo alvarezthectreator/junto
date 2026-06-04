@@ -30,10 +30,11 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { logout as clearApiSession, getLastSessionActivity, markSessionActivity } from './services/api';
+import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, verifySession } from './services/api';
 
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const SESSION_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'focus'];
+const ONBOARDING_FLOW_KEY = 'junto-onboarding-flow';
 
 type RouteState = {
   event?: any;
@@ -135,6 +136,7 @@ export function App() {
   const navigate = useNavigate();
   const [hasEntered, setHasEntered] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSessionBooting, setIsSessionBooting] = useState(true);
   const [activeNav, setActiveNav] = useState(() => {
     if (typeof window === 'undefined') {
       return 'Discover';
@@ -165,6 +167,8 @@ export function App() {
   const [publicHostId, setPublicHostId] = useState<string | null>(null);
   const { eventId: routeEventId, publicHostId: routePublicHostId } = getRouteIds(location.pathname);
   const routeState = (location.state || {}) as RouteState;
+
+  const onboardingFlowActive = typeof window !== 'undefined' && window.sessionStorage.getItem(ONBOARDING_FLOW_KEY) === 'true';
 
   const navigateToPage = useCallback((page: string) => {
     if (page === 'event') {
@@ -231,8 +235,11 @@ export function App() {
     const userData = { 
       id: user.id,
       username: user.username || user.display_name || 'User',
-      name: user.display_name || user.username || 'User',
-      profile_id: user.profile_id
+      name: user.username || user.display_name || 'User',
+      profile_id: user.profile_id,
+      date_of_birth: user.date_of_birth || null,
+      gender: user.gender || null,
+      occupation: user.occupation || null
     };
     setCurrentUser(userData);
     setSelectedUser(null);
@@ -258,6 +265,7 @@ export function App() {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('junto-current-page');
     localStorage.removeItem('junto-active-nav');
+    window.sessionStorage.removeItem(ONBOARDING_FLOW_KEY);
     clearApiSession();
   }, [navigate]);
   
@@ -329,10 +337,10 @@ export function App() {
       return;
     }
 
-    if (currentPage === 'landing' || currentPage === 'signup-otp') {
+    if ((currentPage === 'landing' || currentPage === 'signup-otp') && !onboardingFlowActive) {
       navigate('/discover', { replace: true });
     }
-  }, [currentPage, isAuthenticated, navigate]);
+  }, [currentPage, isAuthenticated, navigate, onboardingFlowActive]);
 
   useEffect(() => {
     const syncSidebarToViewport = () => {
@@ -349,10 +357,15 @@ export function App() {
 
   // Restore session from localStorage on app mount
   useEffect(() => {
-    const sessionToken = localStorage.getItem('sessionToken');
+    const sessionToken = getSessionToken();
     const userData = localStorage.getItem('currentUser');
     
-    if (sessionToken && userData) {
+    const restoreSession = async () => {
+      if (!sessionToken || !userData) {
+        setIsSessionBooting(false);
+        return;
+      }
+
       try {
         const user = JSON.parse(userData);
         const storedActivity = getStoredSessionActivity();
@@ -362,7 +375,18 @@ export function App() {
           return;
         }
 
-        setCurrentUser(user);
+        const sessionResponse = await verifySession();
+        const verifiedUser = sessionResponse.user || user;
+        const mergedUser = {
+          ...user,
+          ...verifiedUser,
+          name: verifiedUser.username || verifiedUser.display_name || user.name || user.username || 'User',
+          username: verifiedUser.username || user.username || user.name || 'User',
+        };
+
+        localStorage.setItem('currentUser', JSON.stringify(mergedUser));
+        localStorage.setItem('userId', mergedUser.id);
+        setCurrentUser(mergedUser);
         setIsAuthenticated(true);
         setHasEntered(true);
         if (!storedActivity) {
@@ -370,9 +394,29 @@ export function App() {
         }
       } catch (e) {
         console.error('Failed to restore session:', e);
+        handleLogout();
+      } finally {
+        setIsSessionBooting(false);
       }
-    }
+    };
+
+    restoreSession();
   }, []);
+
+  if (isSessionBooting) {
+    return (
+      <ThemeProvider attribute="class" defaultTheme="dark">
+        <LanguageProvider>
+          <div className="min-h-screen flex items-center justify-center bg-[#0F0F13] text-white">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 rounded-full border-4 border-white/10 border-t-[#F59E0B] animate-spin" />
+              <p className="text-sm text-white/60">Checking your session...</p>
+            </div>
+          </div>
+        </LanguageProvider>
+      </ThemeProvider>
+    );
+  }
 
   const content = (() => {
     if (currentPage === 'onboarding-interests' && (isAuthenticated || localStorage.getItem('sessionToken'))) {
@@ -391,6 +435,7 @@ export function App() {
           currentUser={currentUser}
           onBack={() => navigate('/onboarding/interests')}
           onComplete={() => {
+            window.sessionStorage.removeItem(ONBOARDING_FLOW_KEY);
             localStorage.setItem('junto-profile-completion-prompt', 'true');
             navigate('/discover', { replace: true, state: { showProfilePrompt: true } });
           }}
@@ -403,19 +448,27 @@ export function App() {
       return (
         <OTPSignup
           onSuccess={(token, user) => {
+            window.sessionStorage.setItem(ONBOARDING_FLOW_KEY, 'true');
+            localStorage.setItem('sessionToken', token);
             localStorage.setItem('junto-session-token', token);
             localStorage.setItem('currentUser', JSON.stringify({
               id: user.id,
               username: user.username || user.display_name || 'User',
-              name: user.display_name || user.username || 'User',
+              name: user.username || user.display_name || 'User',
               profile_id: user.profile_id,
+              date_of_birth: user.date_of_birth || null,
+              gender: user.gender || null,
+              occupation: user.occupation || null,
             }));
             localStorage.setItem('userId', user.id);
             setCurrentUser({
               id: user.id,
               username: user.username || user.display_name || 'User',
-              name: user.display_name || user.username || 'User',
+              name: user.username || user.display_name || 'User',
               profile_id: user.profile_id,
+              date_of_birth: user.date_of_birth || null,
+              gender: user.gender || null,
+              occupation: user.occupation || null,
             });
             setIsAuthenticated(true);
             setHasEntered(true);
@@ -432,6 +485,7 @@ export function App() {
       return (
         <Landing
           onLogin={(user, token) => {
+            localStorage.setItem('sessionToken', token);
             localStorage.setItem('junto-session-token', token);
             handleLogin(user, token);
           }}
@@ -482,6 +536,7 @@ export function App() {
           isLightMode={isLightMode}
           onToggleLightMode={() => setIsLightMode((current) => !current)}
           handleLogout={handleLogout}
+          startEditing={Boolean(routeState?.showProfilePrompt || (routeState as any)?.startEditing)}
         />
       );
     }
@@ -584,7 +639,7 @@ export function App() {
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
-            {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
+            {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} startEditing={Boolean((routeState as any)?.startEditing)} />}
             {activeNav === 'Nearby' && <Nearby onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}
           </div>
         </main>

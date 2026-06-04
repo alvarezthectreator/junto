@@ -455,7 +455,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
               <button
                 onClick={() => {
                   setShowProfilePrompt(false);
-                  navigate('/profile');
+                  navigate('/profile', { state: { startEditing: true } });
                 }}
                 className="rounded-full bg-gradient-to-r from-[#FCD34D] to-[#F59E0B] px-5 py-3 text-sm font-bold text-black transition-opacity hover:opacity-95"
               >

@@ -819,3 +819,124 @@ body.theme-light-body {
 [style*="animation: spin"] {
   animation: spin 1s linear infinite;
 }
+
+@media (max-width: 900px) {
+  .landing-nav {
+    padding: 12px 16px !important;
+  }
+
+  .landing-content {
+    padding: 18px 14px 28px !important;
+    align-items: flex-start !important;
+  }
+
+  .landing-shell {
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+    max-width: 560px !important;
+  }
+
+  .landing-hero {
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(30px, 11vw, 48px) !important;
+    line-height: 1.08 !important;
+  }
+
+  .landing-hero p {
+    font-size: 14px !important;
+    max-width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .landing-hero-emoji {
+    font-size: 46px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .landing-badges {
+    max-width: 100% !important;
+  }
+
+  .landing-badge {
+    width: 100% !important;
+  }
+
+  .landing-auth {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 18px 16px !important;
+    border-radius: 22px !important;
+  }
+
+  .landing-toggle-row {
+    margin-bottom: 16px !important;
+  }
+
+  .landing-auth input {
+    font-size: 16px !important;
+    min-height: 48px !important;
+  }
+
+  .landing-auth input[type='date'] {
+    min-height: 48px !important;
+  }
+
+  .landing-auth button[type='submit'] {
+    min-height: 50px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-content {
+    padding: 14px 12px 24px !important;
+  }
+
+  .landing-shell {
+    gap: 14px !important;
+  }
+
+  .landing-hero p {
+    line-height: 1.65 !important;
+    margin-bottom: 20px !important;
+  }
+
+  .landing-badge {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .landing-auth {
+    padding: 16px 14px !important;
+  }
+
+  .landing-auth label {
+    font-size: 10px !important;
+  }
+
+  .landing-auth input {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .landing-auth input[type='password'],
+  .landing-auth input[type='text'] {
+    padding-right: 44px !important;
+  }
+
+  .landing-auth button[type='submit'] {
+    font-size: 14px !important;
+    padding: 12px 16px !important;
+  }
+
+  .landing-toggle-row button {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+}

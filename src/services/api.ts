@@ -3,6 +3,8 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
+const SESSION_TOKEN_KEY = 'sessionToken';
+const LEGACY_SESSION_TOKEN_KEY = 'junto-session-token';
 
 // Session token storage
 let sessionToken: string | null = null;
@@ -14,6 +16,9 @@ export interface User {
   display_name?: string;
   phone_number?: string;
   profile_id: string;
+  date_of_birth?: string;
+  gender?: string;
+  occupation?: string;
   referred_by_user_id?: string | null;
   created_at?: string;
 }
@@ -64,6 +69,16 @@ export interface Event {
   guest_fee: number;
   created_at: string;
   status?: string;
+}
+
+export interface EventReview {
+  id: string;
+  author: string;
+  rating: number;
+  text: string;
+  time: string;
+  created_at?: string;
+  user_id?: string;
 }
 
 export interface Message {
@@ -128,6 +143,10 @@ async function apiCall(
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
+
+  if (!sessionToken) {
+    sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || localStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+  }
 
   if (sessionToken) {
     headers['Authorization'] = `Bearer ${sessionToken}`;
@@ -215,12 +234,23 @@ function normalizeUserProfile(profile: any): UserProfile {
   };
 }
 
+function setStoredSessionToken(token: string | null) {
+  sessionToken = token;
+
+  if (token) {
+    localStorage.setItem(SESSION_TOKEN_KEY, token);
+    localStorage.setItem(LEGACY_SESSION_TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
+  }
+}
+
 // ==================== AUTH ====================
 
 export async function login(username: string, password: string): Promise<{ session_token: string; user: User }> {
   const response = await apiCall('/auth/login', 'POST', { username, password });
-  sessionToken = response.session_token;
-  localStorage.setItem('sessionToken', response.session_token);
+  setStoredSessionToken(response.session_token);
   localStorage.setItem('userId', response.user.id);
   return response;
 }
@@ -229,11 +259,12 @@ export async function signup(
   username: string,
   fullName: string,
   password: string,
-  referralCode?: string
+  dateOfBirth?: string,
+  referralCode?: string,
+  gender?: string
 ): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, referralCode });
-  sessionToken = response.session_token;
-  localStorage.setItem('sessionToken', response.session_token);
+  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, dateOfBirth, referralCode, gender });
+  setStoredSessionToken(response.session_token);
   localStorage.setItem('userId', response.user.id);
   return response;
 }
@@ -243,15 +274,14 @@ export async function verifySession(): Promise<{ valid: boolean; user: User }> {
 }
 
 export function logout(): void {
-  sessionToken = null;
-  localStorage.removeItem('sessionToken');
+  setStoredSessionToken(null);
   localStorage.removeItem('userId');
   localStorage.removeItem(SESSION_ACTIVITY_KEY);
 }
 
 export function getSessionToken(): string | null {
   if (!sessionToken) {
-    sessionToken = localStorage.getItem('sessionToken');
+    sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || localStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
   }
   return sessionToken;
 }
@@ -523,6 +553,10 @@ export async function rateEvent(userId: string, eventId: string, rating: number,
 
 export async function getEventRating(eventId: string): Promise<{ average_rating: number; rating_count: number }> {
   return apiCall(`/events/${eventId}/rating`);
+}
+
+export async function getEventReviews(eventId: string, limit: number = 20, offset: number = 0): Promise<{ reviews: EventReview[] }> {
+  return apiCall(`/events/${eventId}/reviews?limit=${limit}&offset=${offset}`);
 }
 
 // ==================== USER PROFILE UPDATES ====================

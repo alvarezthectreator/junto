@@ -332,3 +332,34 @@ export async function getEventRating(req, res) {
     res.status(500).json({ error: error.message });
   }
 }
+
+export async function getEventReviews(req, res) {
+  try {
+    const { eventId } = req.params;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const result = await query(
+      `SELECT er.*, u.display_name, u.profile_id
+       FROM event_ratings er
+       LEFT JOIN users u ON er.user_id = u.id
+       WHERE er.event_id = $1
+       ORDER BY er.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [eventId, parseInt(limit), parseInt(offset)]
+    );
+
+    const reviews = (result.rows || []).map((row) => ({
+      id: row.id,
+      author: row.display_name || row.profile_id || 'Anonymous',
+      rating: Number(row.rating || 0),
+      text: row.comment || '',
+      time: row.created_at ? new Date(row.created_at).toLocaleDateString() : '',
+      created_at: row.created_at,
+      user_id: row.user_id,
+    }));
+
+    res.json({ reviews });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}

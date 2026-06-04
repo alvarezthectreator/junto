@@ -1,5 +1,6 @@
 import express from 'express';
 import { login, signup, verifySession } from '../controllers/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -10,6 +11,6 @@ router.post('/login', login);
 router.post('/signup', signup);
 
 // Verify session
-router.get('/verify', verifySession);
+router.get('/verify', authenticateToken, verifySession);
 
 export default router;
