@@ -1,4 +1,4 @@
-import db from '../../db/init.js';
+import db from '../../db/connection.js';
 import { v4 as uuid } from 'uuid';
 
 // Create a new squad

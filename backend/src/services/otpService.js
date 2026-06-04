@@ -1,15 +1,19 @@
 /**
  * OTP Service
- * Handles OTP generation, storage, and email delivery via cPanel
+ * Handles OTP generation, storage, and email delivery via cPanel SMTP
+ * Sends FROM cPanel email, TO user's email (Gmail, Yahoo, etc.)
  */
 
 import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 
 let transporter = null;
+const inMemoryOtpStore = new Map();
 
 /**
  * Initialize email transporter with cPanel SMTP
+ * Sender: testmail@orquex.com
+ * Recipient: Any email address (user's Gmail, Yahoo, etc.)
  */
 export const initializeEmailTransporter = () => {
   if (transporter) return transporter;
@@ -17,18 +21,15 @@ export const initializeEmailTransporter = () => {
   transporter = nodemailer.createTransport({
     host: process.env.CPANEL_EMAIL_HOST || 'mail.orquex.com',
     port: parseInt(process.env.CPANEL_EMAIL_PORT || '465'),
-    secure: process.env.CPANEL_EMAIL_PORT === '465' || process.env.CPANEL_EMAIL_PORT === '25', // true for 465, false for 587
+    secure: true, // SSL
     auth: {
       user: process.env.CPANEL_EMAIL_USER || 'testmail@orquex.com',
       pass: process.env.CPANEL_EMAIL_PASSWORD || '100000000',
     },
-    // Add these for better compatibility
-    tls: {
-      rejectUnauthorized: false, // For self-signed certificates
-    },
   });
 
   console.log('✓ Email transporter initialized with cPanel SMTP');
+  console.log(`  Sender: ${process.env.CPANEL_EMAIL_FROM || 'testmail@orquex.com'}`);
   return transporter;
 };
 
@@ -40,7 +41,9 @@ export const generateOTP = () => {
 };
 
 /**
- * Send OTP via email through cPanel
+ * Send OTP via email through cPanel SMTP
+ * FROM: testmail@orquex.com (cPanel)
+ * TO: user's email (Gmail, Yahoo, etc.)
  */
 export const sendOTPEmail = async (email, otp, displayName = 'User') => {
   try {
@@ -51,40 +54,43 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
     const mailOptions = {
       from: process.env.CPANEL_EMAIL_FROM || 'testmail@orquex.com',
       to: email,
-      subject: '🔐 Your Junto Login Code',
+      subject: 'Your Junto Verification Code',
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px; background: #f9f9f9; border-radius: 12px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">🔐 Junto Login</h1>
-          </div>
-          
-          <div style="padding: 30px 20px; background: white; border-radius: 0 0 12px 12px;">
-            <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
-              Hi ${displayName},
-            </p>
-            
-            <p style="color: #666; font-size: 14px; margin-bottom: 30px;">
-              Enter this code to verify your Junto account:
-            </p>
-            
-            <div style="background: #f0f0f0; padding: 25px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; color: #667eea; font-family: 'Courier New', monospace;">
-              ${otp.split('').join(' ')}
+        <html>
+          <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+            <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
+              
+              <p style="color: #555; font-size: 14px; margin-bottom: 20px;">
+                Hi ${displayName},
+              </p>
+              
+              <p style="color: #555; font-size: 14px; margin-bottom: 30px;">
+                Your verification code is:
+              </p>
+              
+              <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
+                <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #333; margin: 0;">${otp}</p>
+              </div>
+              
+              <p style="color: #777; font-size: 13px; margin-bottom: 10px;">
+                This code will expire in 5 minutes.
+              </p>
+              
+              <p style="color: #777; font-size: 13px; margin-bottom: 20px;">
+                If you did not request this code, please ignore this email.
+              </p>
+              
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+              
+              <p style="color: #999; font-size: 12px;">
+                Junto - Social Companionship Platform
+              </p>
             </div>
-            
-            <p style="color: #999; font-size: 12px; margin-top: 25px; margin-bottom: 5px; text-align: center;">
-              ⏱️ This code expires in 5 minutes
-            </p>
-            
-            <p style="color: #999; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
-              If you didn't request this code, please ignore this email. Your account is safe.
-            </p>
-            
-            <p style="color: #bbb; font-size: 11px; margin-top: 20px; text-align: center;">
-              © 2026 Junto. All rights reserved.
-            </p>
-          </div>
-        </div>
+          </body>
+        </html>
       `,
+      text: `Your Junto verification code is: ${otp}\n\nThis code will expire in 5 minutes.\n\nIf you did not request this code, please ignore this email.`,
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -106,8 +112,12 @@ export const storeOTP = (db, email, otp) => {
     const now = new Date().toISOString();
 
     // First try to delete any existing OTP for this email
-    db.run('DELETE FROM otp_codes WHERE email = ?', [email], (err) => {
-      if (err) console.warn('Warning deleting old OTP:', err);
+    db.run('DELETE FROM otp_codes WHERE email = ?', [email], (deleteErr) => {
+      if (deleteErr) {
+        console.warn(`⚠️  Warning deleting old OTP for ${email}:`, deleteErr.message);
+      } else {
+        console.log(`✓ Cleaned up old OTP for ${email}`);
+      }
 
       // Then insert new OTP
       const sql = `
@@ -118,18 +128,44 @@ export const storeOTP = (db, email, otp) => {
       db.run(
         sql,
         [id, email, otp, expiresAt.toISOString(), 0, now],
-        (err) => {
+        function(err) {
           if (err) {
-            console.error('Error storing OTP:', err);
-            reject(err);
+            console.error(`❌ Error storing OTP for ${email}:`, err.message);
+            console.error('   Error code:', err.code);
+            console.error('   SQL: INSERT INTO otp_codes');
+            reject({
+              message: 'Failed to store OTP in database',
+              originalError: err.message,
+              code: err.code,
+            });
           } else {
-            console.log(`✓ OTP stored for ${email}, expires at ${expiresAt.toISOString()}`);
+            inMemoryOtpStore.delete(email);
+            console.log(`✓ OTP successfully stored for ${email}, expires at ${expiresAt.toISOString()}`);
             resolve({ id, expiresAt });
           }
         }
       );
     });
   });
+};
+
+/**
+ * Store OTP in memory as a fallback if database write fails
+ */
+export const storeOTPInMemory = (email, otp) => {
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  inMemoryOtpStore.set(email, {
+    id: uuidv4(),
+    email,
+    code: otp,
+    expiresAt: expiresAt.toISOString(),
+    attempts: 0,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.warn(`⚠️ OTP stored in memory fallback for ${email}`);
+  return { id: inMemoryOtpStore.get(email).id, expiresAt };
 };
 
 /**
@@ -152,7 +188,35 @@ export const verifyOTP = (db, email, code) => {
 
       // OTP not found or expired
       if (!row) {
-        resolve({ valid: false, reason: 'Invalid or expired code' });
+        const memoryRow = inMemoryOtpStore.get(email);
+        if (!memoryRow) {
+          resolve({ valid: false, reason: 'Invalid or expired code' });
+          return;
+        }
+
+        if (memoryRow.expiresAt <= now) {
+          inMemoryOtpStore.delete(email);
+          resolve({ valid: false, reason: 'Invalid or expired code' });
+          return;
+        }
+
+        if (memoryRow.attempts >= 3) {
+          inMemoryOtpStore.delete(email);
+          resolve({ valid: false, reason: 'Too many failed attempts. Request a new code.' });
+          return;
+        }
+
+        if (memoryRow.code !== code) {
+          resolve({ valid: false, reason: 'Invalid or expired code' });
+          return;
+        }
+
+        inMemoryOtpStore.delete(email);
+        resolve({
+          valid: true,
+          email,
+          expiresAt: memoryRow.expiresAt,
+        });
         return;
       }
 
@@ -170,6 +234,7 @@ export const verifyOTP = (db, email, code) => {
       db.run('DELETE FROM otp_codes WHERE id = ?', [row.id], (err) => {
         if (err) console.error('Error deleting used OTP:', err);
       });
+      inMemoryOtpStore.delete(email);
 
       resolve({
         valid: true,
@@ -195,6 +260,11 @@ export const incrementOTPAttempts = (db, email) => {
       if (err) {
         reject(err);
       } else {
+        const memoryRow = inMemoryOtpStore.get(email);
+        if (memoryRow) {
+          memoryRow.attempts += 1;
+          inMemoryOtpStore.set(email, memoryRow);
+        }
         resolve();
       }
     });
@@ -215,7 +285,22 @@ export const getOTPExpiry = (db, email) => {
       if (err) {
         reject(err);
       } else if (!row) {
-        resolve(null);
+        const memoryRow = inMemoryOtpStore.get(email);
+        if (!memoryRow) {
+          resolve(null);
+          return;
+        }
+
+        const expiryTime = new Date(memoryRow.expiresAt).getTime();
+        const remainingMs = expiryTime - Date.now();
+        const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+
+        resolve({
+          expiresAt: memoryRow.expiresAt,
+          remainingSeconds,
+          attempts: memoryRow.attempts,
+          attemptsRemaining: Math.max(0, 3 - memoryRow.attempts),
+        });
       } else {
         const expiryTime = new Date(row.expires_at).getTime();
         const remainingMs = expiryTime - Date.now();

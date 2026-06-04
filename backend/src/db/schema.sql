@@ -276,3 +276,16 @@ CREATE TABLE IF NOT EXISTS email_phone_verifications (
 CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_user ON email_phone_verifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_code ON email_phone_verifications(verification_code);
 CREATE INDEX IF NOT EXISTS idx_email_phone_verifications_expires ON email_phone_verifications(expires_at);
+
+-- OTP Codes (for email-based authentication)
+CREATE TABLE IF NOT EXISTS otp_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) NOT NULL UNIQUE,
+  code VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  attempts INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_otp_codes_email ON otp_codes(email);
+CREATE INDEX IF NOT EXISTS idx_otp_codes_expires ON otp_codes(expires_at);

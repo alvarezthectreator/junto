@@ -9,6 +9,7 @@ import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 import { initializeFollowupScheduler } from './services/followupScheduler.js';
 import { initializeEmailTransporter } from './services/otpService.js';
+import db from './db/connection.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -56,6 +57,13 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
+// Attach the shared database connection to every request so controllers can
+// read/write OTPs and other records without importing the singleton directly.
+app.use((req, res, next) => {
+  req.db = db;
+  next();
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'API is running', timestamp: new Date().toISOString() });
@@ -102,6 +110,7 @@ async function startServer() {
   try {
     console.log('📚 Initializing database...');
     await initializeDatabase();
+    global.db = db; // Assign db to global for scheduler access
     
     // Initialize email transporter for OTP
     console.log('📧 Initializing email transporter...');

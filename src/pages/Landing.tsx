@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { DottedSurface } from '../components/ui/dotted-surface';
 import * as API from '../services/api';
 
-export function Landing({ onLogin }: { onLogin: (user: any, token: string) => void }) {
+export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, token: string) => void; onSignupWithOTP?: () => void }) {
   const [mode, setMode] = useState<'landing' | 'login' | 'signup'>('landing');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,13 +16,9 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
   
   // Signup state
   const [signupUsername, setSignupUsername] = useState('');
-  const [signupFullName, setSignupFullName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [signupReferralCode, setSignupReferralCode] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('ref') || '';
-  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +46,13 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
     e.preventDefault();
     setError('');
 
-    if (!signupUsername || !signupFullName || !signupPassword) {
+    if (!signupUsername || !signupEmail || !signupPassword) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail)) {
+      setError('Please enter a valid email address');
       return;
     }
 
@@ -65,17 +66,15 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const response = await API.signup(signupUsername, signupFullName, signupPassword, signupReferralCode || undefined);
-      localStorage.setItem('displayName', signupFullName);
-      onLogin(response.user, response.session_token);
-      setMode('landing');
-    } catch (err: any) {
-      setError(err.message || 'Signup failed. Please try again.');
-      setLoading(false);
-    }
+    // Store signup data in sessionStorage
+    sessionStorage.setItem('pendingSignup', JSON.stringify({
+      username: signupUsername,
+      email: signupEmail,
+      password: signupPassword
+    }));
+    
+    // Navigate to OTP signup page
+    onSignupWithOTP?.();
   };
 
   return (
@@ -252,7 +251,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                 })}
               </div>
 
-              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto', transform: 'translateY(-8px)' }}>
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: '0 12px 40px rgba(252,211,77,0.4)' }}
                   whileTap={{ scale: 0.98 }}
@@ -289,8 +288,8 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                     width: '100%',
                     transition: 'all 0.3s'
                   }}
-                >
-                  Already have an account?
+                  >
+                  Sign In
                 </motion.button>
               </div>
             </motion.div>
@@ -354,7 +353,7 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                   </div>
                 )}
 
-                {/* Full Name (Signup only) */}
+                {/* Email (Signup only) */}
                 {mode === 'signup' && (
                   <div>
                     <label style={{
@@ -366,13 +365,13 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                       display: 'block',
                       fontWeight: '600'
                     }}>
-                      Full Name
+                      Email
                     </label>
                     <input
-                      type="text"
-                      value={signupFullName}
-                      onChange={(e) => setSignupFullName(e.target.value)}
-                      placeholder="John Doe"
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="your@email.com"
                       style={{
                         width: '100%',
                         padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
@@ -440,49 +439,6 @@ export function Landing({ onLogin }: { onLogin: (user: any, token: string) => vo
                     }}
                   />
                 </div>
-
-                {/* Referral Code (Signup only) */}
-                {mode === 'signup' && (
-                  <div>
-                    <label style={{
-                      fontSize: 'clamp(10px, 2vw, 11px)',
-                      color: 'rgba(255,255,255,0.35)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                      marginBottom: '6px',
-                      display: 'block',
-                      fontWeight: '600'
-                    }}>
-                      Referral Code
-                    </label>
-                    <input
-                      type="text"
-                      value={signupReferralCode}
-                      onChange={(e) => setSignupReferralCode(e.target.value.toUpperCase())}
-                      placeholder="JNT-2024-12345"
-                      style={{
-                        width: '100%',
-                        padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2vw, 14px)',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(255,255,255,0.02)',
-                        color: '#fff',
-                        fontSize: 'clamp(13px, 3vw, 14px)',
-                        transition: 'all 0.2s',
-                        outline: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                      onFocus={(e) => {
-                        (e.target as HTMLInputElement).style.borderColor = '#F59E0B';
-                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.04)';
-                      }}
-                      onBlur={(e) => {
-                        (e.target as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.1)';
-                        (e.target as HTMLInputElement).style.background = 'rgba(255,255,255,0.02)';
-                      }}
-                    />
-                  </div>
-                )}
 
                 {/* Password */}
                 <div>

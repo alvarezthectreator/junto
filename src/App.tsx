@@ -23,7 +23,7 @@ import { Notifications } from './pages/Notifications';
 import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
 import { AdminModerator } from './pages/AdminModerator';
-import { OTPLogin } from './pages/OTPLogin';
+import { OTPSignup } from './pages/OTPSignup';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
@@ -257,20 +257,34 @@ export function App() {
   }, []);
 
   const content = (() => {
-    // Show OTP Login page if not authenticated
-    if (!isAuthenticated) {
+    // Show OTP Signup page if selected (before Landing check so it takes priority)
+    if (currentPage === 'signup-otp' && !isAuthenticated) {
       return (
-        <OTPLogin
+        <OTPSignup
           onSuccess={(token, user) => {
             localStorage.setItem('junto-session-token', token);
             handleLogin(token, user);
+            setCurrentPage('main');
           }}
-          onNavigate={setCurrentPage}
+          onBack={() => setCurrentPage('main')}
         />
       );
     }
 
-    // After login, if not completed onboarding, show onboarding
+    // Show Landing page if not authenticated
+    if (!isAuthenticated) {
+      return (
+        <Landing
+          onLogin={(user, token) => {
+            localStorage.setItem('junto-session-token', token);
+            handleLogin(token, user);
+          }}
+          onSignupWithOTP={() => setCurrentPage('signup-otp')}
+        />
+      );
+    }
+
+    // Show onboarding welcome screen if logged in but not entered app yet
     if (!hasEntered) {
       return (
         <div className="min-h-screen bg-[#0F0F13] text-white font-sans flex items-center justify-center">

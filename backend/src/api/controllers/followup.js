@@ -3,7 +3,7 @@
  * Endpoints for managing event follow-ups and engagement
  */
 
-import { getFollowupStatus, markFollowupResponded, getFollowupAnalytics } from '../services/followupScheduler.js';
+import { getFollowupStatus, markFollowupResponded, getFollowupAnalytics } from '../../services/followupScheduler.js';
 
 /**
  * GET /api/followups/event/:eventId

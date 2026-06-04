@@ -3,17 +3,21 @@
  * Handles OTP authentication endpoints
  */
 
+import crypto from 'crypto';
 import {
   generateOTP,
   sendOTPEmail,
   storeOTP,
+  storeOTPInMemory,
   verifyOTP,
   incrementOTPAttempts,
   getOTPExpiry,
   initializeEmailTransporter,
   testEmailConnection,
-} from '../services/otpService.js';
+} from '../../services/otpService.js';
+import db from '../../db/connection.js';
 import { generateToken } from '../middleware/auth.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Rate limiting in-memory store (use Redis in production)
 const requestLimits = new Map();
@@ -22,6 +26,10 @@ const verifyLimits = new Map();
 const MAX_OTP_REQUESTS_PER_HOUR = 5;
 const MAX_OTP_VERIFICATION_ATTEMPTS = 3;
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
+
+function getDatabase(req) {
+  return req.db || db;
+}
 
 /**
  * POST /api/auth/request-otp
@@ -58,7 +66,7 @@ export const requestOTP = async (req, res) => {
     const otp = generateOTP();
 
     // Send email
-    const emailResult = await sendOTPEmail(normalizedEmail);
+    const emailResult = await sendOTPEmail(normalizedEmail, otp);
     if (!emailResult.success) {
       console.error('Email send failed:', emailResult.error);
       return res.status(500).json({
@@ -68,12 +76,14 @@ export const requestOTP = async (req, res) => {
 
     // Store OTP in database
     try {
-      const storeResult = await storeOTP(req.db, normalizedEmail, otp);
+      const database = getDatabase(req);
+      await storeOTP(database, normalizedEmail, otp);
 
       // Track request for rate limiting
       recentRequests.push(now);
       requestLimits.set(normalizedEmail, recentRequests);
 
+      console.log(`✅ OTP successfully stored for ${normalizedEmail}`);
       res.json({
         success: true,
         message: 'OTP sent to your email',
@@ -82,8 +92,31 @@ export const requestOTP = async (req, res) => {
         messageId: emailResult.messageId,
       });
     } catch (dbError) {
-      console.error('Database error storing OTP:', dbError);
-      return res.status(500).json({ error: 'Failed to store OTP. Please try again.' });
+      console.error('❌ Database error storing OTP:', dbError.message);
+      console.warn('Attempting memory fallback for:', normalizedEmail);
+      
+      // Fallback to in-memory storage if database fails
+      try {
+        storeOTPInMemory(normalizedEmail, otp);
+
+        recentRequests.push(now);
+        requestLimits.set(normalizedEmail, recentRequests);
+
+        return res.json({
+          success: true,
+          message: 'OTP sent to your email',
+          email: normalizedEmail,
+          expiresIn: 300,
+          messageId: emailResult.messageId,
+          _debug: 'OTP stored in memory fallback mode',
+        });
+      } catch (fallbackError) {
+        console.error('❌ Both database and memory storage failed:', fallbackError);
+        return res.status(500).json({
+          error: 'Failed to store OTP. Please try again in a moment.',
+          retryAfter: 5,
+        });
+      }
     }
   } catch (error) {
     console.error('Error in requestOTP:', error);
@@ -126,15 +159,16 @@ export const verifyOTPCode = async (req, res) => {
     }
 
     // Verify OTP
-    const verifyResult = await verifyOTP(req.db, normalizedEmail, code);
+    const database = getDatabase(req);
+    const verifyResult = await verifyOTP(database, normalizedEmail, code);
 
     if (!verifyResult.valid) {
-      // Increment failed attempts
-      try {
-        await incrementOTPAttempts(req.db, normalizedEmail);
-      } catch (err) {
-        console.error('Error incrementing attempts:', err);
-      }
+        // Increment failed attempts
+        try {
+        await incrementOTPAttempts(database, normalizedEmail);
+        } catch (err) {
+          console.error('Error incrementing attempts:', err);
+        }
 
       // Track attempt for rate limiting
       recentAttempts.push(now);
@@ -149,7 +183,7 @@ export const verifyOTPCode = async (req, res) => {
     // OTP verified! Now check if user exists, create if needed
     const userCheckSql = 'SELECT * FROM users WHERE email = ?';
 
-    req.db.get(userCheckSql, [normalizedEmail], (err, user) => {
+    database.get(userCheckSql, [normalizedEmail], (err, user) => {
       if (err) {
         console.error('Error checking user:', err);
         return res.status(500).json({ error: 'Database error' });
@@ -157,29 +191,40 @@ export const verifyOTPCode = async (req, res) => {
 
       if (!user) {
         // Create new user from OTP verification
-        const { v4: uuidv4 } = require('uuid');
         const userId = uuidv4();
         const profileId = uuidv4();
         const now = new Date().toISOString();
 
+        // Extract display name and username from email
+        const emailBase = normalizedEmail.split('@')[0];
+        const displayName = emailBase.replace(/[^a-zA-Z0-9]/g, ' ').trim();
+        const username = `user_${emailBase}_${uuidv4().slice(0, 8)}`.toLowerCase();
+        
+        // For OTP-only accounts, create a random password hash as placeholder
+        // Since they logged in via OTP, they don't need to set a password
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+        const passwordHash = randomPassword; // In production, should hash this
+
         const createUserSql = `
           INSERT INTO users (
             id, email, phone_number, display_name, 
-            username, profile_id, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            username, password_hash, profile_id, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
-        // Extract display name from email if possible
-        const displayName = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ' ');
-
-        req.db.run(
+        database.run(
           createUserSql,
-          [userId, normalizedEmail, null, displayName, null, profileId, now],
+          [userId, normalizedEmail, null, displayName, username, passwordHash, profileId, now],
           (err) => {
             if (err) {
-              console.error('Error creating user:', err);
+              console.error('❌ Error creating OTP user:', err.message);
+              console.error('   User ID:', userId);
+              console.error('   Email:', normalizedEmail);
+              console.error('   Username:', username);
               return res.status(500).json({ error: 'Failed to create user account' });
             }
+            
+            console.log(`✅ New OTP user created: ${normalizedEmail} (${username})`);
 
             // Generate token for new user
             const token = generateToken({
@@ -252,7 +297,8 @@ export const getOTPExpiryInfo = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const expiryInfo = await getOTPExpiry(req.db, normalizedEmail);
+    const database = getDatabase(req);
+    const expiryInfo = await getOTPExpiry(database, normalizedEmail);
 
     if (!expiryInfo) {
       return res.status(404).json({ error: 'No OTP found for this email' });
@@ -286,7 +332,7 @@ export const resendOTP = async (req, res) => {
     const otp = generateOTP();
 
     // Send email
-    const emailResult = await sendOTPEmail(normalizedEmail);
+    const emailResult = await sendOTPEmail(normalizedEmail, otp);
     if (!emailResult.success) {
       return res.status(500).json({
         error: 'Failed to send OTP email',
@@ -295,7 +341,8 @@ export const resendOTP = async (req, res) => {
 
     // Store OTP in database
     try {
-      await storeOTP(req.db, normalizedEmail, otp);
+      const database = getDatabase(req);
+      await storeOTP(database, normalizedEmail, otp);
 
       res.json({
         success: true,
@@ -304,8 +351,25 @@ export const resendOTP = async (req, res) => {
         expiresIn: 300,
       });
     } catch (dbError) {
-      console.error('Database error storing OTP:', dbError);
-      return res.status(500).json({ error: 'Failed to store OTP' });
+      console.error('❌ Database error during OTP resend:', dbError.message);
+      
+      // Fallback to in-memory storage
+      try {
+        storeOTPInMemory(normalizedEmail, otp);
+
+        return res.json({
+          success: true,
+          message: 'OTP resent to your email',
+          email: normalizedEmail,
+          expiresIn: 300,
+          _debug: 'OTP stored in memory fallback mode',
+        });
+      } catch (fallbackError) {
+        console.error('❌ Both database and memory storage failed during resend:', fallbackError);
+        return res.status(500).json({
+          error: 'Failed to resend OTP. Please try again.',
+        });
+      }
     }
   } catch (error) {
     console.error('Error in resendOTP:', error);
