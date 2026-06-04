@@ -5,10 +5,8 @@ import {
   ClipboardList,
   MessageCircle,
   ShieldAlert,
-  Shield,
   User,
   Heart,
-  Users,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -92,19 +90,6 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
             onClick={() => handleNavigate('profile', 'Profile')}
           />
 
-          <NavItem
-            icon={<Users size={18} />}
-            label="Squads"
-            isActive={activeNav === 'Squads'}
-            onClick={() => handleNavigate('squads', 'Squads')}
-          />
-
-          <NavItem
-            icon={<Shield size={18} />}
-            label="Admin"
-            isActive={activeNav === 'Admin'}
-            onClick={() => handleNavigate('admin', 'Admin')}
-          />
         </div>
       </nav>
     </motion.div>

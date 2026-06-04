@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plane, Flame, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
@@ -215,6 +216,8 @@ function toFeedEventFromSeed(event: DiscoverEventSeed): FeedEvent {
 }
 
 export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
@@ -226,6 +229,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [useBackend, setUseBackend] = useState(true);
   const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
   const [displayLimit, setDisplayLimit] = useState(12);
+  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
   
   const filters = [
   'All vibes',
@@ -305,6 +309,14 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   useEffect(() => {
     setLocalEvents(loadStoredCreatedEvents());
   }, []);
+
+  useEffect(() => {
+    const shouldPrompt = localStorage.getItem('junto-profile-completion-prompt') === 'true' || Boolean((location.state as any)?.showProfilePrompt);
+    if (shouldPrompt) {
+      setShowProfilePrompt(true);
+      localStorage.removeItem('junto-profile-completion-prompt');
+    }
+  }, [location.state]);
 
   const events = useMemo<FeedEvent[]>(() => {
     const deletedSignatures = readDeletedEventSignatures();
@@ -408,7 +420,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     }
 
     onOpenEvent?.(detailEvent);
-    onNavigate?.('event');
+    navigate(`/event/${detailEvent.id}`, { state: { event: detailEvent } });
   };
 
   return (
@@ -424,6 +436,41 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       transition={{
         duration: 0.8
       }}>
+      {showProfilePrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-[#121218] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-orange-300/80">
+              Profile setup
+            </p>
+            <h3 className="mt-3 text-2xl font-bold text-white">Finish your profile</h3>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Your interests and location are set. Head to your profile to add your photo, bio, and any other details you want people to see.
+            </p>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => {
+                  setShowProfilePrompt(false);
+                  navigate('/profile');
+                }}
+                className="rounded-full bg-gradient-to-r from-[#FCD34D] to-[#F59E0B] px-5 py-3 text-sm font-bold text-black transition-opacity hover:opacity-95"
+              >
+                Go to Profile
+              </button>
+              <button
+                onClick={() => setShowProfilePrompt(false)}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-gray-200 transition-colors hover:bg-white/[0.08]"
+              >
+                Maybe later
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
       
       {/* Hero Section & Stats */}
       <div className="flex flex-col gap-6 sm:gap-8 md:gap-0 md:flex-row mb-6 sm:mb-8 items-start md:items-center">

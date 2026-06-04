@@ -602,12 +602,9 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
 
   const openPersonProfile = (person: InterestedPerson) => {
     // Navigate to public host profile instead of full profile
-    if (setSelectedUser && onNavigate) {
-      onNavigate('public-profile');
-      // Pass the hostId through context/state
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('publicHostId', person.userId || person.profileId || person.id);
-      }
+    const hostId = person.userId || person.profileId || person.id;
+    if (hostId) {
+      navigate(`/public-profile/${encodeURIComponent(hostId)}`);
     }
   };
 

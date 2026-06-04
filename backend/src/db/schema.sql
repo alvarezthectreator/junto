@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS events (
   event_date DATE NOT NULL,
   event_time TIME NOT NULL,
   cover_photo_url TEXT,
+  is_squad_event BOOLEAN DEFAULT false,
   billing_tier INT DEFAULT 1, -- 1-4 for Starter, Social, Premium, Elite
   host_fee INT, -- in naira
   guest_fee INT, -- in naira

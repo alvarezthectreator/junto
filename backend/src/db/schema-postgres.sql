@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS events (
   event_date DATE NOT NULL,
   event_time TIME NOT NULL,
   cover_photo_url TEXT,
+  is_squad_event BOOLEAN DEFAULT false,
   billing_tier INT DEFAULT 1,
   host_fee INT,
   guest_fee INT,

@@ -52,10 +52,12 @@ export interface Event {
   display_name?: string;
   title: string;
   description?: string;
+  event_type?: string;
   location_city: string;
   event_date: string;
   event_time: string;
   cover_photo_url?: string;
+  is_squad_event?: boolean;
   max_guests?: number;
   billing_tier: number;
   host_fee: number;

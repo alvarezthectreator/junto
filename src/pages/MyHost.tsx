@@ -319,6 +319,36 @@ interface MyHostProps {
   handleLogout?: () => void;
 }
 
+const BILLING_TIERS = [
+  {
+    value: '1',
+    label: 'Host covers everything',
+    helper: 'You cover the full outing, including the attendee transport.',
+  },
+  {
+    value: '2',
+    label: 'Host covers venue, attendee pays transport',
+    helper: 'You cover the venue cost and the attendee handles transport.',
+  },
+  {
+    value: '3',
+    label: 'Split the bill equally',
+    helper: 'You and the attendee split the venue cost evenly.',
+  },
+  {
+    value: '4',
+    label: 'Host Me',
+    helper: 'Premium tier where the attendee covers both sides at the venue.',
+  },
+];
+
+const EVENT_TYPES = [
+  { value: 'social', label: 'Social hangout' },
+  { value: 'squad', label: 'Squad event' },
+  { value: 'travel', label: 'Travel mode' },
+  { value: 'private', label: 'Private invite' },
+];
+
 function CreateEventModal({
   isOpen,
   onClose,
@@ -338,6 +368,9 @@ function CreateEventModal({
     capacity: 4,
     description: "",
     cancellationPolicy: "moderate",
+    eventType: "social",
+    billingTier: "1",
+    isSquadEvent: false,
     imageFile: null as File | null,
     imagePreview: "",
   });
@@ -395,6 +428,9 @@ function CreateEventModal({
           capacity: 4,
           description: "",
           cancellationPolicy: "moderate",
+          eventType: "social",
+          billingTier: "1",
+          isSquadEvent: false,
           imageFile: null,
           imagePreview: "",
         });
@@ -826,6 +862,125 @@ function CreateEventModal({
             )}
           </div>
 
+          {/* Event Type */}
+          <div>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#999",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 6,
+                display: "block",
+              }}
+            >
+              Event Type
+            </label>
+            <select
+              value={formData.eventType}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, eventType: e.target.value }))
+              }
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                background: isLightMode ? "#fffaf2" : "#050505",
+                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                borderRadius: 10,
+                color: isLightMode ? "#241b10" : "#fff",
+                fontSize: 14,
+                outline: "none",
+                transition: "all 0.2s ease",
+                cursor: "pointer",
+              } as React.CSSProperties}
+            >
+              {EVENT_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            <p style={{ fontSize: 11, color: isLightMode ? "#8d7758" : "#666", marginTop: 6 }}>
+              Squad events are best for group plans, concerts, and shared outings.
+            </p>
+          </div>
+
+          {/* Billing Tier */}
+          <div>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#999",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 6,
+                display: "block",
+              }}
+            >
+              Who pays?
+            </label>
+            <select
+              value={formData.billingTier}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, billingTier: e.target.value }))
+              }
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                background: isLightMode ? "#fffaf2" : "#050505",
+                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+                borderRadius: 10,
+                color: isLightMode ? "#241b10" : "#fff",
+                fontSize: 14,
+                outline: "none",
+                transition: "all 0.2s ease",
+                cursor: "pointer",
+              } as React.CSSProperties}
+            >
+              {BILLING_TIERS.map((tier) => (
+                <option key={tier.value} value={tier.value}>
+                  {tier.value}. {tier.label}
+                </option>
+              ))}
+            </select>
+            <p style={{ fontSize: 11, color: isLightMode ? "#8d7758" : "#666", marginTop: 6 }}>
+              {BILLING_TIERS.find((tier) => tier.value === formData.billingTier)?.helper}
+            </p>
+          </div>
+
+          {/* Squad Event */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
+              background: isLightMode ? "#fffaf2" : "#050505",
+            }}
+          >
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
+                Mark as squad event
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#666" }}>
+                Use this for concerts, trips, and group outings.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={formData.isSquadEvent}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, isSquadEvent: e.target.checked }))
+              }
+              style={{ width: 18, height: 18, accentColor: "#F69D11" }}
+            />
+          </div>
+
           {/* Cancellation Policy */}
           <div>
             <label
@@ -1056,6 +1211,8 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
       const eventPayload = {
         title: eventData.title,
         description: eventData.description,
+        event_type: eventData.eventType || (eventData.isSquadEvent ? 'squad' : 'social'),
+        is_squad_event: Boolean(eventData.isSquadEvent),
         location_city: eventData.location,
         event_date: eventData.date, // Format: YYYY-MM-DD
         event_time: eventData.time, // Format: HH:MM
@@ -1063,9 +1220,9 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         max_guests: eventData.capacity,
         cancellation_policy: eventData.cancellationPolicy || 'moderate',
         host_id: userId,
-        billing_tier: 1, // Default tier
-        host_fee: 0, // Can be updated later
-        guest_fee: 0, // Can be updated later
+        billing_tier: Number(eventData.billingTier) || 1,
+        host_fee: 0,
+        guest_fee: 0,
       };
 
       // Send to backend API
@@ -1096,9 +1253,11 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
         event_date: eventData.date,
         event_time: eventData.time,
         max_guests: eventData.capacity,
-        billing_tier: 1,
+        billing_tier: Number(eventData.billingTier) || 1,
         host_fee: 0,
         guest_fee: 0,
+        event_type: eventData.eventType || (eventData.isSquadEvent ? 'squad' : 'social'),
+        is_squad_event: Boolean(eventData.isSquadEvent),
         created_at: new Date().toISOString(),
         status: 'active',
       };

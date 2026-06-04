@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Bell, Plus, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { Landing } from './pages/Landing';
 import { Discover } from './pages/Discover';
@@ -24,6 +24,8 @@ import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
 import { AdminModerator } from './pages/AdminModerator';
 import { OTPSignup } from './pages/OTPSignup';
+import { OnboardingInterests } from './pages/OnboardingInterests';
+import { OnboardingLocation } from './pages/OnboardingLocation';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
@@ -33,12 +35,104 @@ import { logout as clearApiSession, getLastSessionActivity, markSessionActivity 
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const SESSION_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'focus'];
 
+type RouteState = {
+  event?: any;
+  showProfilePrompt?: boolean;
+};
+
+function getPageFromPath(pathname: string) {
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+
+  if (cleanPath === '/' || cleanPath === '') return 'landing';
+  if (cleanPath === '/signup-otp') return 'signup-otp';
+  if (cleanPath === '/onboarding/interests') return 'onboarding-interests';
+  if (cleanPath === '/onboarding/location') return 'onboarding-location';
+  if (cleanPath.startsWith('/event/')) return 'event';
+  if (cleanPath.startsWith('/public-profile/')) return 'public-profile';
+  if (cleanPath === '/discover') return 'main';
+  if (cleanPath === '/nearby') return 'nearby';
+  if (cleanPath === '/requests') return 'requests';
+  if (cleanPath === '/messages') return 'messages';
+  if (cleanPath === '/safety') return 'safety';
+  if (cleanPath === '/profile') return 'profile';
+  if (cleanPath === '/dashboard') return 'dashboard';
+  if (cleanPath === '/myhost') return 'myhost';
+  if (cleanPath === '/premium') return 'premium';
+  if (cleanPath === '/settings') return 'settings';
+  if (cleanPath === '/travel') return 'travel';
+  if (cleanPath === '/squads') return 'squads';
+  if (cleanPath === '/admin') return 'admin';
+  if (cleanPath === '/help') return 'help';
+  if (cleanPath === '/notifications') return 'notifications';
+
+  return 'main';
+}
+
+function getPagePath(page: string, eventId?: string | null) {
+  switch (page) {
+    case 'landing':
+    case 'main':
+    case 'discover':
+      return '/discover';
+    case 'signup-otp':
+      return '/signup-otp';
+    case 'onboarding-interests':
+      return '/onboarding/interests';
+    case 'onboarding-location':
+      return '/onboarding/location';
+    case 'nearby':
+      return '/nearby';
+    case 'requests':
+      return '/requests';
+    case 'messages':
+      return '/messages';
+    case 'safety':
+      return '/safety';
+    case 'profile':
+      return '/profile';
+    case 'dashboard':
+      return '/dashboard';
+    case 'myhost':
+      return '/myhost';
+    case 'premium':
+      return '/premium';
+    case 'settings':
+      return '/settings';
+    case 'travel':
+      return '/travel';
+    case 'squads':
+      return '/squads';
+    case 'admin':
+      return '/admin';
+    case 'help':
+      return '/help';
+    case 'notifications':
+      return '/notifications';
+    case 'event':
+      return eventId ? `/event/${encodeURIComponent(eventId)}` : '/discover';
+    case 'public-profile':
+      return '/public-profile';
+    default:
+      return '/discover';
+  }
+}
+
+function getRouteIds(pathname: string) {
+  const parts = pathname.split('/').filter(Boolean);
+
+  return {
+    eventId: parts[0] === 'event' ? decodeURIComponent(parts[1] || '') : null,
+    publicHostId: parts[0] === 'public-profile' ? decodeURIComponent(parts[1] || '') : null,
+  };
+}
+
 function getStoredSessionActivity() {
   return getLastSessionActivity();
 }
 
 export function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [hasEntered, setHasEntered] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeNav, setActiveNav] = useState(() => {
@@ -48,13 +142,7 @@ export function App() {
 
     return window.localStorage.getItem('junto-active-nav') || 'Discover';
   });
-  const [currentPage, setCurrentPage] = useState<string>(() => {
-    if (typeof window === 'undefined') {
-      return 'main';
-    }
-
-    return window.localStorage.getItem('junto-current-page') || 'main';
-  });
+  const [currentPage, setCurrentPage] = useState<string>(() => getPageFromPath(typeof window === 'undefined' ? '/' : window.location.pathname));
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
@@ -75,21 +163,43 @@ export function App() {
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [publicHostId, setPublicHostId] = useState<string | null>(null);
+  const { eventId: routeEventId, publicHostId: routePublicHostId } = getRouteIds(location.pathname);
+  const routeState = (location.state || {}) as RouteState;
+
+  const navigateToPage = useCallback((page: string) => {
+    if (page === 'event') {
+      const eventId = selectedEvent?.id || routeEventId;
+      navigate(getPagePath(page, eventId));
+      setShowMenu(false);
+      return;
+    }
+
+    if (page === 'landing') {
+      navigate('/');
+      setShowMenu(false);
+      return;
+    }
+
+    navigate(getPagePath(page));
+    setShowMenu(false);
+  }, [navigate, routeEventId, selectedEvent?.id]);
 
   // Track route changes and update activeNav
   useEffect(() => {
-    const path = location.pathname;
-    if (path.includes('/discover')) {
+    const page = getPageFromPath(location.pathname);
+    setCurrentPage(page);
+
+    if (page === 'main' || page === 'event') {
       setActiveNav('Discover');
-    } else if (path.includes('/nearby')) {
+    } else if (page === 'nearby') {
       setActiveNav('Nearby');
-    } else if (path.includes('/requests')) {
+    } else if (page === 'requests') {
       setActiveNav('My Requests');
-    } else if (path.includes('/messages')) {
+    } else if (page === 'messages') {
       setActiveNav('Messages');
-    } else if (path.includes('/safety')) {
+    } else if (page === 'safety') {
       setActiveNav('Safety');
-    } else if (path.includes('/profile')) {
+    } else if (page === 'profile' || page === 'public-profile') {
       setActiveNav('Profile');
     }
   }, [location.pathname]);
@@ -97,13 +207,12 @@ export function App() {
   // Handle public profile navigation - retrieve hostId from sessionStorage
   useEffect(() => {
     if (currentPage === 'public-profile') {
-      const hostId = sessionStorage.getItem('publicHostId');
+      const hostId = routePublicHostId || sessionStorage.getItem('publicHostId');
       if (hostId) {
         setPublicHostId(hostId);
-        sessionStorage.removeItem('publicHostId');
       }
     }
-  }, [currentPage]);
+  }, [currentPage, routePublicHostId]);
   
   // Reset openCreateModal when leaving myhost page
   useEffect(() => {
@@ -130,26 +239,27 @@ export function App() {
     // Store session token and user data
     localStorage.setItem('sessionToken', token);
     localStorage.setItem('currentUser', JSON.stringify(userData));
+    localStorage.setItem('userId', user.id);
     markSessionActivity();
-    setCurrentPage('main');
+    navigate('/discover', { replace: true });
     setActiveNav('Discover');
     setIsAuthenticated(true);
     setHasEntered(true);
-  }, []);
+  }, [navigate]);
 
   const handleLogout = useCallback(() => {
     setHasEntered(false);
     setIsAuthenticated(false);
     setCurrentUser(null);
     setSelectedUser(null);
-    setCurrentPage('main');
+    navigate('/', { replace: true });
     setActiveNav('Discover');
     setShowMenu(false);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('junto-current-page');
     localStorage.removeItem('junto-active-nav');
     clearApiSession();
-  }, []);
+  }, [navigate]);
   
   useEffect(() => {
     document.body.classList.toggle('theme-light-body', isLightMode);
@@ -215,6 +325,16 @@ export function App() {
   }, [handleLogout, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (currentPage === 'landing' || currentPage === 'signup-otp') {
+      navigate('/discover', { replace: true });
+    }
+  }, [currentPage, isAuthenticated, navigate]);
+
+  useEffect(() => {
     const syncSidebarToViewport = () => {
       setIsSidebarOpen(window.innerWidth >= 768);
     };
@@ -245,8 +365,6 @@ export function App() {
         setCurrentUser(user);
         setIsAuthenticated(true);
         setHasEntered(true);
-        setCurrentPage('main');
-        setActiveNav('Discover');
         if (!storedActivity) {
           markSessionActivity();
         }
@@ -257,16 +375,54 @@ export function App() {
   }, []);
 
   const content = (() => {
+    if (currentPage === 'onboarding-interests' && (isAuthenticated || localStorage.getItem('sessionToken'))) {
+      return (
+        <OnboardingInterests
+          currentUser={currentUser}
+          onBack={() => navigate('/signup-otp')}
+          onComplete={() => navigate('/onboarding/location')}
+        />
+      );
+    }
+
+    if (currentPage === 'onboarding-location' && (isAuthenticated || localStorage.getItem('sessionToken'))) {
+      return (
+        <OnboardingLocation
+          currentUser={currentUser}
+          onBack={() => navigate('/onboarding/interests')}
+          onComplete={() => {
+            localStorage.setItem('junto-profile-completion-prompt', 'true');
+            navigate('/discover', { replace: true, state: { showProfilePrompt: true } });
+          }}
+        />
+      );
+    }
+
     // Show OTP Signup page if selected (before Landing check so it takes priority)
     if (currentPage === 'signup-otp' && !isAuthenticated) {
       return (
         <OTPSignup
           onSuccess={(token, user) => {
             localStorage.setItem('junto-session-token', token);
-            handleLogin(token, user);
-            setCurrentPage('main');
+            localStorage.setItem('currentUser', JSON.stringify({
+              id: user.id,
+              username: user.username || user.display_name || 'User',
+              name: user.display_name || user.username || 'User',
+              profile_id: user.profile_id,
+            }));
+            localStorage.setItem('userId', user.id);
+            setCurrentUser({
+              id: user.id,
+              username: user.username || user.display_name || 'User',
+              name: user.display_name || user.username || 'User',
+              profile_id: user.profile_id,
+            });
+            setIsAuthenticated(true);
+            setHasEntered(true);
+            markSessionActivity();
+            navigate('/onboarding/interests', { replace: true });
           }}
-          onBack={() => setCurrentPage('main')}
+          onBack={() => navigate('/discover')}
         />
       );
     }
@@ -277,9 +433,9 @@ export function App() {
         <Landing
           onLogin={(user, token) => {
             localStorage.setItem('junto-session-token', token);
-            handleLogin(token, user);
+            handleLogin(user, token);
           }}
-          onSignupWithOTP={() => setCurrentPage('signup-otp')}
+          onSignupWithOTP={() => navigate('/signup-otp')}
         />
       );
     }
@@ -305,12 +461,12 @@ export function App() {
     }
 
     // Full-screen pages (no sidebar)
-    if (currentPage === 'event') return <EventDetail eventData={selectedEvent || undefined} onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
-    if (currentPage === 'notifications') return <Notifications onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'event') return <EventDetail eventId={routeEventId || selectedEvent?.id || undefined} eventData={routeState.event || selectedEvent || undefined} onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'notifications') return <Notifications onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'nearby') {
       return (
         <Nearby
-          onNavigate={setCurrentPage}
+          onNavigate={navigateToPage}
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
           currentUser={currentUser}
@@ -321,7 +477,7 @@ export function App() {
       return (
         <Profile
           selectedUser={selectedUser}
-          onNavigate={setCurrentPage}
+          onNavigate={navigateToPage}
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
           onToggleLightMode={() => setIsLightMode((current) => !current)}
@@ -329,23 +485,23 @@ export function App() {
         />
       );
     }
-    if (currentPage === 'dashboard') return <HostDashboard onNavigate={setCurrentPage} isLightMode={isLightMode} />;
-    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={setCurrentPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
+    if (currentPage === 'dashboard') return <HostDashboard onNavigate={navigateToPage} isLightMode={isLightMode} />;
+    if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={navigateToPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
     if (currentPage === 'premium') return <Premium />;
-    if (currentPage === 'settings') return <Settings onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
-    if (currentPage === 'safety') return <SafetyCentre onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'settings') return <Settings onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
+    if (currentPage === 'safety') return <SafetyCentre onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode />;
     if (currentPage === 'squads') return <SquadsPage />;
-    if (currentPage === 'admin') return <AdminModerator onNavigate={setCurrentPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
-    if (currentPage === 'help') return <Help onNavigate={setCurrentPage} isLightMode={isLightMode} />;
-    if (currentPage === 'public-profile' && publicHostId) return <PublicHostProfile hostId={publicHostId} onNavigate={setCurrentPage} setActiveNav={setActiveNav} />;
+    if (currentPage === 'admin') return <AdminModerator onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
+    if (currentPage === 'help') return <Help onNavigate={navigateToPage} isLightMode={isLightMode} />;
+    if (currentPage === 'public-profile' && (routePublicHostId || publicHostId)) return <PublicHostProfile hostId={routePublicHostId || publicHostId || ''} onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
 
     return (
       <div className="flex min-h-screen bg-[#0F0F13] text-white selection:bg-[#F59E0B]/30 font-sans">
         <Sidebar 
           activeNav={activeNav} 
           handleLogout={handleLogout}
-          onNavigate={setCurrentPage}
+          onNavigate={navigateToPage}
           setActiveNav={setActiveNav}
         />
 
@@ -355,7 +511,7 @@ export function App() {
             <header className="flex items-center justify-end gap-3 mb-8">
               <button 
                 onClick={() => {
-                  setCurrentPage('myhost');
+                  navigate('/myhost');
                   setOpenCreateModal(true);
                 }}
                 className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-4 py-2 rounded-full font-semibold text-sm transition-colors"
@@ -364,7 +520,7 @@ export function App() {
                 <span>Post</span>
               </button>
               <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors relative"
-                onClick={() => setCurrentPage('notifications')}>
+                onClick={() => navigate('/notifications')}>
                 <Bell size={18} />
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
@@ -384,7 +540,7 @@ export function App() {
                   >
                     <button
                       onClick={() => {
-                        setCurrentPage('premium');
+                        navigate('/premium');
                         setShowMenu(false);
                       }}
                       className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
@@ -393,7 +549,16 @@ export function App() {
                     </button>
                     <button
                       onClick={() => {
-                        setCurrentPage('main');
+                        navigate('/squads');
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
+                    >
+                      Squads
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/help');
                         setShowMenu(false);
                       }}
                       className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
@@ -415,12 +580,12 @@ export function App() {
             </header>
 
             {/* Page Content */}
-            {activeNav === 'Discover' && <Discover onNavigate={setCurrentPage} onOpenEvent={setSelectedEvent} currentUser={currentUser} />}
+            {activeNav === 'Discover' && <Discover onNavigate={navigateToPage} onOpenEvent={setSelectedEvent} currentUser={currentUser} />}
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages />}
             {activeNav === 'Safety' && <Safety />}
-            {activeNav === 'Profile' && <Profile onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
-            {activeNav === 'Nearby' && <Nearby onNavigate={setCurrentPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}
+            {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />}
+            {activeNav === 'Nearby' && <Nearby onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}
           </div>
         </main>
       </div>

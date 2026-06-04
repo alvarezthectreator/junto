@@ -81,7 +81,8 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
     <div style={{
       minHeight: '100vh',
       color: '#fff',
-      overflow: 'hidden',
+      overflowX: 'hidden',
+      overflowY: 'auto',
       display: 'flex',
       flexDirection: 'column',
       position: 'relative'
@@ -93,7 +94,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh'
+        minHeight: '100vh'
       }}>
         {/* Navigation */}
         <nav style={{
@@ -154,8 +155,8 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'clamp(20px, 8vw, 60px) clamp(16px, 6vw, 40px)',
+            justifyContent: 'flex-start',
+            padding: 'clamp(20px, 4vw, 40px) clamp(16px, 6vw, 40px) clamp(28px, 6vw, 48px)',
             textAlign: 'center',
             position: 'relative',
             overflow: 'hidden'
@@ -175,13 +176,19 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              style={{ position: 'relative', zIndex: 1 }}
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                width: '100%',
+                maxWidth: '720px',
+                marginTop: 'clamp(8px, 5vh, 48px)'
+              }}
             >
-              <div style={{ fontSize: '60px', marginBottom: '18px' }}>✨</div>
+              <div style={{ fontSize: '60px', marginBottom: '14px' }}>✨</div>
               <h1 style={{
                 fontSize: 'clamp(24px, 10vw, 48px)',
                 fontWeight: '700',
-                marginBottom: '20px',
+                marginBottom: '14px',
                 lineHeight: '1.2',
                 background: 'linear-gradient(135deg, #FCD34D, #F59E0B)',
                 backgroundClip: 'text',
@@ -193,10 +200,10 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
               <p style={{
                 fontSize: 'clamp(13px, 4vw, 16px)',
                 color: 'rgba(255,255,255,0.5)',
-                marginBottom: '36px',
+                marginBottom: '24px',
                 maxWidth: '380px',
                 lineHeight: '1.8',
-                margin: '0 auto 36px'
+                margin: '0 auto 24px'
               }}>
                 Junto connects you with real people for real outings. No dating pressure. No financial surprises.
               </p>
@@ -205,10 +212,12 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 'clamp(8px, 3vw, 12px)',
+                gap: 'clamp(8px, 2vw, 10px)',
                 width: '100%',
                 maxWidth: '360px',
-                marginBottom: '36px'
+                marginBottom: '24px',
+                marginLeft: 'auto',
+                marginRight: 'auto'
               }}>
                 {[
                   { icon: Check, text: 'All payments at the venue — never in advance' },
@@ -251,7 +260,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 })}
               </div>
 
-              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto', transform: 'translateY(-8px)' }}>
+              <div style={{ display: 'flex', gap: 'clamp(8px, 3vw, 12px)', flexDirection: 'column', width: '100%', maxWidth: '320px', margin: '0 auto', transform: 'translateY(0)' }}>
                 <motion.button
                   whileHover={{ scale: 1.05, boxShadow: '0 12px 40px rgba(252,211,77,0.4)' }}
                   whileTap={{ scale: 0.98 }}
@@ -299,9 +308,9 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
           <div style={{
             flex: 1,
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 'clamp(16px, 6vw, 40px) clamp(12px, 4vw, 20px)'
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start',
+            padding: 'clamp(16px, 4vw, 40px) clamp(12px, 4vw, 20px) clamp(24px, 6vw, 40px)'
           }}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}

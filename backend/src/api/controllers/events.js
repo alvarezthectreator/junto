@@ -80,6 +80,7 @@ export async function createEvent(req, res) {
       title,
       description,
       event_type,
+      is_squad_event,
       location_city,
       location_address,
       event_date,
@@ -106,11 +107,11 @@ export async function createEvent(req, res) {
     const eventId = uuidv4();
     const result = await query(
       `INSERT INTO events (id, host_id, title, description, event_type, location_city, location_address, 
-                          event_date, event_time, cover_photo_url, billing_tier, host_fee, guest_fee, max_guests)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                          event_date, event_time, cover_photo_url, is_squad_event, billing_tier, host_fee, guest_fee, max_guests)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [eventId, host_id, title, description, event_type, location_city, location_address,
-       event_date, event_time || '18:00', cover_photo_url, tier, tierData.hostFee, tierData.guestFee, max_guests || 15]
+       event_date, event_time || '18:00', cover_photo_url, Boolean(is_squad_event), tier, tierData.hostFee, tierData.guestFee, max_guests || 15]
     );
 
     // Create notification for host
@@ -133,7 +134,7 @@ export async function createEvent(req, res) {
 export async function updateEvent(req, res) {
   try {
     const { eventId } = req.params;
-    const { title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests } = req.body;
+    const { title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests, event_type, is_squad_event, billing_tier } = req.body;
 
     const result = await query(
       `UPDATE events SET title = COALESCE($1, title),
@@ -144,9 +145,12 @@ export async function updateEvent(req, res) {
                         status = COALESCE($6, status),
                         cover_photo_url = COALESCE($7, cover_photo_url),
                         max_guests = COALESCE($8, max_guests),
+                        event_type = COALESCE($9, event_type),
+                        is_squad_event = COALESCE($10, is_squad_event),
+                        billing_tier = COALESCE($11, billing_tier),
                         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9 RETURNING *`,
-      [title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests, eventId]
+       WHERE id = $12 RETURNING *`,
+      [title, description, location_city, event_date, event_time, status, cover_photo_url, max_guests, event_type, is_squad_event, billing_tier, eventId]
     );
 
     if (result.rows.length === 0) {

@@ -92,6 +92,7 @@ export async function initializeDatabase() {
 function ensureProductionTables() {
   const addReferralColumns = [
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
+    `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
   ];
 
   addReferralColumns.forEach((statement) => {

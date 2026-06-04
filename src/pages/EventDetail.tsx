@@ -148,6 +148,38 @@ function createApplicationId() {
   return `app-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const BILLING_TIER_DETAILS = {
+  1: {
+    title: 'Host covers everything',
+    subtitle: 'You pay nothing at the venue.',
+    note: 'The host pays for the whole outing, including attendee transport.',
+    badgeClass: 'border-green-500/20 bg-green-500/10 text-green-400',
+  },
+  2: {
+    title: 'Host covers the venue',
+    subtitle: 'You handle your own transport.',
+    note: 'The host pays venue costs and the attendee covers transport.',
+    badgeClass: 'border-blue-500/20 bg-blue-500/10 text-blue-400',
+  },
+  3: {
+    title: 'Split the bill',
+    subtitle: 'Everyone shares the cost equally.',
+    note: 'Venue costs are split between the host and the attendee.',
+    badgeClass: 'border-purple-500/20 bg-purple-500/10 text-purple-400',
+  },
+  4: {
+    title: 'Host Me',
+    subtitle: 'Premium tier',
+    note: 'The attendee covers both sides at the venue.',
+    badgeClass: 'border-red-500/20 bg-red-500/10 text-red-400',
+  },
+} as const;
+
+function getBillingTierDetails(event: any) {
+  const tier = Number(event?.billing_tier || event?.billingTier || 1) as 1 | 2 | 3 | 4;
+  return BILLING_TIER_DETAILS[tier] || BILLING_TIER_DETAILS[1];
+}
+
 function readStoredEventApplications(): StoredEventApplication[] {
   if (typeof window === 'undefined') {
     return [];
@@ -309,6 +341,8 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
   const reviews = event.reviews ?? [];
   const applicationStorageKey = `junto-event-application-${event.id}`;
+  const billingDetails = getBillingTierDetails(event);
+  const isSquadEvent = Boolean((event as any).is_squad_event || (event as any).squad_event);
   const applicationTimeline = useMemo(() => {
     const submittedAt = applicationUpdatedAt ? new Date(applicationUpdatedAt).toLocaleString() : 'Just now';
     const responseText =
@@ -764,6 +798,9 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       max_guests: Number(editDraft.maxSpots) || event.totalSpots,
       cover_photo_url: compressedCoverImage || undefined,
       status: 'active',
+      event_type: (event as any).event_type || 'social',
+      is_squad_event: Boolean((event as any).is_squad_event || (event as any).squad_event),
+      billing_tier: Number((event as any).billing_tier || (event as any).billingTier || 1),
     };
 
     try {
@@ -901,6 +938,11 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                   <span className="rounded-full bg-[#F59E0B]/15 px-3 py-1.5 text-xs font-medium text-[#FBBF24]">
                     {event.category}
                   </span>
+                  {isSquadEvent && (
+                    <span className="rounded-full border border-pink-500/20 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-300">
+                      Squad event
+                    </span>
+                  )}
                   <span className="rounded-full bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400">
                     {event.genderFilter}
                   </span>
@@ -1246,14 +1288,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                       </div>
                     </motion.div>
 
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="rounded-2xl border border-[#F59E0B]/20 bg-[#F59E0B]/10 p-4">
-                      <h3 className="mb-2 text-sm font-semibold text-[#FBBF24]">Host covers everything</h3>
-                      <p className="text-sm text-gray-300">You don't pay anything for this event.</p>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className={`rounded-2xl border p-4 ${billingDetails.badgeClass}`}>
+                      <h3 className="mb-2 text-sm font-semibold">{billingDetails.title}</h3>
+                      <p className="text-sm text-gray-300">{billingDetails.subtitle}</p>
                       <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
                         <div className="flex items-start gap-2">
                           <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-red-400" />
                           <p className="text-xs text-red-200">
-                            All payments happen at the venue only. Never send money to the host before the event.
+                            {billingDetails.note} All payments happen at the venue only. Never send money before the event.
                           </p>
                         </div>
                       </div>
@@ -1754,7 +1796,16 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 <p className="mt-1 text-sm font-medium text-white">{event.title}</p>
               </div>
 
-              <div className="rounded-2xl border border-[#F59E0B]/20 bg-[#F59E0B]/10 p-4">
+              {isSquadEvent && (
+                <div className="rounded-2xl border border-pink-500/20 bg-pink-500/10 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-pink-300">Squad event</p>
+                  <p className="mt-1 text-sm text-gray-200">
+                    This outing is set up for a group. If you join, you’re stepping into a squad-style event.
+                  </p>
+                </div>
+              )}
+
+              <div className={`rounded-2xl border p-4 ${billingDetails.badgeClass}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-[#FBBF24]">Event terms</p>
@@ -1766,7 +1817,8 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-gray-200">
-                  By applying, you&apos;re saying you understand the event terms and timing for this outing.
+                  {billingDetails.note}
+                  {' '}By applying, you&apos;re saying you understand the event terms and timing for this outing.
                 </p>
               </div>
 
