@@ -12,7 +12,7 @@ This document provides a complete technical reference for the Junto backend API.
 
 ### Quick Facts
 - **Framework:** Node.js + Express.js
-- **Database:** PostgreSQL
+- **Database:** SQLite for the current codebase, with `DB_PATH` support for production volumes
 - **Authentication:** Dummy login (production auth comes later)
 - **Scope:** All features except SMS/OTP authentication
 - **API Style:** RESTful JSON
@@ -39,7 +39,7 @@ backend/
 │   │   │   └── [same structure as routes]
 │   │   └── middlewares/         # Request handlers, auth, validation
 │   ├── db/
-│   │   ├── connection.js        # PostgreSQL pool connection
+│   │   ├── connection.js        # SQLite connection helper
 │   │   ├── schema.sql           # Database table definitions
 │   │   ├── init.js              # Initialize database tables
 │   │   └── seed.js              # Populate with mock data
@@ -564,17 +564,14 @@ const { events } = await eventsRes.json();
 
 ### Common Issues
 
-**1. Cannot connect to PostgreSQL**
+**1. Cannot connect to SQLite database**
 ```
-Error: connect ECONNREFUSED 127.0.0.1:5432
+SQLite connection error
 ```
-Solution: Ensure PostgreSQL is running
+Solution: Ensure the database file path is writable and the app has permission to create `junto.db`
 ```bash
-# macOS
-brew services start postgresql
-
-# Linux
-sudo service postgresql start
+mkdir -p ./data
+export DB_PATH=./data/junto.db
 ```
 
 **2. Database already exists**
@@ -583,7 +580,6 @@ Error: database "junto_db" already exists
 ```
 Solution: Drop and recreate
 ```bash
-psql -U junto_user -d postgres -c "DROP DATABASE junto_db;"
 npm run migrate
 ```
 

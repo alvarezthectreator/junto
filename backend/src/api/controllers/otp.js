@@ -13,6 +13,7 @@ import {
   incrementOTPAttempts,
   getOTPExpiry,
   initializeEmailTransporter,
+  getEmailTransportStatus,
   testEmailConnection,
 } from '../../services/otpService.js';
 import db from '../../db/connection.js';
@@ -29,6 +30,34 @@ const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
 
 function getDatabase(req) {
   return req.db || db;
+}
+
+function getDisplayNameFromEmail(email) {
+  const base = email.split('@')[0] || 'User';
+  const cleaned = base.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+  return cleaned || 'User';
+}
+
+function buildOtpErrorResponse(emailResult) {
+  const status = getEmailTransportStatus();
+
+  if (!status.configured) {
+    return {
+      status: 503,
+      body: {
+        error: 'Email delivery is not configured on the server. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.',
+        details: emailResult?.error || status.error || 'Missing SMTP configuration',
+      },
+    };
+  }
+
+  return {
+    status: 502,
+    body: {
+      error: 'Failed to send OTP email through the configured mail server.',
+      details: emailResult?.error || 'SMTP send failure',
+    },
+  };
 }
 
 /**
@@ -64,14 +93,14 @@ export const requestOTP = async (req, res) => {
 
     // Generate OTP
     const otp = generateOTP();
+    const displayName = getDisplayNameFromEmail(normalizedEmail);
 
     // Send email
-    const emailResult = await sendOTPEmail(normalizedEmail, otp);
+    const emailResult = await sendOTPEmail(normalizedEmail, otp, displayName);
     if (!emailResult.success) {
       console.error('Email send failed:', emailResult.error);
-      return res.status(500).json({
-        error: 'Failed to send OTP email. Please check the email address and try again.',
-      });
+      const { status, body } = buildOtpErrorResponse(emailResult);
+      return res.status(status).json(body);
     }
 
     // Store OTP in database
@@ -330,13 +359,13 @@ export const resendOTP = async (req, res) => {
 
     // Generate new OTP
     const otp = generateOTP();
+    const displayName = getDisplayNameFromEmail(normalizedEmail);
 
     // Send email
-    const emailResult = await sendOTPEmail(normalizedEmail, otp);
+    const emailResult = await sendOTPEmail(normalizedEmail, otp, displayName);
     if (!emailResult.success) {
-      return res.status(500).json({
-        error: 'Failed to send OTP email',
-      });
+      const { status, body } = buildOtpErrorResponse(emailResult);
+      return res.status(status).json(body);
     }
 
     // Store OTP in database

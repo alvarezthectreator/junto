@@ -8,7 +8,72 @@ import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 
 let transporter = null;
+let transporterVerified = false;
 const inMemoryOtpStore = new Map();
+
+function readBooleanEnv(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function readSMTPConfig() {
+  const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
+
+  const host =
+    process.env.SMTP_HOST ||
+    process.env.CPANEL_EMAIL_HOST ||
+    process.env.MAIL_HOST ||
+    (useDevelopmentFallbacks ? 'mail.orquex.com' : '');
+
+  const portValue =
+    process.env.SMTP_PORT ||
+    process.env.CPANEL_EMAIL_PORT ||
+    (useDevelopmentFallbacks ? '465' : '');
+
+  const port = Number.parseInt(portValue, 10);
+  const user =
+    process.env.SMTP_USER ||
+    process.env.CPANEL_EMAIL_USER ||
+    (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
+  const pass =
+    process.env.SMTP_PASSWORD ||
+    process.env.CPANEL_EMAIL_PASSWORD ||
+    (useDevelopmentFallbacks ? '100000000' : '');
+  const from =
+    process.env.SMTP_FROM ||
+    process.env.CPANEL_EMAIL_FROM ||
+    user ||
+    (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
+
+  const missing = [];
+  if (!host) missing.push('SMTP_HOST');
+  if (!user) missing.push('SMTP_USER');
+  if (!pass) missing.push('SMTP_PASSWORD');
+  if (Number.isNaN(port)) missing.push('SMTP_PORT');
+
+  return {
+    host,
+    port,
+    user,
+    pass,
+    from,
+    secure:
+      process.env.SMTP_SECURE !== undefined
+        ? readBooleanEnv(process.env.SMTP_SECURE)
+        : port === 465,
+    requireTLS:
+      process.env.SMTP_REQUIRE_TLS !== undefined
+        ? readBooleanEnv(process.env.SMTP_REQUIRE_TLS)
+        : port === 587,
+    connectionTimeout: Number.parseInt(process.env.SMTP_CONNECTION_TIMEOUT || '10000', 10),
+    greetingTimeout: Number.parseInt(process.env.SMTP_GREETING_TIMEOUT || '10000', 10),
+    socketTimeout: Number.parseInt(process.env.SMTP_SOCKET_TIMEOUT || '15000', 10),
+    missing,
+  };
+}
 
 /**
  * Initialize email transporter with cPanel SMTP
@@ -18,18 +83,30 @@ const inMemoryOtpStore = new Map();
 export const initializeEmailTransporter = () => {
   if (transporter) return transporter;
 
+  const config = readSMTPConfig();
+  if (config.missing.length > 0) {
+    throw new Error(
+      `SMTP is not configured. Missing: ${config.missing.join(', ')}. Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD or the CPANEL_EMAIL_* equivalents in Railway.`
+    );
+  }
+
   transporter = nodemailer.createTransport({
-    host: process.env.CPANEL_EMAIL_HOST || 'mail.orquex.com',
-    port: parseInt(process.env.CPANEL_EMAIL_PORT || '465'),
-    secure: true, // SSL
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: config.requireTLS,
+    connectionTimeout: config.connectionTimeout,
+    greetingTimeout: config.greetingTimeout,
+    socketTimeout: config.socketTimeout,
     auth: {
-      user: process.env.CPANEL_EMAIL_USER || 'testmail@orquex.com',
-      pass: process.env.CPANEL_EMAIL_PASSWORD || '100000000',
+      user: config.user,
+      pass: config.pass,
     },
   });
 
-  console.log('✓ Email transporter initialized with cPanel SMTP');
-  console.log(`  Sender: ${process.env.CPANEL_EMAIL_FROM || 'testmail@orquex.com'}`);
+  console.log('✓ Email transporter initialized');
+  console.log(`  Host: ${config.host}:${config.port} (${config.secure ? 'secure' : 'tls'})`);
+  console.log(`  Sender: ${config.from}`);
   return transporter;
 };
 
@@ -51,8 +128,11 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
       initializeEmailTransporter();
     }
 
+    const config = readSMTPConfig();
+
     const mailOptions = {
-      from: process.env.CPANEL_EMAIL_FROM || 'testmail@orquex.com',
+      from: config.from,
+      replyTo: config.from,
       to: email,
       subject: 'Your Junto Verification Code',
       html: `
@@ -98,7 +178,11 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ Error sending OTP email:', error.message);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      code: error.code || 'OTP_EMAIL_FAILED',
+    };
   }
 };
 
@@ -327,10 +411,35 @@ export const testEmailConnection = async () => {
     }
 
     await transporter.verify();
+    transporterVerified = true;
     console.log('✅ Email connection verified');
     return { success: true };
   } catch (error) {
+    transporterVerified = false;
     console.error('❌ Email connection failed:', error.message);
     return { success: false, error: error.message };
+  }
+};
+
+export const getEmailTransportStatus = () => {
+  try {
+    const config = readSMTPConfig();
+
+    return {
+      configured: config.missing.length === 0,
+      verified: transporterVerified,
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      sender: config.from,
+      missing: config.missing,
+    };
+  } catch (error) {
+    return {
+      configured: false,
+      verified: false,
+      error: error.message,
+      missing: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_PORT'],
+    };
   }
 };

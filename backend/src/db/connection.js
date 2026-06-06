@@ -2,15 +2,25 @@ import sqlite3 from 'sqlite3';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 
 dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dbPath = join(__dirname, '../../junto.db');
+const defaultDbPath = join(__dirname, '../../junto.db');
+const railwayVolumePath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'junto.db')
+  : null;
+const dbPath = process.env.DB_PATH || railwayVolumePath || defaultDbPath;
+
+const dbDirectory = dirname(dbPath);
+if (!existsSync(dbDirectory)) {
+  mkdirSync(dbDirectory, { recursive: true });
+}
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error('SQLite connection error:', err);
-  else console.log('✅ Connected to SQLite database');
+  else console.log(`✅ Connected to SQLite database: ${dbPath}`);
 });
 
 // Enable foreign keys
@@ -46,4 +56,3 @@ export const getClient = () => {
 };
 
 export default db;
-

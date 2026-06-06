@@ -8,7 +8,7 @@ import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 import { initializeFollowupScheduler } from './services/followupScheduler.js';
-import { initializeEmailTransporter } from './services/otpService.js';
+import { initializeEmailTransporter, testEmailConnection } from './services/otpService.js';
 import db from './db/connection.js';
 
 // Import routes
@@ -115,6 +115,11 @@ async function startServer() {
     // Initialize email transporter for OTP
     console.log('📧 Initializing email transporter...');
     initializeEmailTransporter();
+    const emailStatus = await testEmailConnection();
+    if (!emailStatus.success) {
+      console.warn('⚠️  OTP email delivery is not ready:', emailStatus.error);
+      console.warn('   Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.');
+    }
     
     if (process.env.MOCK_DATA === 'true') {
       console.log('🌱 Seeding database with mock data...');

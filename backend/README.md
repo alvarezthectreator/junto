@@ -52,6 +52,12 @@ DB_USER=junto_user
 DB_PASSWORD=junto_password_dev
 PORT=5000
 FRONTEND_URL=http://localhost:5173
+DB_PATH=./junto.db
+SMTP_HOST=mail.orquex.com
+SMTP_PORT=465
+SMTP_USER=testmail@orquex.com
+SMTP_PASSWORD=replace-me
+SMTP_FROM=testmail@orquex.com
 ```
 
 ---
