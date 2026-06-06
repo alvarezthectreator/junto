@@ -114,11 +114,15 @@ async function startServer() {
     
     // Initialize email transporter for OTP
     console.log('📧 Initializing email transporter...');
-    initializeEmailTransporter();
-    const emailStatus = await testEmailConnection();
-    if (!emailStatus.success) {
-      console.warn('⚠️  OTP email delivery is not ready:', emailStatus.error);
-      console.warn('   Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.');
+    const emailTransporter = initializeEmailTransporter();
+    if (emailTransporter) {
+      const emailStatus = await testEmailConnection();
+      if (!emailStatus.success) {
+        console.warn('⚠️  OTP email delivery is not ready:', emailStatus.error);
+        console.warn('   Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.');
+      }
+    } else {
+      console.warn('⚠️  OTP email transport is disabled until SMTP env vars are configured.');
     }
     
     if (process.env.MOCK_DATA === 'true') {

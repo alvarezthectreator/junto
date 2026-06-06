@@ -85,9 +85,10 @@ export const initializeEmailTransporter = () => {
 
   const config = readSMTPConfig();
   if (config.missing.length > 0) {
-    throw new Error(
-      `SMTP is not configured. Missing: ${config.missing.join(', ')}. Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD or the CPANEL_EMAIL_* equivalents in Railway.`
+    console.warn(
+      `⚠️ SMTP is not configured. Missing: ${config.missing.join(', ')}. OTP requests will fail until SMTP_HOST/SMTP_USER/SMTP_PASSWORD/SMTP_FROM are set.`
     );
+    return null;
   }
 
   transporter = nodemailer.createTransport({
@@ -125,7 +126,14 @@ export const generateOTP = () => {
 export const sendOTPEmail = async (email, otp, displayName = 'User') => {
   try {
     if (!transporter) {
-      initializeEmailTransporter();
+      const initialized = initializeEmailTransporter();
+      if (!initialized) {
+        return {
+          success: false,
+          error: 'SMTP not configured',
+          code: 'SMTP_NOT_CONFIGURED',
+        };
+      }
     }
 
     const config = readSMTPConfig();
@@ -407,7 +415,10 @@ export const getOTPExpiry = (db, email) => {
 export const testEmailConnection = async () => {
   try {
     if (!transporter) {
-      initializeEmailTransporter();
+      const initialized = initializeEmailTransporter();
+      if (!initialized) {
+        return { success: false, error: 'SMTP not configured' };
+      }
     }
 
     await transporter.verify();
