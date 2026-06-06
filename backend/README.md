@@ -53,12 +53,13 @@ DB_PASSWORD=junto_password_dev
 PORT=5000
 FRONTEND_URL=http://localhost:5173
 DB_PATH=./junto.db
-CPANEL_EMAIL_HOST=mail.orquex.com
-CPANEL_EMAIL_PORT=465
-CPANEL_EMAIL_USER=testmail@orquex.com
-CPANEL_EMAIL_PASSWORD=replace-me
-CPANEL_EMAIL_FROM=testmail@orquex.com
+GMAIL_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=your-google-client-secret
+GMAIL_REFRESH_TOKEN=your-google-refresh-token
+GMAIL_SENDER_EMAIL=yourgmailaddress@gmail.com
 ```
+
+For Gmail API, make sure the refresh token has the `https://www.googleapis.com/auth/gmail.send` scope.
 
 ---
 

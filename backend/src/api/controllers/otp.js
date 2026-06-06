@@ -45,8 +45,8 @@ function buildOtpErrorResponse(emailResult) {
     return {
       status: 503,
       body: {
-        error: 'Email delivery is not configured on the server. Set the CPANEL_EMAIL_* variables on Railway, or the equivalent SMTP_* variables.',
-        details: emailResult?.error || status.error || 'Missing SMTP configuration',
+        error: 'Email delivery is not configured on the server. Set the GMAIL_* OAuth2 variables on Railway, or the SMTP_* fallback variables.',
+        details: emailResult?.error || status.error || 'Missing email configuration',
       },
     };
   }
@@ -54,7 +54,7 @@ function buildOtpErrorResponse(emailResult) {
   return {
     status: 502,
     body: {
-      error: 'Failed to send OTP email through the configured mail server.',
+      error: `Failed to send OTP email through the configured ${status.provider === 'gmail-api' ? 'Gmail API' : 'mail server'}.`,
       details: emailResult?.error || 'SMTP send failure',
     },
   };

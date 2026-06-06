@@ -1,13 +1,13 @@
 /**
  * OTP Service
- * Handles OTP generation, storage, and email delivery via cPanel SMTP
- * Sends FROM cPanel email, TO user's email (Gmail, Yahoo, etc.)
+ * Handles OTP generation, storage, and email delivery.
  */
 
 import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 
 let transporter = null;
+let emailProvider = null;
 let transporterVerified = false;
 const inMemoryOtpStore = new Map();
 
@@ -17,6 +17,40 @@ function readBooleanEnv(value, fallback = false) {
   }
 
   return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function isNonEmpty(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function readGmailApiConfig() {
+  const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
+  const clientId = process.env.GMAIL_CLIENT_ID || '';
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET || '';
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN || '';
+  const senderEmail =
+    process.env.GMAIL_SENDER_EMAIL ||
+    process.env.GMAIL_FROM_EMAIL ||
+    process.env.GMAIL_USER_EMAIL ||
+    process.env.GMAIL_USER ||
+    (useDevelopmentFallbacks ? 'testmail@gmail.com' : '');
+  const accessTokenUrl = process.env.GMAIL_TOKEN_URL || 'https://oauth2.googleapis.com/token';
+
+  const missing = [
+    !isNonEmpty(clientId) ? 'GMAIL_CLIENT_ID' : null,
+    !isNonEmpty(clientSecret) ? 'GMAIL_CLIENT_SECRET' : null,
+    !isNonEmpty(refreshToken) ? 'GMAIL_REFRESH_TOKEN' : null,
+    !isNonEmpty(senderEmail) ? 'GMAIL_SENDER_EMAIL' : null,
+  ].filter(Boolean);
+
+  return {
+    clientId,
+    clientSecret,
+    refreshToken,
+    senderEmail,
+    tokenUrl: accessTokenUrl,
+    missing,
+  };
 }
 
 function readSMTPConfig() {
@@ -77,40 +111,185 @@ function readSMTPConfig() {
   };
 }
 
-/**
- * Initialize email transporter with cPanel SMTP
- * Sender: testmail@orquex.com
- * Recipient: Any email address (user's Gmail, Yahoo, etc.)
- */
-export const initializeEmailTransporter = () => {
-  if (transporter) return transporter;
-
-  const config = readSMTPConfig();
-  if (config.missing.length > 0) {
-    console.warn(
-      `⚠️ SMTP is not configured. Missing: ${config.missing.join(', ')}. OTP requests will fail until the CPANEL_EMAIL_* or SMTP_* variables are set.`
-    );
-    return null;
+function getEmailProvider() {
+  const gmailConfig = readGmailApiConfig();
+  if (gmailConfig.missing.length === 0) {
+    return { provider: 'gmail-api', config: gmailConfig };
   }
 
-  transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    requireTLS: config.requireTLS,
-    connectionTimeout: config.connectionTimeout,
-    greetingTimeout: config.greetingTimeout,
-    socketTimeout: config.socketTimeout,
-    auth: {
-      user: config.user,
-      pass: config.pass,
+  const smtpConfig = readSMTPConfig();
+  if (smtpConfig.missing.length === 0) {
+    return { provider: 'smtp', config: smtpConfig };
+  }
+
+  return {
+    provider: null,
+    config: {
+      missing: [...gmailConfig.missing, ...smtpConfig.missing],
     },
+  };
+}
+
+function encodeBase64Url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function buildEmailMessage({ from, to, subject, html, text }) {
+  const headers = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    html || text,
+  ];
+
+  return headers.join('\r\n');
+}
+
+async function getGmailAccessToken(config) {
+  const body = new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    refresh_token: config.refreshToken,
+    grant_type: 'refresh_token',
   });
 
-  console.log('✓ Email transporter initialized');
-  console.log(`  Host: ${config.host}:${config.port} (${config.secure ? 'secure' : 'tls'})`);
-  console.log(`  Sender: ${config.from}`);
-  return transporter;
+  const response = await fetch(config.tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error_description || payload.error || `Token request failed (${response.status})`);
+  }
+
+  if (!payload.access_token) {
+    throw new Error('No Gmail access token returned');
+  }
+
+  return payload.access_token;
+}
+
+async function sendViaGmailApi(email, otp, displayName = 'User') {
+  const config = readGmailApiConfig();
+  if (config.missing.length > 0) {
+    return {
+      success: false,
+      error: `Missing Gmail API config: ${config.missing.join(', ')}`,
+      code: 'GMAIL_API_NOT_CONFIGURED',
+    };
+  }
+
+  try {
+    const accessToken = await getGmailAccessToken(config);
+    const message = buildEmailMessage({
+      from: config.senderEmail,
+      to: email,
+      subject: 'Your Junto Verification Code',
+      html: `
+        <html>
+          <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+            <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
+              <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Hi ${displayName},</p>
+              <p style="color: #555; font-size: 14px; margin-bottom: 30px;">Your verification code is:</p>
+              <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
+                <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #333; margin: 0;">${otp}</p>
+              </div>
+              <p style="color: #777; font-size: 13px; margin-bottom: 10px;">This code will expire in 5 minutes.</p>
+              <p style="color: #777; font-size: 13px; margin-bottom: 20px;">If you did not request this code, please ignore this email.</p>
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+              <p style="color: #999; font-size: 12px;">Junto - Social Companionship Platform</p>
+            </div>
+          </body>
+        </html>
+      `,
+      text: `Your Junto verification code is: ${otp}\n\nThis code will expire in 5 minutes.\n\nIf you did not request this code, please ignore this email.`,
+    });
+
+    const raw = encodeBase64Url(message);
+
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.error?.message || payload.error || `Gmail API send failed (${response.status})`);
+    }
+
+    console.log(`✅ OTP email sent to ${email} via Gmail API:`, payload.id || 'no-message-id');
+    return { success: true, messageId: payload.id || null, provider: 'gmail-api' };
+  } catch (error) {
+    console.error('❌ Error sending OTP email via Gmail API:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      code: error.code || 'GMAIL_API_SEND_FAILED',
+    };
+  }
+}
+
+/**
+ * Initialize email sender.
+ */
+export const initializeEmailTransporter = () => {
+  if (transporter || emailProvider) return transporter || { provider: emailProvider };
+
+  const gmailConfig = readGmailApiConfig();
+  if (gmailConfig.missing.length === 0) {
+    emailProvider = 'gmail-api';
+    console.log('✓ Gmail API email sender initialized');
+    console.log(`  Sender: ${gmailConfig.senderEmail}`);
+    return { provider: emailProvider };
+  }
+
+  const smtpConfig = readSMTPConfig();
+  if (smtpConfig.missing.length === 0) {
+    transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      requireTLS: smtpConfig.requireTLS,
+      connectionTimeout: smtpConfig.connectionTimeout,
+      greetingTimeout: smtpConfig.greetingTimeout,
+      socketTimeout: smtpConfig.socketTimeout,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    });
+
+    emailProvider = 'smtp';
+    console.log('✓ Email transporter initialized');
+    console.log(`  Host: ${smtpConfig.host}:${smtpConfig.port} (${smtpConfig.secure ? 'secure' : 'tls'})`);
+    console.log(`  Sender: ${smtpConfig.from}`);
+    return transporter;
+  }
+
+  const missing = [...gmailConfig.missing, ...smtpConfig.missing];
+  console.warn(
+    `⚠️ Email is not configured. Missing: ${missing.join(', ')}. OTP requests will fail until Gmail API or SMTP variables are set.`
+  );
+  return null;
 };
 
 /**
@@ -127,19 +306,22 @@ export const generateOTP = () => {
  */
 export const sendOTPEmail = async (email, otp, displayName = 'User') => {
   try {
-    if (!transporter) {
+    if (!transporter && !emailProvider) {
       const initialized = initializeEmailTransporter();
       if (!initialized) {
         return {
           success: false,
-          error: 'SMTP not configured',
-          code: 'SMTP_NOT_CONFIGURED',
+          error: 'Email not configured',
+          code: 'EMAIL_NOT_CONFIGURED',
         };
       }
     }
 
-    const config = readSMTPConfig();
+    if (emailProvider === 'gmail-api') {
+      return sendViaGmailApi(email, otp, displayName);
+    }
 
+    const config = readSMTPConfig();
     const mailOptions = {
       from: config.from,
       replyTo: config.from,
@@ -150,32 +332,15 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
           <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
             <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
               <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
-              
-              <p style="color: #555; font-size: 14px; margin-bottom: 20px;">
-                Hi ${displayName},
-              </p>
-              
-              <p style="color: #555; font-size: 14px; margin-bottom: 30px;">
-                Your verification code is:
-              </p>
-              
+              <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Hi ${displayName},</p>
+              <p style="color: #555; font-size: 14px; margin-bottom: 30px;">Your verification code is:</p>
               <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
                 <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #333; margin: 0;">${otp}</p>
               </div>
-              
-              <p style="color: #777; font-size: 13px; margin-bottom: 10px;">
-                This code will expire in 5 minutes.
-              </p>
-              
-              <p style="color: #777; font-size: 13px; margin-bottom: 20px;">
-                If you did not request this code, please ignore this email.
-              </p>
-              
+              <p style="color: #777; font-size: 13px; margin-bottom: 10px;">This code will expire in 5 minutes.</p>
+              <p style="color: #777; font-size: 13px; margin-bottom: 20px;">If you did not request this code, please ignore this email.</p>
               <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-              
-              <p style="color: #999; font-size: 12px;">
-                Junto - Social Companionship Platform
-              </p>
+              <p style="color: #999; font-size: 12px;">Junto - Social Companionship Platform</p>
             </div>
           </body>
         </html>
@@ -185,7 +350,7 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
 
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ OTP email sent to ${email}:`, info.messageId);
-    return { success: true, messageId: info.messageId };
+    return { success: true, messageId: info.messageId, provider: 'smtp' };
   } catch (error) {
     console.error('❌ Error sending OTP email:', error.message);
     return {
@@ -416,17 +581,37 @@ export const getOTPExpiry = (db, email) => {
  */
 export const testEmailConnection = async () => {
   try {
-    if (!transporter) {
+    if (!transporter && !emailProvider) {
       const initialized = initializeEmailTransporter();
       if (!initialized) {
-        return { success: false, error: 'SMTP not configured' };
+        return { success: false, error: 'Email not configured' };
       }
+    }
+
+    if (emailProvider === 'gmail-api') {
+      const gmailConfig = readGmailApiConfig();
+      const accessToken = await getGmailAccessToken(gmailConfig);
+
+      const profileResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!profileResponse.ok) {
+        const payload = await profileResponse.json().catch(() => ({}));
+        throw new Error(payload.error?.message || payload.error || `Gmail API profile failed (${profileResponse.status})`);
+      }
+
+      transporterVerified = true;
+      console.log('✅ Gmail API connection verified');
+      return { success: true, provider: 'gmail-api' };
     }
 
     await transporter.verify();
     transporterVerified = true;
     console.log('✅ Email connection verified');
-    return { success: true };
+    return { success: true, provider: 'smtp' };
   } catch (error) {
     transporterVerified = false;
     console.error('❌ Email connection failed:', error.message);
@@ -436,16 +621,24 @@ export const testEmailConnection = async () => {
 
 export const getEmailTransportStatus = () => {
   try {
+    const gmailConfig = readGmailApiConfig();
     const config = readSMTPConfig();
+    const provider = gmailConfig.missing.length === 0 ? 'gmail-api' : config.missing.length === 0 ? 'smtp' : null;
 
     return {
-      configured: config.missing.length === 0,
+      configured: provider !== null,
+      provider,
       verified: transporterVerified,
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      sender: config.from,
-      missing: config.missing,
+      host: provider === 'smtp' ? config.host : provider === 'gmail-api' ? 'gmail.googleapis.com' : '',
+      port: provider === 'smtp' ? config.port : provider === 'gmail-api' ? 443 : null,
+      secure: provider === 'smtp' ? config.secure : provider === 'gmail-api' ? true : false,
+      sender: provider === 'gmail-api' ? gmailConfig.senderEmail : provider === 'smtp' ? config.from : '',
+      missing:
+        provider === 'gmail-api'
+          ? gmailConfig.missing
+          : provider === 'smtp'
+            ? config.missing
+            : [...gmailConfig.missing, ...config.missing],
     };
   } catch (error) {
     return {
@@ -453,11 +646,10 @@ export const getEmailTransportStatus = () => {
       verified: false,
       error: error.message,
       missing: [
-        'CPANEL_EMAIL_HOST or SMTP_HOST',
-        'CPANEL_EMAIL_PORT or SMTP_PORT',
-        'CPANEL_EMAIL_USER or SMTP_USER',
-        'CPANEL_EMAIL_PASSWORD or SMTP_PASSWORD',
-        'CPANEL_EMAIL_FROM or SMTP_FROM',
+        'GMAIL_CLIENT_ID',
+        'GMAIL_CLIENT_SECRET',
+        'GMAIL_REFRESH_TOKEN',
+        'GMAIL_SENDER_EMAIL',
       ],
     };
   }
