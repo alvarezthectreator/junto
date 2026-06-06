@@ -119,7 +119,7 @@ async function startServer() {
       const emailStatus = await testEmailConnection();
       if (!emailStatus.success) {
         console.warn('⚠️  OTP email delivery is not ready:', emailStatus.error);
-        console.warn('   Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.');
+        console.warn('   Set CPANEL_EMAIL_HOST, CPANEL_EMAIL_PORT, CPANEL_EMAIL_USER, CPANEL_EMAIL_PASSWORD, and CPANEL_EMAIL_FROM on Railway.');
       }
     } else {
       console.warn('⚠️  OTP email transport is disabled until SMTP env vars are configured.');

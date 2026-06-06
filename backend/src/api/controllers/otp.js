@@ -45,7 +45,7 @@ function buildOtpErrorResponse(emailResult) {
     return {
       status: 503,
       body: {
-        error: 'Email delivery is not configured on the server. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM on Railway.',
+        error: 'Email delivery is not configured on the server. Set the CPANEL_EMAIL_* variables on Railway, or the equivalent SMTP_* variables.',
         details: emailResult?.error || status.error || 'Missing SMTP configuration',
       },
     };

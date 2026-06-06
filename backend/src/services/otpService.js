@@ -23,36 +23,38 @@ function readSMTPConfig() {
   const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
 
   const host =
-    process.env.SMTP_HOST ||
     process.env.CPANEL_EMAIL_HOST ||
+    process.env.SMTP_HOST ||
     process.env.MAIL_HOST ||
     (useDevelopmentFallbacks ? 'mail.orquex.com' : '');
 
   const portValue =
-    process.env.SMTP_PORT ||
     process.env.CPANEL_EMAIL_PORT ||
+    process.env.SMTP_PORT ||
     (useDevelopmentFallbacks ? '465' : '');
 
   const port = Number.parseInt(portValue, 10);
   const user =
-    process.env.SMTP_USER ||
     process.env.CPANEL_EMAIL_USER ||
+    process.env.SMTP_USER ||
     (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
   const pass =
-    process.env.SMTP_PASSWORD ||
     process.env.CPANEL_EMAIL_PASSWORD ||
+    process.env.SMTP_PASSWORD ||
     (useDevelopmentFallbacks ? '100000000' : '');
   const from =
-    process.env.SMTP_FROM ||
     process.env.CPANEL_EMAIL_FROM ||
+    process.env.SMTP_FROM ||
     user ||
     (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
 
-  const missing = [];
-  if (!host) missing.push('SMTP_HOST');
-  if (!user) missing.push('SMTP_USER');
-  if (!pass) missing.push('SMTP_PASSWORD');
-  if (Number.isNaN(port)) missing.push('SMTP_PORT');
+  const missing = [
+    !host ? 'CPANEL_EMAIL_HOST or SMTP_HOST' : null,
+    !portValue ? 'CPANEL_EMAIL_PORT or SMTP_PORT' : null,
+    !user ? 'CPANEL_EMAIL_USER or SMTP_USER' : null,
+    !pass ? 'CPANEL_EMAIL_PASSWORD or SMTP_PASSWORD' : null,
+    !from ? 'CPANEL_EMAIL_FROM or SMTP_FROM' : null,
+  ].filter(Boolean);
 
   return {
     host,
@@ -86,7 +88,7 @@ export const initializeEmailTransporter = () => {
   const config = readSMTPConfig();
   if (config.missing.length > 0) {
     console.warn(
-      `⚠️ SMTP is not configured. Missing: ${config.missing.join(', ')}. OTP requests will fail until SMTP_HOST/SMTP_USER/SMTP_PASSWORD/SMTP_FROM are set.`
+      `⚠️ SMTP is not configured. Missing: ${config.missing.join(', ')}. OTP requests will fail until the CPANEL_EMAIL_* or SMTP_* variables are set.`
     );
     return null;
   }
@@ -450,7 +452,13 @@ export const getEmailTransportStatus = () => {
       configured: false,
       verified: false,
       error: error.message,
-      missing: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_PORT'],
+      missing: [
+        'CPANEL_EMAIL_HOST or SMTP_HOST',
+        'CPANEL_EMAIL_PORT or SMTP_PORT',
+        'CPANEL_EMAIL_USER or SMTP_USER',
+        'CPANEL_EMAIL_PASSWORD or SMTP_PASSWORD',
+        'CPANEL_EMAIL_FROM or SMTP_FROM',
+      ],
     };
   }
 };
