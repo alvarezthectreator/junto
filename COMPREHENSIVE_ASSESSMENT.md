@@ -185,7 +185,7 @@
 - ✅ Status badges (interested, accepted, declined)
 - ✅ Toast notifications on accept/decline
 
-**What's Implemented (Applicant Side):**
+**Applicant Flow Updates:**
 - ✅ MyRequests page structure
 - ✅ Active/Past/Drafts tabs
 - ✅ Shows hosted events with interested count
