@@ -1,6 +1,6 @@
 # Remaining Work
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 This file tracks the gaps that are still open after the current profile, event, safety, discovery, and host/dashboard passes.
 
@@ -13,6 +13,8 @@ This file tracks the gaps that are still open after the current profile, event, 
 - Safety Centre, trusted contacts, report, block, and SOS flows
 - Notifications inbox, local notification sync, and browser notification support
 - OTP support screens and backend endpoints
+- Settings account utilities, notification preferences, referral info, blocked users, and data export
+- Local messaging prototype with attachments, voice notes, and call mockups
 
 ## Remaining items
 
@@ -20,7 +22,10 @@ This file tracks the gaps that are still open after the current profile, event, 
 - Messaging persistence plus real-time transport for chat and calls
 - Premium billing provider integration and checkout flow
 - True push delivery provider integration and background job delivery
+- Deep account-security tooling: password change, 2FA, device/session management, recovery codes
+- Better fraud enforcement and automation around reports, verification, and no-show handling
 
 ## Lower Priority
 
 - Finish deployment hardening, monitoring, and environment secret management
+- Optional OS-level notification badge support where supported by the platform

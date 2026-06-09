@@ -1,7 +1,7 @@
 # Junto Frontend - Comprehensive Feature Assessment
-**Date:** May 23, 2026  
+**Date:** June 9, 2026  
 **Platform:** React 18.3.1 + TypeScript 5.5.4 + Vite 5.4.21  
-**Build Status:** ✅ Production Build Successful
+**Build Status:** Not re-verified in this session
 
 ---
 
@@ -14,17 +14,17 @@
 | 3. Events Feed & Filtering | 🟡 PARTIAL | 65% | HIGH | Filters work, pagination/load more missing |
 | 4. Event Creation (4 billing tiers) | 🟡 PARTIAL | 85% | HIGH | Host create flow exists in the top-nav Post path; polish and consistency remain |
 | 5. Event Application System | 🟡 PARTIAL | 75% | HIGH | Apply modal preview and host review exist; attendee history still needs work |
-| 6. Nearby Mode (Swiping) | 🟡 PARTIAL | 70% | MEDIUM | Swipe deck, gestures, and match modal exist; deeper matching polish remains |
-| 7. Messaging System | ❌ MISSING | 5% | HIGH | Skeleton UI only, no real messaging |
+| 6. Nearby Mode (Swiping) | 🟡 PARTIAL | 80% | MEDIUM | Card polish, retry flows, and richer media are in place; ranking still needs work |
+| 7. Messaging System | 🟡 PARTIAL | 55% | HIGH | Solid local prototype, but still no durable backend chat |
 | 8. Audio/Video Calls | ❌ MISSING | 0% | MEDIUM | No components, no integration |
 | 9. Safety Centre | 🟡 PARTIAL | 40% | HIGH | UI is present, but automation and enforcement still need deeper backend work |
 | 10. Travel Mode | 🟡 PARTIAL | 65% | MEDIUM | Destination persistence and live event loading are wired; refinement remains |
-| 11. Notifications | ✅ DONE | 90% | HIGH | Full notification UI with backend sync and filters |
+| 11. Notifications | ✅ DONE | 90% | HIGH | Full inbox with backend sync, grouping, bulk actions, and browser alerts |
 | 12. WhatsApp Sharing | ✅ DONE | 95% | MEDIUM | Utils + component complete |
-| 13. Settings & Account Mgmt | ✅ DONE | 90% | MEDIUM | Full settings page with tabs |
+| 13. Settings & Account Mgmt | 🟡 PARTIAL | 80% | MEDIUM | Account tools, notification prefs, referrals, and blocked users work; deeper security is still pending |
 | 14. Anti-Fraud Protections | 🟡 PARTIAL | 25% | HIGH | Only UI hints, no logic |
 
-**Overall Progress: ~42%**
+**Overall Progress: ~58%**
 
 ---
 
@@ -229,23 +229,26 @@
 - ✅ Responsive layout
 
 **What's Missing:**
-- ❌ Better card stack polish and transitions
-- ❌ More accurate nearby/location logic
-- ❌ Empty-state and retry flows
-- ❌ Richer profile media in cards
-- ❌ No-more-matches fallback state
+- ❌ Better matching quality and deeper geo-accuracy
+- ❌ More advanced discovery ranking
+
+**What's Implemented:**
+- ✅ Better card stack polish and transitions
+- ✅ More accurate nearby/location logic
+- ✅ Empty-state and retry flows
+- ✅ Richer profile media in cards
+- ✅ No-more-matches fallback state
 
 **Critical Gaps:**
-- Nearby mode is now functional, but it still needs more product polish
-- Matching quality and empty states need refinement
-- Deeper location-awareness is still limited
+- Nearby is functional and usable now, but the matching heuristics are still simple
+- Location awareness still uses the lightweight city-based backend model
 
-**Production Readiness:** ❌ Not started — Current implementation is map only
+**Production Readiness:** 🟡 Partial — useful now, but matching logic can still improve
 
 ---
 
-### 7. Messaging System — 5% DONE
-**Status:** ❌ MISSING  
+### 7. Messaging System — 55% DONE
+**Status:** 🟡 PARTIAL  
 **File:** [src/pages/Messages.tsx](src/pages/Messages.tsx#L1)
 
 **What's Implemented:**
@@ -259,31 +262,20 @@
 - ✅ Audio/video call buttons in header
 - ✅ Search conversations input
 - ✅ Delete/archive message icons
+- ✅ Local send, attachment, and voice-note actions update the thread immediately
 
 **What's Missing:**
-- ❌ **NO actual messaging** — All UI, no message sending logic
-- ❌ **NO message state management** — No React hooks to add messages
-- ❌ **NO backend API** — No WebSocket or HTTP endpoints
-- ❌ **NO real-time updates** — No polling or subscriptions
-- ❌ **NO read receipts** — Status is hardcoded
-- ❌ **NO typing indicators** — "typing" is fake
-- ❌ **NO message persistence** — Page reload clears messages
-- ❌ **NO media upload** — Image/video/voice icons don't work
-- ❌ **NO emoji picker** — Emoji icon is just placeholder
-- ❌ **NO message search** — Search input doesn't filter
-- ❌ **NO conversation creation** — Can't start new chat
-- ❌ **NO video/audio calls** — Call buttons are dead UI
-- ❌ **NO message reactions** — Can't react to messages
-- ❌ **NO forwarding/sharing** — Can't forward messages
-- ❌ **NO encryption** — No security features
+- ❌ Backend persistence and sync for threads
+- ❌ Multi-party group conversations
+- ❌ Scheduled sending / delayed delivery queue
+- ❌ Enterprise-grade delivery tracking and encryption
+- ❌ Real RTC calling integration
 
 **Critical Gaps:**
-- **This is 100% UI skeleton with 0% functionality**
-- All demo data is hardcoded
-- No message input handling at all
-- Audio/video calls are completely missing
+- Messaging is now usable as a front-end prototype, but it still lacks durable backend storage
+- Calls are still demo UI rather than a live RTC integration
 
-**Production Readiness:** ❌ Not ready — Requires full backend + WebSocket
+**Production Readiness:** 🟡 Partial — usable local prototype, not a production messaging backend
 
 ---
 
@@ -423,19 +415,22 @@
 - ✅ Polling keeps the inbox fresh without a manual refresh
 
 **What's Missing:**
-- ❌ **No WebSocket real-time stream**
-- ❌ **No notification preferences** — Settings not linked
-- ❌ **No notification sound/badge** — No OS integration
-- ❌ **No bulk operations** — Can't select multiple
-- ❌ **No notification grouping** — Each shown separately
-- ❌ **No swipe to delete** (mobile) — No gesture support
-- ❌ **No OS notification center integration**
+- ❌ Swipe-to-delete gestures on mobile
+- ❌ Native OS notification center integration
+- ❌ Dedicated notification sound pack / richer notification sound control
+
+**What's Implemented:**
+- ✅ WebSocket real-time stream
+- ✅ Notification preferences linked in Settings
+- ✅ Notification sound/badge feedback
+- ✅ Bulk operations
+- ✅ Notification grouping
+- ✅ OS/browser notification integration via Notification API
 
 **Critical Gaps:**
-- Backend exists, but real-time delivery and preferences still need work
-- Looks production-ready but no real data
+- Notifications are now synced and manageable, but mobile gesture polish is still missing
 
-**Production Readiness:** ✅ Ready — Just needs backend API
+**Production Readiness:** ✅ Ready — inbox behavior is now fully usable
 
 ---
 
@@ -476,26 +471,27 @@
 
 **What's Implemented:**
 - ✅ **Account Tab:**
-  - Email change with validation
-  - Password change with requirements
-  - Phone verification toggle
+  - Edit profile shortcut
+  - Referral code + invite tracking
+  - Download data export
   - Account deletion option
-  - Download data option
-  - Account status display
+  - Blocked users management
+  - Dark/light mode toggle
 - ✅ **Notifications Tab:**
   - 5 notification settings (interests, messages, reminders, promotions, push)
-  - Toggle switches with descriptions
-  - Granular control
+  - Backend persistence for notification preferences
+  - Push permission prompt and browser notification link
 - ✅ **Privacy Tab:**
-  - 5 privacy settings (public profile, location sharing, activity tracking, exact location, data analytics)
-  - Toggle controls
-  - Descriptions of each
+  - Profile visibility controls
+  - Location sharing toggle
+  - Activity status toggle
+  - Search visibility toggle
 - ✅ **About Tab:**
   - App version
   - Terms of Service link
   - Privacy Policy link
   - Help Center link
-  - Contact support
+  - Comprehensive Assessment link
   - Dark/light mode toggle
 - ✅ Full responsive design
 - ✅ Light/dark mode support
@@ -503,20 +499,23 @@
 - ✅ Toast notifications on actions
 
 **What's Missing:**
-- ❌ **No backend save** — Changes don't persist
-- ❌ **No email verification** — Email change not confirmed
-- ❌ **No password strength validation** — Just checks length
-- ❌ **No two-factor authentication** — Not implemented
-- ❌ **No activity log** — Can't view login history
-- ❌ **No device management** — Can't see/revoke active sessions
-- ❌ **No data export** — Download option doesn't work
-- ❌ **No account recovery** — No backup codes
+- ❌ Password-change endpoint and persisted security controls
+- ❌ Email change verification flow
+- ❌ Two-factor auth workflow
+- ❌ True device/session management UI
+- ❌ Formal account recovery and backup codes
+- ❌ Full activity history view
+
+**What's Implemented:**
+- ✅ Notification preferences save to backend
+- ✅ Data export works
+- ✅ Referral info and blocked-user management persist
+- ✅ Privacy toggles update the local UI state
 
 **Critical Gaps:**
-- Very minor — frontend is complete and solid
-- Just needs backend API calls
+- The account page is useful, but the deeper security controls still need backend support
 
-**Production Readiness:** ✅ Ready — Just needs backend
+**Production Readiness:** 🟡 Partial — core account tools work, security tooling is incomplete
 
 ---
 

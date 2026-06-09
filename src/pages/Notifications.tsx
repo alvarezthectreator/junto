@@ -11,6 +11,7 @@ import {
 import {
   isBrowserNotificationsSupported,
   isPushEnabled,
+  playNotificationTone,
   showBrowserNotification,
 } from '../services/browserNotifications';
 import {
@@ -46,6 +47,11 @@ interface NotificationItem {
   createdAt?: string;
 }
 
+interface NotificationGroup {
+  label: string;
+  items: NotificationItem[];
+}
+
 interface NotificationsProps {
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
@@ -54,6 +60,24 @@ interface NotificationsProps {
 }
 
 const NOTIFICATION_FILTERS = ['All', 'Unread', 'Messages', 'Events', 'Applications'] as const;
+
+function getNotificationDayLabel(value: string): string {
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) {
+    return 'Earlier';
+  }
+
+  const today = new Date();
+  const diffDays = Math.floor(
+    (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(createdAt.getFullYear(), createdAt.getMonth(), createdAt.getDate())) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return 'This week';
+  return createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 function formatTimestamp(value: string): string {
   const createdAt = new Date(value);
@@ -108,6 +132,11 @@ export function Notifications({
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
   const hasSyncedRef = useRef(false);
   const serverNotificationsRef = useRef<NotificationItem[]>([]);
+  const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [unreadPulse, setUnreadPulse] = useState(false);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const previousUnreadCountRef = useRef(0);
 
   const mergeNotifications = (serverItems: NotificationItem[]) => {
     const localItems = readLocalNotifications()
@@ -149,6 +178,19 @@ export function Notifications({
       return true;
     });
   }, [activeFilter, notifications]);
+
+  const groupedNotifications = useMemo<NotificationGroup[]>(() => {
+    const groups = new Map<string, NotificationItem[]>();
+
+    filteredNotifications.forEach((notification) => {
+      const label = getNotificationDayLabel(notification.createdAt || notification.timestamp);
+      const current = groups.get(label) || [];
+      current.push(notification);
+      groups.set(label, current);
+    });
+
+    return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+  }, [filteredNotifications]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
@@ -201,6 +243,24 @@ export function Notifications({
           });
         }
 
+        if (hasSyncedRef.current && nextNotifications.length > 0) {
+          const nextUnreadCount = nextNotifications.filter((notification: NotificationItem) => !notification.read).length;
+          if (nextUnreadCount > previousUnreadCountRef.current) {
+            setUnreadPulse(true);
+            window.setTimeout(() => setUnreadPulse(false), 1800);
+            playNotificationTone();
+            if (isBrowserNotificationsSupported() && isPushEnabled() && Notification.permission === 'granted') {
+              showBrowserNotification('New notification on Junto', {
+                body: nextNotifications[0]?.description || 'You have a new update.',
+                icon: '/favicon.ico',
+              });
+            }
+          }
+          previousUnreadCountRef.current = nextUnreadCount;
+        } else {
+          previousUnreadCountRef.current = nextNotifications.filter((notification: NotificationItem) => !notification.read).length;
+        }
+
         seenNotificationIdsRef.current = new Set(serverNotifications.map((notification: any) => notification.id));
         hasSyncedRef.current = true;
         serverNotificationsRef.current = nextNotifications;
@@ -224,10 +284,25 @@ export function Notifications({
     };
     window.addEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
 
+    const wsUrl = import.meta.env.VITE_WS_URL || window.location.origin.replace(/^http/, 'ws');
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => setLiveConnected(true);
+      ws.onmessage = () => {
+        void syncNotifications();
+      };
+      ws.onclose = () => setLiveConnected(false);
+      ws.onerror = () => setLiveConnected(false);
+    } catch {
+      setLiveConnected(false);
+    }
+
     return () => {
       active = false;
       window.clearInterval(timer);
       window.removeEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
+      ws?.close();
     };
   }, [userId]);
 
@@ -272,6 +347,27 @@ export function Notifications({
     await deleteNotification(id);
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedNotificationIds((current) =>
+      current.includes(id) ? current.filter((notificationId) => notificationId !== id) : [...current, id]
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedNotificationIds([]);
+    setBulkMode(false);
+  };
+
+  const bulkMarkAsRead = async () => {
+    await Promise.all(selectedNotificationIds.map((id) => markAsRead(id)));
+    clearSelection();
+  };
+
+  const bulkDelete = async () => {
+    await Promise.all(selectedNotificationIds.map((id) => deleteNotification(id)));
+    clearSelection();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-black text-white pb-24">
       <div className="pt-24 pb-20">
@@ -286,8 +382,9 @@ export function Notifications({
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Bell className="w-8 h-8 text-blue-400" />
+                  <span className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-slate-950 ${liveConnected ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    <span className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${unreadPulse ? 'animate-pulse' : ''}`}>
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -332,18 +429,57 @@ export function Notifications({
             ))}
           </motion.div>
 
-          {/* Mark all as read button */}
-          {unreadCount > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mb-4 flex justify-end"
-            >
+          {/* Bulk actions */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <button
+                onClick={() => setBulkMode(!bulkMode)}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                  bulkMode ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                {bulkMode ? 'Done selecting' : 'Select notifications'}
+              </button>
+              {selectedNotificationIds.length > 0 && (
+                <span className="text-xs text-slate-400">{selectedNotificationIds.length} selected</span>
+              )}
+            </div>
+
+            {unreadCount > 0 && (
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 onClick={markAllAsRead}
                 className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
               >
                 Mark all as read
+              </motion.button>
+            )}
+          </div>
+
+          {bulkMode && selectedNotificationIds.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-4 flex flex-wrap justify-end gap-2"
+            >
+              <button
+                onClick={bulkMarkAsRead}
+                className="rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
+              >
+                Mark selected read
+              </button>
+              <button
+                onClick={bulkDelete}
+                className="rounded-full border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+              >
+                Delete selected
+              </button>
+              <button
+                onClick={clearSelection}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/10"
+              >
+                Clear
               </button>
             </motion.div>
           )}
@@ -367,84 +503,113 @@ export function Notifications({
                 {error}
               </motion.div>
             ) : filteredNotifications.length > 0 ? (
-              filteredNotifications.map((notif, index) => (
-                <motion.div
-                  key={notif.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`group relative p-4 rounded-xl backdrop-blur-sm border transition-all cursor-pointer ${
-                    notif.read
-                      ? 'bg-white/5 border-white/10 hover:bg-white/8'
-                      : 'bg-gradient-to-r ' +
-                        notif.color +
-                        ' border-white/20 hover:bg-opacity-80 shadow-lg'
-                  }`}
-                  onClick={() => markAsRead(notif.id)}
-                >
-                  <div className="flex gap-4">
-                    {/* Icon or Avatar */}
-                    <div
-                      className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-xl ${
-                        notif.avatar
-                          ? 'bg-white/10'
-                          : 'bg-white/5'
-                      }`}
-                    >
-                      {notif.avatar ? notif.avatar : notif.icon}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <h3 className={`font-semibold text-sm leading-tight ${
-                            notif.read ? 'text-slate-300' : 'text-white'
-                          }`}>
-                            {notif.title}
-                          </h3>
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                            {notif.description}
-                          </p>
-                          <span className="text-xs text-slate-500 mt-2 block">
-                            {notif.timestamp}
-                          </span>
-                        </div>
-                        {!notif.read && (
-                          <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex-shrink-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          archiveNotification(notif.id);
-                        }}
-                        className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                        title="Archive"
-                      >
-                        <Archive className="w-4 h-4 text-slate-400 hover:text-white" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteNotification(notif.id);
-                        }}
-                        className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-400" />
-                      </motion.button>
-                    </div>
+              groupedNotifications.map((group) => (
+                <div key={group.label} className="space-y-3">
+                  <div className="flex items-center justify-between px-1 pt-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{group.label}</p>
+                    <p className="text-[11px] text-slate-500">{group.items.length} item{group.items.length === 1 ? '' : 's'}</p>
                   </div>
-                </motion.div>
+                  {group.items.map((notif, index) => (
+                    <motion.div
+                      key={notif.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.04 }}
+                      className={`group relative overflow-hidden rounded-xl border transition-all ${
+                        notif.read
+                          ? 'bg-white/5 border-white/10 hover:bg-white/8'
+                          : 'bg-gradient-to-r ' +
+                            notif.color +
+                            ' border-white/20 hover:bg-opacity-80 shadow-lg'
+                      } ${selectedNotificationIds.includes(notif.id) ? 'ring-2 ring-blue-400/50' : ''}`}
+                      drag={bulkMode ? false : 'x'}
+                      dragConstraints={{ left: -120, right: 0 }}
+                      dragElastic={0.08}
+                      onDragEnd={(_, info) => {
+                        if (bulkMode) {
+                          return;
+                        }
+
+                        if (info.offset.x < -90 || info.velocity.x < -500) {
+                          deleteNotification(notif.id);
+                        }
+                      }}
+                      onClick={() => (bulkMode ? toggleSelection(notif.id) : markAsRead(notif.id))}
+                    >
+                      <div className="flex gap-4 p-4">
+                        {/* Icon or Avatar */}
+                        <div
+                          className={`flex-shrink-0 h-12 w-12 rounded-full flex items-center justify-center font-xl ${
+                            notif.avatar ? 'bg-white/10' : 'bg-white/5'
+                          }`}
+                        >
+                          {notif.avatar ? notif.avatar : notif.icon}
+                        </div>
+
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <h3 className={`text-sm font-semibold leading-tight ${notif.read ? 'text-slate-300' : 'text-white'}`}>
+                                {notif.title}
+                              </h3>
+                              <p className="mt-1 line-clamp-2 text-xs text-slate-400">
+                                {notif.description}
+                              </p>
+                              <span className="mt-2 block text-xs text-slate-500">
+                                {notif.timestamp}
+                              </span>
+                            </div>
+                            {!notif.read && <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" />}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex-shrink-0 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              archiveNotification(notif.id);
+                            }}
+                            className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+                            title="Archive"
+                          >
+                            <Archive className="h-4 w-4 text-slate-400 hover:text-white" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notif.id);
+                            }}
+                            className="rounded-lg p-1.5 transition-colors hover:bg-red-500/20"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                          </motion.button>
+                          {bulkMode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSelection(notif.id);
+                              }}
+                              className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                                selectedNotificationIds.includes(notif.id)
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-white/10 text-slate-200'
+                              }`}
+                            >
+                              {selectedNotificationIds.includes(notif.id) ? 'Selected' : 'Select'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               ))
             ) : (
               <motion.div

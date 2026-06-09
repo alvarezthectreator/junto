@@ -835,6 +835,16 @@ export function Settings({
                 </div>
               </div>
 
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('assessment')}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">Comprehensive Assessment</h3>
+                    <p className="text-sm text-slate-400 mt-1">Open the latest feature status report</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-400" />
+                </div>
+              </div>
+
               <div className="p-6 bg-white/5 border border-white/10 rounded-xl">
                 <h3 className="font-semibold mb-3">Rate Us</h3>
                 <div className="flex gap-2 mb-4">

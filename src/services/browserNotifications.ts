@@ -38,3 +38,39 @@ export function showBrowserNotification(title: string, options?: NotificationOpt
   return true;
 }
 
+export function playNotificationTone(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextCtor) {
+    return false;
+  }
+
+  try {
+    const audioContext = new AudioContextCtor();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 880;
+    gainNode.gain.value = 0.0001;
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.28);
+    oscillator.stop(audioContext.currentTime + 0.3);
+
+    oscillator.onended = () => {
+      audioContext.close().catch(() => {});
+    };
+
+    return true;
+  } catch {
+    return false;
+  }
+}

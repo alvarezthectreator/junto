@@ -20,6 +20,7 @@ import { SafetyCentre } from './pages/SafetyCentre';
 import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
 import { Notifications } from './pages/Notifications';
+import { ComprehensiveAssessment } from './pages/ComprehensiveAssessment';
 import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
 import { AdminModerator } from './pages/AdminModerator';
@@ -65,6 +66,7 @@ function getPageFromPath(pathname: string) {
   if (cleanPath === '/admin') return 'admin';
   if (cleanPath === '/help') return 'help';
   if (cleanPath === '/notifications') return 'notifications';
+  if (cleanPath === '/assessment') return 'assessment';
 
   return 'main';
 }
@@ -109,6 +111,8 @@ function getPagePath(page: string, eventId?: string | null) {
       return '/help';
     case 'notifications':
       return '/notifications';
+    case 'assessment':
+      return '/assessment';
     case 'event':
       return eventId ? `/event/${encodeURIComponent(eventId)}` : '/discover';
     case 'public-profile':
@@ -530,6 +534,7 @@ export function App() {
     if (currentPage === 'squads') return <SquadsPage />;
     if (currentPage === 'admin') return <AdminModerator onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
     if (currentPage === 'help') return <Help onNavigate={navigateToPage} isLightMode={isLightMode} />;
+    if (currentPage === 'assessment') return <ComprehensiveAssessment onNavigate={navigateToPage} />;
     if (currentPage === 'public-profile' && (routePublicHostId || publicHostId)) return <PublicHostProfile hostId={routePublicHostId || publicHostId || ''} onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
 
     return (

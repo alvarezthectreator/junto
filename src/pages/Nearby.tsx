@@ -20,6 +20,8 @@ interface NearbyPerson {
   city: string;
   bio: string;
   avatar: string;
+  avatarImage?: string;
+  gallery?: string[];
   badges: string[];
   isVerified: boolean;
   proximityLabel: string;
@@ -63,14 +65,17 @@ function normalizeNearbyPerson(person: API.User, index: number): NearbyPerson {
   ];
 
   const age = ageRanges[index % ageRanges.length][0];
+  const gallery = Array.isArray((person as any).profile_photos) ? ((person as any).profile_photos as string[]).filter(Boolean) : [];
 
   return {
     id: person.id,
     name: displayName,
     profileId: person.profile_id || `JNT-${String(index + 1).padStart(4, "0")}`,
-    city: "Near you",
+    city: person.city || "Near you",
     bio: "A registered Junto member nearby. Tap in and say hi.",
     avatar: initials(displayName),
+    avatarImage: gallery[0] || (person as any).profile_photo || undefined,
+    gallery,
     badges: ["Nearby"],
     isVerified: true,
     proximityLabel: `${index + 1}.${(index + 3) % 10} km away`,
@@ -100,6 +105,8 @@ export const Nearby: React.FC<NearbyProps> = ({
   const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
   const [likeActionModal, setLikeActionModal] = useState<NearbyPerson | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+  const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -107,9 +114,11 @@ export const Nearby: React.FC<NearbyProps> = ({
     const fetchNearbyPeople = async () => {
       try {
         setLoading(true);
+        setFetchError('');
 
         if (!currentUser?.id) {
           if (mounted) setPeople(mockNearbyPeople);
+          if (mounted) setFetchError('Sign in to see nearby people.');
           return;
         }
 
@@ -125,6 +134,7 @@ export const Nearby: React.FC<NearbyProps> = ({
         console.error("Failed to fetch nearby people:", error);
         if (mounted) {
           setPeople(mockNearbyPeople);
+          setFetchError("We couldn't load nearby people right now. Please try again.");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -136,7 +146,7 @@ export const Nearby: React.FC<NearbyProps> = ({
     return () => {
       mounted = false;
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, refreshCount]);
 
   const filteredPeople = useMemo(() => {
     let filtered = people.filter(person => !dislikedUserIds.has(person.id) && !likedUserIds.has(person.id));
@@ -188,6 +198,7 @@ export const Nearby: React.FC<NearbyProps> = ({
   }, [activeFilter, people, dislikedUserIds, likedUserIds, verifiedOnly, ageFilter, genderFilter, languageFilter, hobbyFilter]);
 
   const currentPerson = filteredPeople[0] || null;
+  const nextPeople = filteredPeople.slice(1, 4);
 
   const handleDislikePerson = async (personId: string) => {
     if (!currentUser?.id) return;
@@ -319,6 +330,17 @@ export const Nearby: React.FC<NearbyProps> = ({
                 >
                   ⚙️ Filters
                 </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs" style={{ color: mutedText }}>
+                <span className="rounded-full border px-3 py-1" style={{ borderColor, background: panelBg }}>
+                  {filteredPeople.length} nearby profile{filteredPeople.length === 1 ? '' : 's'}
+                </span>
+                {currentUser?.city && (
+                  <span className="rounded-full border px-3 py-1" style={{ borderColor, background: panelBg }}>
+                    Based on {currentUser.city}
+                  </span>
+                )}
               </div>
             </div>
           </section>
@@ -503,7 +525,7 @@ export const Nearby: React.FC<NearbyProps> = ({
 
           {/* Single Card Display */}
           <section className="mx-auto max-w-2xl">
-            {loading ? (
+          {loading ? (
               <div
                 className="flex items-center justify-center gap-3 rounded-[2rem] border p-8"
                 style={{ borderColor, background: cardBg }}
@@ -511,26 +533,92 @@ export const Nearby: React.FC<NearbyProps> = ({
                 <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
                 <span className="text-sm" style={{ color: subText }}>Loading nearby people...</span>
               </div>
+            ) : fetchError ? (
+              <div
+                className="rounded-[2rem] border p-8 text-center space-y-4"
+                style={{ borderColor, background: cardBg }}
+              >
+                <div className="text-5xl">📡</div>
+                <h3 className="text-xl font-bold">Couldn’t load nearby people</h3>
+                <p style={{ color: mutedText }}>{fetchError}</p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => setRefreshCount((count) => count + 1)}
+                    className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                    style={{ background: "#F59E0B", color: "#111" }}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveFilter("All");
+                      setAgeFilter(null);
+                      setGenderFilter(null);
+                      setLanguageFilter(null);
+                      setHobbyFilter(null);
+                      setVerifiedOnly(false);
+                      setRefreshCount((count) => count + 1);
+                    }}
+                    className="rounded-full border px-4 py-2 text-sm font-semibold transition"
+                    style={{ borderColor, color: pageText }}
+                  >
+                    Reset filters
+                  </button>
+                </div>
+              </div>
             ) : currentPerson ? (
               <motion.div
                 key={currentPerson.id}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
+                initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 10 }}
                 transition={{ duration: 0.3 }}
-                className="rounded-[2rem] border overflow-hidden"
+                className="relative rounded-[2rem] border overflow-hidden"
                 style={{
                   borderColor: 'rgba(245,158,11,0.28)',
                   background: isLightMode ? 'rgba(255,255,255,0.96)' : 'rgba(18,18,23,0.98)',
                   boxShadow: isLightMode ? '0 24px 70px rgba(120,53,15,0.12)' : '0 24px 70px rgba(0,0,0,0.34)',
                 }}
               >
-                {/* Avatar Section */}
-                <div
-                  className="flex h-32 items-center justify-center text-5xl"
-                  style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}
-                >
-                  {currentPerson.avatar}
+                {nextPeople.map((person, index) => (
+                  <div
+                    key={person.id}
+                    className="absolute inset-x-4 top-4 -z-0 rounded-[1.5rem] border shadow-2xl blur-[0.3px]"
+                    style={{
+                      borderColor,
+                      background: panelBg,
+                      transform: `translateY(${(index + 1) * 10}px) scale(${0.98 - index * 0.02})`,
+                      opacity: Math.max(0.15, 0.45 - index * 0.12),
+                    }}
+                  />
+                ))}
+
+                {/* Avatar / Media Section */}
+                <div className="relative h-44 overflow-hidden" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
+                  {currentPerson.avatarImage ? (
+                    <img
+                      src={currentPerson.avatarImage}
+                      alt={currentPerson.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-5xl">
+                      {currentPerson.avatar}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                  {currentPerson.gallery && currentPerson.gallery.length > 1 && (
+                    <div className="absolute bottom-3 left-3 flex gap-2">
+                      {currentPerson.gallery.slice(0, 3).map((photo, index) => (
+                        <img
+                          key={`${currentPerson.id}-gallery-${index}`}
+                          src={photo}
+                          alt=""
+                          className="h-10 w-10 rounded-xl border border-white/20 object-cover shadow-lg"
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Info Section */}
@@ -548,7 +636,7 @@ export const Nearby: React.FC<NearbyProps> = ({
                           )}
                         </div>
                         <p className="mt-1 text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                          {currentPerson.gender && `${currentPerson.gender} · `}{currentPerson.profileId} · {currentPerson.proximityLabel}
+                          {currentPerson.city && `${currentPerson.city} · `}{currentPerson.gender && `${currentPerson.gender} · `}{currentPerson.profileId} · {currentPerson.proximityLabel}
                         </p>
                       </div>
                     </div>
@@ -632,8 +720,31 @@ export const Nearby: React.FC<NearbyProps> = ({
                 <div className="text-5xl mb-3">🎉</div>
                 <h3 className="text-xl font-bold mb-2">No more people!</h3>
                 <p style={{ color: mutedText }}>
-                  You've browsed all nearby members. Try switching filters or check back later.
+                  You've browsed all nearby members. Try switching filters, reset them, or check back later.
                 </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      setActiveFilter("All");
+                      setAgeFilter(null);
+                      setGenderFilter(null);
+                      setLanguageFilter(null);
+                      setHobbyFilter(null);
+                      setVerifiedOnly(false);
+                    }}
+                    className="rounded-full border px-4 py-2 text-sm font-semibold transition"
+                    style={{ borderColor, color: pageText }}
+                  >
+                    Clear filters
+                  </button>
+                  <button
+                    onClick={() => setRefreshCount((count) => count + 1)}
+                    className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                    style={{ background: '#F59E0B', color: '#111' }}
+                  >
+                    Refresh nearby
+                  </button>
+                </div>
               </div>
             )}
           </section>
