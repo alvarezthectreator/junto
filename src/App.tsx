@@ -530,7 +530,7 @@ export function App() {
     if (currentPage === 'premium') return <Premium />;
     if (currentPage === 'settings') return <Settings onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
-    if (currentPage === 'travel') return <TravelMode />;
+    if (currentPage === 'travel') return <TravelMode initialCity={(location.state as any)?.city || currentUser?.city || undefined} />;
     if (currentPage === 'squads') return <SquadsPage />;
     if (currentPage === 'admin') return <AdminModerator onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
     if (currentPage === 'help') return <Help onNavigate={navigateToPage} isLightMode={isLightMode} />;

@@ -119,11 +119,12 @@
 - ✅ Fully responsive (tested on 375px-1920px)
 
 **What's Missing:**
-- ❌ Event creation from this screen
-- ❌ Travel mode could be tighter with the rest of the discovery flow
+- ❌ Discovery still needs smarter creator actions and recommendation logic
+- ❌ Travel mode could still use deeper geo-based ranking and itinerary awareness
 
 **What's Implemented:**
 - ✅ Event detail navigation
+- ✅ Event creation from this screen
 - ✅ Pagination/load more
 - ✅ Infinite scroll
 - ✅ Apply/interested button functionality
@@ -131,10 +132,12 @@
 - ✅ Dynamic location filtering
 - ✅ Backend API data source
 - ✅ City/location selector
+- ✅ Direct Travel Mode handoff from Discover
 - ✅ Real-time updates via WebSocket/polling fallback
 
 **Critical Gaps:**
-- Discovery is functional, but could still be expanded with more creator actions and travel-mode polish
+- Discovery is functional, but could still be expanded with more creator actions and smarter ranking
+- Travel mode is linked into the feed, but it still needs deeper routing and geo-awareness polish
 
 **Production Readiness:** 🟢 Ready — the feed actions and navigation now work
 
@@ -368,9 +371,10 @@
 - ✅ Search functionality (event title/location filter)
 - ✅ Filter buttons (All, Virtual, In-Person, Happening Now, Next Week)
 - ✅ Light mode support
+- ✅ Discover now passes the selected city into Travel Mode
 
 **What's Missing:**
-- ❌ **No destination setup** — Can't select which city
+- ❌ **No destination setup modal** — Travel still lacks a richer planning flow
 - ❌ **No trip date range** — Can't set travel dates
 - ❌ **No city selector modal** — No UI to choose destination
 - ❌ **No trip history** — Can't view past trips
@@ -384,9 +388,8 @@
 - ❌ **No trip sharing** — Can't share with friends
 
 **Critical Gaps:**
-- Users can't actually set up a trip
-- No way to select destination city
-- No connection to actual travel dates
+- Users can set a destination, but the planning flow is still basic
+- No richer trip date management or itinerary handling yet
 - Filter/search work but don't connect to real backend
 
 **Production Readiness:** 🟡 Partial — UI is there, setup flow is missing

@@ -13,6 +13,10 @@ import {
 
 type ToastMessage = { id: string; text: string; type: 'success' | 'error' | 'info' };
 
+interface TravelModeProps {
+  initialCity?: string;
+}
+
 function TravelEventCard({ event, index, isLightMode = false }: { event: any; index: number; isLightMode?: boolean }) {
   const [visible, setVisible] = useState(false);
   
@@ -101,10 +105,10 @@ function TravelEventCard({ event, index, isLightMode = false }: { event: any; in
   );
 }
 
-export const TravelMode = () => {
+export const TravelMode = ({ initialCity }: TravelModeProps) => {
   const { currentUser } = useAppContext();
   const [isLightMode] = useState(false);
-  const [selectedCity, setSelectedCity] = useState("Lagos");
+  const [selectedCity, setSelectedCity] = useState(initialCity || 'Lagos');
   const [citySearch, setCitySearch] = useState("");
   const [eventType, setEventType] = useState<"all" | "virtual" | "physical">("all");
   const [travelModeEnabled, setTravelModeEnabled] = useState(false);
@@ -127,6 +131,12 @@ export const TravelMode = () => {
     const t = setTimeout(() => setHeaderVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (initialCity) {
+      setSelectedCity(initialCity);
+    }
+  }, [initialCity]);
 
   useEffect(() => {
     try {

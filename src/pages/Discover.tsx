@@ -666,17 +666,25 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => setTravelMode(!travelMode)}
-            className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${
-              travelMode ? 'bg-[#F59E0B]' : 'bg-white/20 hover:bg-white/30'
-            }`}>
-            <motion.div 
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm`}
-              animate={{ left: travelMode ? '26px' : '2px' }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            ></motion.div>
-          </button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={() => navigate('/travel', { state: { city: selectedCity } })}
+              className="rounded-full border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+            >
+              Open travel mode
+            </button>
+            <button 
+              onClick={() => setTravelMode(!travelMode)}
+              className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${
+                travelMode ? 'bg-[#F59E0B]' : 'bg-white/20 hover:bg-white/30'
+              }`}>
+              <motion.div 
+                className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm`}
+                animate={{ left: travelMode ? '26px' : '2px' }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              ></motion.div>
+            </button>
+          </div>
         </div>
       </div>
 
