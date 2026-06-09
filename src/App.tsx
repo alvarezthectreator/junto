@@ -32,6 +32,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, verifySession } from './services/api';
+import { appConfig } from './config/appConfig';
+import { trackEvent, trackPageView } from './services/analytics';
+import { updateThemeColor } from './services/pwa';
 
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const SESSION_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'focus'];
@@ -169,28 +172,79 @@ export function App() {
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [publicHostId, setPublicHostId] = useState<string | null>(null);
+  const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const { eventId: routeEventId, publicHostId: routePublicHostId } = getRouteIds(location.pathname);
   const routeState = (location.state || {}) as RouteState;
 
   const onboardingFlowActive = typeof window !== 'undefined' && window.sessionStorage.getItem(ONBOARDING_FLOW_KEY) === 'true';
 
   const navigateToPage = useCallback((page: string) => {
+    setIsRouteTransitioning(true);
+
     if (page === 'event') {
       const eventId = selectedEvent?.id || routeEventId;
       navigate(getPagePath(page, eventId));
       setShowMenu(false);
+      window.setTimeout(() => setIsRouteTransitioning(false), 250);
       return;
     }
 
     if (page === 'landing') {
       navigate('/');
       setShowMenu(false);
+      window.setTimeout(() => setIsRouteTransitioning(false), 250);
       return;
     }
 
     navigate(getPagePath(page));
     setShowMenu(false);
+    window.setTimeout(() => setIsRouteTransitioning(false), 250);
   }, [navigate, routeEventId, selectedEvent?.id]);
+
+  const pageMeta = (() => {
+    switch (currentPage) {
+      case 'landing':
+        return {
+          title: appConfig.appName,
+          description: appConfig.appDescription,
+        };
+      case 'main':
+        return {
+          title: 'Discover events on Junto',
+          description: 'Browse events, discover people nearby, and plan your next outing.',
+        };
+      case 'nearby':
+        return {
+          title: 'Nearby people',
+          description: 'Swipe through nearby people and see richer profile cards.',
+        };
+      case 'messages':
+        return {
+          title: 'Messages',
+          description: 'Keep up with conversations and follow up on plans.',
+        };
+      case 'notifications':
+        return {
+          title: 'Notifications',
+          description: 'Review unread updates, grouped notifications, and alerts.',
+        };
+      case 'settings':
+        return {
+          title: 'Settings',
+          description: 'Manage account preferences, privacy, and notification settings.',
+        };
+      case 'assessment':
+        return {
+          title: 'Comprehensive Assessment',
+          description: 'Current implementation status and outstanding product work.',
+        };
+      default:
+        return {
+          title: appConfig.appName,
+          description: appConfig.appDescription,
+        };
+    }
+  })();
 
   // Track route changes and update activeNav
   useEffect(() => {
@@ -211,6 +265,21 @@ export function App() {
       setActiveNav('Profile');
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    document.title = pageMeta.title;
+    updateThemeColor();
+
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', pageMeta.description);
+    }
+
+    trackPageView(location.pathname, pageMeta.title, currentUser?.id);
+    const timer = window.setTimeout(() => setIsRouteTransitioning(false), 120);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser?.id, location.pathname, pageMeta.description, pageMeta.title]);
 
   // Handle public profile navigation - retrieve hostId from sessionStorage
   useEffect(() => {
@@ -255,6 +324,7 @@ export function App() {
     markSessionActivity();
     setIsAuthenticated(true);
     setHasEntered(true);
+    trackEvent('auth_login', { method: 'password' }, user.id);
     return userData;
   }, []);
 
@@ -277,7 +347,8 @@ export function App() {
     localStorage.removeItem('junto-active-nav');
     window.sessionStorage.removeItem(ONBOARDING_FLOW_KEY);
     clearApiSession();
-  }, [navigate]);
+    trackEvent('auth_logout', {}, currentUser?.id);
+  }, [currentUser?.id, navigate]);
   
   useEffect(() => {
     document.body.classList.toggle('theme-light-body', isLightMode);
@@ -644,7 +715,26 @@ export function App() {
         }}>
           <ErrorBoundary>
             <div className={`${isLightMode ? 'theme-light ' : ''}${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
-              {content}
+              <a
+                href="#app-main"
+                className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10000] rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-black shadow-lg"
+              >
+                Skip to content
+              </a>
+              {isRouteTransitioning && (
+                <div className="fixed left-0 top-0 z-[10000] h-1 w-full overflow-hidden bg-white/10">
+                  <div className="h-full w-1/3 animate-pulse bg-gradient-to-r from-[#F59E0B] via-[#FB923C] to-[#F59E0B]" />
+                </div>
+              )}
+              <div
+                id="app-main"
+                role="main"
+                tabIndex={-1}
+                aria-live="polite"
+                aria-busy={isRouteTransitioning}
+              >
+                {content}
+              </div>
             </div>
           </ErrorBoundary>
         </AppProvider>

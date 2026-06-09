@@ -1,0 +1,18 @@
+{
+  "name": "Junto",
+  "short_name": "Junto",
+  "description": "Discover events, nearby people, messages, and travel plans in one place.",
+  "start_url": "/discover",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0f13",
+  "theme_color": "#0f0f13",
+  "icons": [
+    {
+      "src": "/junto-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

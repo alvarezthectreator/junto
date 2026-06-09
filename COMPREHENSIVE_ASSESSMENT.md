@@ -624,16 +624,21 @@
 
 ## TECHNOLOGY DEBT
 
-- No environment variables (hardcoded API paths)
-- No error boundaries
-- No loading states (except skeleton)
-- No accessibility (a11y) features
-- No SEO (no Meta tags beyond title)
-- No PWA setup (no service workers)
-- No analytics
-- No crash reporting
-- No feature flags
-- No AB testing framework
+- ✅ Environment variables centralized for API, WS, analytics, crash, and PWA config
+- ✅ Error boundary wraps the app shell and reports runtime failures
+- ✅ Loading states now include session boot and route-transition feedback
+- ✅ Accessibility basics added: skip link, main landmark, and live region
+- ✅ SEO improved with meta description, social tags, manifest, and sitemap
+- ✅ PWA baseline added with manifest + service worker
+- ✅ Analytics queue and page-view tracking added
+- ✅ Crash reporting queue and boundary integration added
+- ✅ Feature flags helper added
+- ✅ AB test assignment helper added
+
+**Remaining polish:**
+- Per-screen accessibility audits can still be improved
+- Analytics and crash endpoints still need a production provider if you want remote telemetry
+- Feature flag admin UI is still not exposed in the product
 
 ---
 
@@ -667,53 +672,27 @@
 
 ## FILES NEEDING CREATION
 
-```
-src/
-├── api/                    # NEW - API client layer
-│   ├── events.ts
-│   ├── auth.ts
-│   ├── messages.ts
-│   └── client.ts
-├── hooks/                  # NEW - Custom React hooks
-│   ├── useAuth.ts
-│   ├── useEvents.ts
-│   ├── useMessages.ts
-│   └── useFetch.ts
-├── context/               # NEW - React context for state
-│   ├── AuthContext.tsx
-│   └── EventContext.tsx
-├── services/              # NEW - Business logic
-│   ├── eventService.ts
-│   └── authService.ts
-└── types/                 # EXPAND - More TypeScript types
-    ├── event.ts
-    ├── user.ts
-    └── api.ts
-```
+No new scaffolding is required for the platform debt pass. The missing work now sits mostly in provider integrations, product policy, and deeper operational tooling.
 
 ---
 
 ## BUILD VERIFICATION
 
 ```bash
-✅ npm run build — Succeeds with no errors
-✅ Production bundle size: ~245KB (gzipped)
-✅ All imports resolve
-✅ No TypeScript errors
-✅ Vite optimized
+⚠️ npm run build — Not re-verified in this session
+⚠️ Production bundle size — Not measured in this session
+⚠️ TypeScript errors — Not re-verified in this session
 ```
 
 ---
 
 ## Conclusion
 
-**The frontend is 42% complete** with beautiful UI/UX but **0% backend connectivity**. It's a well-designed prototype that needs significant infrastructure work to become functional. The foundation is solid for MVP development — all you need is:
+**The frontend is now substantially more complete** with a real API layer, route-aware shell, accessibility basics, PWA support, analytics/crash scaffolding, and feature-flag helpers. The remaining work is mostly product and provider integration, not raw infrastructure.
 
-1. Backend APIs (Express/Node.js, Python/Django, or similar)
-2. Database schema
-3. Authentication system
-4. Payment processor integration
-5. Real-time communication (WebSocket)
-6. SMS provider integration
-
-The UI/UX work is done. The product work begins.
+What still needs attention:
+1. Payment processor integration
+2. Messaging durability and realtime sync hardening
+3. SMS/OTP auth provider integration
+4. Production analytics/crash endpoints
+5. Account security and fraud automation

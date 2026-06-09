@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportError } from '../services/crashReporting';
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -24,6 +25,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('App error boundary caught an error:', error, errorInfo);
+    reportError(error, {
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   render() {

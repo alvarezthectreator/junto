@@ -9,6 +9,8 @@ import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import * as API from '../services/api';
 import { DiscoverSocket } from '../services/discoverSocket';
+import { getExperimentVariant, getFeatureFlag } from '../config/appConfig';
+import { trackEvent } from '../services/analytics';
 import type { DiscoverEventSeed } from '../data/discoverEvents';
 
 interface DiscoverProps {
@@ -243,6 +245,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   'Females only',
   'Males only',
   'Trending 🔥'];
+  const travelCtaVariant = getExperimentVariant('discover_travel_cta', ['A', 'B']);
+  const showTravelHandoff = getFeatureFlag('discover_travel_handoff', true);
 
   useEffect(() => {
     const nextCity = selectedLocation || currentUser?.city || 'Lagos';
@@ -667,12 +671,17 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <button
-              onClick={() => navigate('/travel', { state: { city: selectedCity } })}
-              className="rounded-full border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
-            >
-              Open travel mode
-            </button>
+            {showTravelHandoff && (
+              <button
+                onClick={() => {
+                  trackEvent('discover_open_travel_mode', { city: selectedCity });
+                  navigate('/travel', { state: { city: selectedCity } });
+                }}
+                className="rounded-full border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+              >
+                {travelCtaVariant === 'A' ? 'Open travel mode' : 'Plan travel'}
+              </button>
+            )}
             <button 
               onClick={() => setTravelMode(!travelMode)}
               className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${
@@ -755,7 +764,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
           <button
-            onClick={() => onNavigate('myhost')}
+            onClick={() => {
+              trackEvent('discover_create_event_click', { city: selectedCity });
+              onNavigate('myhost');
+            }}
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-95"
           >
             <Plus size={16} />

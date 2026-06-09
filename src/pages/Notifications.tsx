@@ -8,6 +8,7 @@ import {
   getUserId,
   markNotificationAsRead as markNotificationAsReadApi,
 } from '../services/api';
+import { appConfig } from '../config/appConfig';
 import {
   isBrowserNotificationsSupported,
   isPushEnabled,
@@ -284,7 +285,7 @@ export function Notifications({
     };
     window.addEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
 
-    const wsUrl = import.meta.env.VITE_WS_URL || window.location.origin.replace(/^http/, 'ws');
+    const wsUrl = appConfig.wsUrl || window.location.origin.replace(/^http/, 'ws');
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(wsUrl);

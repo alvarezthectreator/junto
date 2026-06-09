@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import {
-  getUserId,
+  getHighRiskUsers,
 } from '../services/api';
 
 interface HighRiskUser {
@@ -51,7 +51,6 @@ export function AdminModerator({
   setActiveNav = () => {},
   onCloseSidebar = () => {},
 }: AdminModeratorProps) {
-  const userId = getUserId();
   const [activeTab, setActiveTab] = useState<'overview' | 'high-risk' | 'flags' | 'activities' | 'logs'>('overview');
   const [highRiskUsers, setHighRiskUsers] = useState<HighRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,16 +73,8 @@ export function AdminModerator({
   const fetchHighRiskUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/fraud?threshold=60&limit=20`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('junto-session-token')}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setHighRiskUsers(data.high_risk_users || []);
-      }
+      const data = await getHighRiskUsers(60, 20);
+      setHighRiskUsers(data.high_risk_users || []);
     } catch (error) {
       console.error('Error fetching high-risk users:', error);
     } finally {

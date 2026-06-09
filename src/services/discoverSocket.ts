@@ -1,6 +1,8 @@
 // Discover Feed WebSocket Service
 // Handles real-time event updates
 
+import { appConfig } from '../config/appConfig';
+
 export class DiscoverSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -31,7 +33,7 @@ export class DiscoverSocket {
   private connect() {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.host}`;
+      const wsUrl = appConfig.wsUrl || `${protocol}//${window.location.host}`;
 
       console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
       this.ws = new WebSocket(wsUrl);

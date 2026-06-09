@@ -1,10 +1,9 @@
 // Junto API Service
 // Handles all backend API communication
 
-const PROD_API_BASE_URL = 'https://junto-production-4eca.up.railway.app/api';
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.PROD ? PROD_API_BASE_URL : 'http://localhost:5000/api');
+import { appConfig } from '../config/appConfig';
+
+const API_BASE_URL = appConfig.apiBaseUrl;
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
 const SESSION_TOKEN_KEY = 'sessionToken';
 const LEGACY_SESSION_TOKEN_KEY = 'junto-session-token';
@@ -797,9 +796,14 @@ export async function registerForPushNotifications(userId: string): Promise<bool
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js');
+    if (!appConfig.vapidPublicKey) {
+      console.warn('Push notifications are available, but VAPID public key is missing.');
+      return false;
+    }
+
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: process.env.VITE_PUBLIC_KEY || ''
+      applicationServerKey: urlBase64ToUint8Array(appConfig.vapidPublicKey),
     });
 
     await subscribeToPush(userId, subscription);
@@ -808,6 +812,19 @@ export async function registerForPushNotifications(userId: string): Promise<bool
     console.error('Push registration failed:', error);
     return false;
   }
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
 }
 
 // ==================== SQUADS ====================
