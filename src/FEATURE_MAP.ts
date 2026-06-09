@@ -5,7 +5,7 @@ export const PAGE_STRUCTURE = {
   MAIN_NAVIGATION: {
     discover: 'Main event discovery board with filtering',
     myRequests: 'Join requests, applications, wishlist',
-    messages: 'Real-time messaging and calls',
+    messages: 'Messaging UI with demo calls; realtime persistence still pending',
     safety: 'Trust & safety features dashboard',
   },
 
@@ -29,7 +29,7 @@ export const PAGE_STRUCTURE = {
 
     TRUST_AND_SAFETY: {
       safety: 'Main safety hub',
-      safetyCentre: 'Verified badge, Emergency SOS, Trusted Contacts',
+      safetyCentre: 'Verified badge, Emergency SOS, Trusted Contacts, Reports, and Blocks',
       // Features included:
       // - ID Verification (Smile Identity, Youverify, Sumsub)
       // - Reliability Score System (publicly visible)
@@ -43,7 +43,7 @@ export const PAGE_STRUCTURE = {
     },
 
     BILLING_AND_PLANS: {
-      premium: 'Junto Premium subscription & plan comparison',
+      premium: 'Junto Premium subscription & plan comparison; billing provider still pending',
       // Features included:
       // - 4 Billing Tiers (HOST_ALL, HOST_NO_TRANSPORT, SPLIT, HOST_ME)
       // - Financial Agreement Modal
@@ -61,7 +61,7 @@ export const PAGE_STRUCTURE = {
     },
 
     COMMUNICATION: {
-      messages: 'Full messaging with audio/video calls',
+      messages: 'Messaging UI, local notifications, and call demos',
       // Features included:
       // - Text, Image, Audio, Video, GIF messages
       // - WebRTC peer-to-peer calls
@@ -71,7 +71,7 @@ export const PAGE_STRUCTURE = {
     },
 
     TRAVEL_AND_PREMIUM: {
-      travelMode: 'Travel Mode for paid users (10 supported cities, saved search management)',
+      travelMode: 'Travel Mode with live event lookup and saved search management',
       // Features included:
       // - Virtual and Physical event distinction
       // - Tour Guide listings
@@ -194,15 +194,10 @@ export const PAGE_STRUCTURE = {
 
   NEXT_STEPS: [
     '1. Finish profile verification provider integration',
-    '2. Add server-backed safety review, SMS, and emergency escalation integrations',
-    '3. Tighten Nearby Mode matching and empty states',
-    '4. Add real-time messaging and calls',
-    '5. Finish OTP authentication and session handling',
-    '6. Add payment and billing integrations',
-    '7. Set up database and file storage infrastructure',
-    '8. Add push notifications and background jobs',
-    '9. Harden anti-fraud and trust automation',
-    '10. Deploy to production',
+    '2. Add realtime messaging persistence and proper audio/video calling',
+    '3. Add payment and billing provider checkout',
+    '4. Add true push delivery plus background jobs',
+    '5. Deploy to production with monitoring and secrets management',
   ],
 };
 

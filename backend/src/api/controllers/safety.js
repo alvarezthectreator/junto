@@ -1,5 +1,24 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  createAccountFlag,
+  flagSuspiciousActivity,
+  logFraudEvent,
+} from '../../services/fraudDetectionService.js';
+
+function getEscalationLevel(reportType, description = '') {
+  const text = `${reportType || ''} ${description || ''}`.toLowerCase();
+
+  if (/(violence|assault|threat|extortion|kidnap|weapon|scam|fraud|blackmail|urgent|emergency)/.test(text)) {
+    return 'critical';
+  }
+
+  if (/(harassment|hate|stalking|abuse|spam|impersonat|sexual|suspicious)/.test(text)) {
+    return 'high';
+  }
+
+  return 'standard';
+}
 
 export async function getTrustedContacts(req, res) {
   try {
@@ -196,19 +215,58 @@ export async function unblockUser(req, res) {
 export async function reportUser(req, res) {
   try {
     const { userId, reportedUserId } = req.params;
-    const { report_type, description } = req.body;
+    const { report_type, description, evidence_urls } = req.body;
 
     const reportId = uuidv4();
+    const escalationLevel = getEscalationLevel(report_type, description);
     const result = await query(
-      `INSERT INTO reports (id, reporter_id, reported_user_id, report_type, description, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
+      `INSERT INTO reports (id, reporter_id, reported_user_id, report_type, description, evidence_urls, escalation_level, escalation_reason, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
        RETURNING *`,
-      [reportId, userId, reportedUserId, report_type || 'other', description || null]
+      [
+        reportId,
+        userId,
+        reportedUserId,
+        report_type || 'other',
+        description || null,
+        evidence_urls ? JSON.stringify(evidence_urls) : null,
+        escalationLevel,
+        description || report_type || 'report submitted',
+      ]
     );
 
     console.log(`📋 Report filed: ${report_type} against user ${reportedUserId} by ${userId}`);
 
-    res.status(201).json({ report: result.rows[0], message: '✅ Report submitted. Our team will review it within 24 hours.' });
+    if (escalationLevel === 'high' || escalationLevel === 'critical') {
+      await createAccountFlag(
+        req.db,
+        reportedUserId,
+        `report_${report_type || 'other'}`,
+        escalationLevel === 'critical' ? 'high' : 'medium',
+        description || 'User reported with elevated escalation'
+      );
+
+      await flagSuspiciousActivity(
+        req.db,
+        reportedUserId,
+        `report_${report_type || 'other'}`,
+        description || 'User reported with elevated escalation',
+        escalationLevel === 'critical' ? 90 : 70
+      );
+
+      await logFraudEvent(req.db, reportedUserId, 'report_escalation', 'User report escalated for moderation', {
+        report_id: reportId,
+        reporter_id: userId,
+        report_type: report_type || 'other',
+        escalation_level: escalationLevel,
+      });
+    }
+
+    res.status(201).json({
+      report: result.rows[0],
+      escalation_level: escalationLevel,
+      message: '✅ Report submitted. Our team will review it within 24 hours.',
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

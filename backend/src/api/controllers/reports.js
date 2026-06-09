@@ -1,10 +1,29 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  createAccountFlag,
+  flagSuspiciousActivity,
+  logFraudEvent,
+} from '../../services/fraudDetectionService.js';
+
+function getEscalationLevel(reportType, description = '') {
+  const text = `${reportType || ''} ${description || ''}`.toLowerCase();
+
+  if (/(violence|assault|threat|extortion|kidnap|weapon|scam|fraud|blackmail|urgent|emergency)/.test(text)) {
+    return 'critical';
+  }
+
+  if (/(harassment|hate|stalking|abuse|spam|impersonat|sexual|suspicious)/.test(text)) {
+    return 'high';
+  }
+
+  return 'standard';
+}
 
 // Report a user
 export async function reportUser(req, res) {
   try {
-    const { reporter_id, reported_user_id, report_type, description } = req.body;
+    const { reporter_id, reported_user_id, report_type, description, evidence_urls } = req.body;
 
     if (!reporter_id || !reported_user_id || !report_type) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -15,13 +34,53 @@ export async function reportUser(req, res) {
     }
 
     const reportId = uuidv4();
+    const escalationLevel = getEscalationLevel(report_type, description);
     const result = await query(
-      `INSERT INTO reports (id, reporter_id, reported_user_id, report_type, description, status, created_at)
-       VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))`,
-      [reportId, reporter_id, reported_user_id, report_type, description || null]
+      `INSERT INTO reports (id, reporter_id, reported_user_id, report_type, description, evidence_urls, escalation_level, escalation_reason, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'))`,
+      [
+        reportId,
+        reporter_id,
+        reported_user_id,
+        report_type,
+        description || null,
+        evidence_urls ? JSON.stringify(evidence_urls) : null,
+        escalationLevel,
+        description || report_type,
+      ]
     );
 
-    res.json({ report_id: reportId, status: 'pending', message: 'Report submitted successfully' });
+    if (escalationLevel === 'high' || escalationLevel === 'critical') {
+      await createAccountFlag(
+        req.db,
+        reported_user_id,
+        `report_${report_type}`,
+        escalationLevel === 'critical' ? 'high' : 'medium',
+        description || 'User reported with elevated escalation'
+      );
+
+      await flagSuspiciousActivity(
+        req.db,
+        reported_user_id,
+        `report_${report_type}`,
+        description || 'User reported with elevated escalation',
+        escalationLevel === 'critical' ? 90 : 70
+      );
+
+      await logFraudEvent(req.db, reported_user_id, 'report_escalation', 'User report escalated for moderation', {
+        report_id: reportId,
+        reporter_id,
+        report_type,
+        escalation_level: escalationLevel,
+      });
+    }
+
+    res.json({
+      report_id: reportId,
+      status: 'pending',
+      escalation_level: escalationLevel,
+      message: 'Report submitted successfully',
+    });
   } catch (error) {
     console.error('Report error:', error);
     res.status(500).json({ error: error.message });

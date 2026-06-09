@@ -161,8 +161,14 @@ CREATE TABLE IF NOT EXISTS reports (
   reported_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   report_type VARCHAR(100),
   description TEXT,
+  evidence_urls TEXT,
+  escalation_level VARCHAR(20) DEFAULT 'standard',
+  escalation_reason TEXT,
   status VARCHAR(50) DEFAULT 'pending', -- pending, reviewed, resolved
   reviewed_at TIMESTAMP,
+  reviewed_by TEXT,
+  review_note TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

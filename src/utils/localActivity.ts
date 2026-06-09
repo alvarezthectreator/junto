@@ -43,6 +43,7 @@ export type SafetyEvidenceAttachment = {
   size: number;
   previewUrl?: string;
   dataUrl?: string;
+  remoteUrl?: string;
 };
 
 export type SafetyReportCase = {

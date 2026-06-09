@@ -25,6 +25,8 @@ interface EventCardProps {
   currentUserId?: string;
   onInterested?: () => void;
   onOpenUser?: (user: any) => void;
+  onCardClick?: () => void;
+  onSaveChange?: (saved: boolean) => void;
   userAvatar?: string;
   eventTime?: string;
   maxCapacity?: number;
@@ -53,6 +55,8 @@ export function EventCard({
   currentUserId,
   onInterested,
   onOpenUser,
+  onCardClick,
+  onSaveChange,
   userAvatar,
   eventTime = '',
   maxCapacity,
@@ -94,9 +98,11 @@ export function EventCard({
       if (isSaved) {
         await API.unsaveEvent(currentUserId, eventId);
         setIsSaved(false);
+        onSaveChange?.(false);
       } else {
         await API.saveEvent(currentUserId, eventId);
         setIsSaved(true);
+        onSaveChange?.(true);
       }
     } catch (error) {
       console.error('Failed to toggle save:', error);
@@ -131,6 +137,21 @@ export function EventCard({
       }}
       whileHover={{
         y: eventExpired ? 0 : -4
+      }}
+      onClick={() => {
+        if (!eventExpired) {
+          onCardClick?.();
+        }
+      }}
+      role={onCardClick ? 'button' : undefined}
+      tabIndex={onCardClick ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (onCardClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          if (!eventExpired) {
+            onCardClick();
+          }
+        }
       }}
       className={`bg-[#1A1A21] rounded-3xl border transition-colors relative overflow-hidden flex flex-col h-full group ${
         eventExpired 
@@ -175,7 +196,12 @@ export function EventCard({
         {/* Header */}
         <div 
           className="flex items-start gap-2 sm:gap-3 md:gap-4 mb-2 sm:mb-3 md:mb-4 cursor-pointer group/header transition-opacity hover:opacity-80"
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
+            if (onCardClick) {
+              onCardClick();
+              return;
+            }
             if (onOpenUser) {
               onOpenUser({
                 id: userName,
@@ -284,7 +310,10 @@ export function EventCard({
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3 mt-auto w-full">
           <button
-            onClick={onInterested}
+            onClick={(event) => {
+              event.stopPropagation();
+              onInterested?.();
+            }}
             disabled={eventExpired || isAtCapacity}
             className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity ${
               eventExpired 
@@ -294,7 +323,7 @@ export function EventCard({
                 : `${accentColor || 'bg-[#F59E0B]'} ${accentColor?.includes('text-gray-900') ? 'text-gray-900' : 'text-white'} hover:opacity-90`
             } shadow-sm`}>
             
-            {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : 'View event →'}
+            {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : onInterested ? 'Interested' : 'View event →'}
           </button>
           <button 
             onClick={handleSaveToggle}

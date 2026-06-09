@@ -23,6 +23,7 @@ const LeafletMapContainer = MapContainer as any;
 const LeafletMarker = Marker as any;
 const LeafletPopup = Popup as any;
 const eventApplicationsStorageKey = 'junto-event-applications';
+export const applicationsChangedEventName = 'junto-event-applications-changed';
 
 interface Attendee {
   id: string;
@@ -203,6 +204,7 @@ function writeStoredEventApplications(applications: StoredEventApplication[]) {
   }
 
   window.localStorage.setItem(eventApplicationsStorageKey, JSON.stringify(applications));
+  window.dispatchEvent(new Event(applicationsChangedEventName));
 }
 
 function normalizeApplicationStatus(status?: string): 'pending' | 'accepted' | 'declined' | 'none' {
@@ -492,6 +494,25 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
         );
 
         if (!currentApplication) {
+          setApplicationStatus('none');
+          setApplicationNote('');
+          setApplicationUpdatedAt('');
+          setIsJoined(false);
+          setGuestList((current) => current.filter((attendee) => attendee.id !== 'you'));
+          try {
+            window.localStorage.removeItem(applicationStorageKey);
+            writeStoredEventApplications(
+              readStoredEventApplications().filter(
+                (application) =>
+                  !(
+                    String(application.event_id) === String(event.id) &&
+                    String(application.user_id) === String(currentUserId)
+                  )
+              )
+            );
+          } catch (storageError) {
+            console.error('Failed to clear stale application locally:', storageError);
+          }
           return;
         }
 
@@ -551,10 +572,12 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
 
     syncApplicationStatus();
     const intervalId = window.setInterval(syncApplicationStatus, 20000);
+    window.addEventListener(applicationsChangedEventName, syncApplicationStatus as EventListener);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.removeEventListener(applicationsChangedEventName, syncApplicationStatus as EventListener);
     };
   }, [applicationLoaded, applicationNote, currentUserId, event.id]);
 

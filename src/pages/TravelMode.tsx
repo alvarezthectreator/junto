@@ -183,36 +183,6 @@ export const TravelMode = () => {
   useEffect(() => {
     let mounted = true;
 
-    const fallbackEvents = [
-      {
-        id: "1",
-        title: "Rooftop Wine Tasting",
-        type: "physical",
-        location: "VI, Lagos",
-        host: "Amina K.",
-        interested: 12,
-        isGuide: false,
-      },
-      {
-        id: "2",
-        title: "Language Exchange - Spanish 101",
-        type: "virtual",
-        location: "Online",
-        host: "Carlos M.",
-        interested: 28,
-        isGuide: false,
-      },
-      {
-        id: "3",
-        title: "Lekki Conservation Centre Tour",
-        type: "physical",
-        location: "Lekki, Lagos",
-        host: "Tunde O.",
-        interested: 34,
-        isGuide: true,
-      },
-    ];
-
     const loadTravelEvents = async () => {
       try {
         setEventsLoading(true);
@@ -233,12 +203,12 @@ export const TravelMode = () => {
         });
 
         if (mounted) {
-          setTravelEvents(mappedEvents.length > 0 ? mappedEvents : fallbackEvents);
+          setTravelEvents(mappedEvents);
         }
       } catch (error) {
         console.error('Failed to load travel events:', error);
         if (mounted) {
-          setTravelEvents(fallbackEvents);
+          setTravelEvents([]);
           setEventsError('Could not load live events right now.');
         }
       } finally {

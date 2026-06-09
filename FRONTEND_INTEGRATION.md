@@ -1,8 +1,8 @@
 # 🔗 Frontend-Backend Integration Guide
 
-**Status: ✅ COMPLETE**
+**Status: 🟡 Mostly Complete**
 
-The Junto frontend is now fully integrated with the backend API. All major features have been wired to call the backend endpoints.
+The Junto frontend is wired to the backend for the main user journeys, but a few important flows are still provider-backed or need deeper production hardening. Core discovery, profile, safety, and creation flows work locally, while premium billing, realtime messaging/calls, and a few provider-based integrations still need finishing.
 
 ---
 
@@ -16,7 +16,7 @@ The Junto frontend is now fully integrated with the backend API. All major featu
 ### ✅ Event Discovery  
 - [Discover.tsx](src/pages/Discover.tsx) fetches events from `GET /api/events`
 - Filters events by city (defaults to Lagos)
-- Falls back to mock data if API unavailable
+- Falls back to an empty state if API unavailable
 
 ### ✅ Event Creation
 - [CreateEventModal.tsx](src/components/HostDashboard/CreateEventModal.tsx) calls `POST /api/events`
@@ -34,10 +34,11 @@ The Junto frontend is now fully integrated with the backend API. All major featu
 - Auto-loads on component mount
 - Falls back to default profile if not found
 
-### ⏳ Partially Integrated (UI Ready, API Wiring in Progress)
-- Messages: UI complete, ready for conversation API integration
-- Host Dashboard: UI complete, ready for application management
-- Safety Centre: UI complete, ready for block/report/SOS integration
+### ⏳ Partially Integrated
+- Messages: UI complete, but chat/calls still run in demo mode and need durable realtime persistence
+- Premium: UI exists, but billing provider checkout is still pending
+- Push notifications: inbox sync works, but external push delivery still needs a production provider
+- OTP auth: email OTP flow exists, but session handling should be unified across login paths
 
 ---
 
@@ -45,21 +46,19 @@ The Junto frontend is now fully integrated with the backend API. All major featu
 
 ### Prerequisites
 ```bash
-# 1. PostgreSQL must be running
-brew services start postgresql
-
-# 2. Backend must be initialized
+# 1. Backend dependencies installed
 cd backend
-npm run migrate
-npm run seed
-npm run dev
+npm install
+
+# 2. Backend starts with SQLite and initializes locally
+npm run start
 ```
 
 ### Frontend Setup
 ```bash
 # Terminal 1: Start backend
 cd /Users/burntoffering/Downloads/e526be05-35ac-4c5c-9375-35b529637fc5/backend
-npm run dev
+npm run start
 # Output: ✅ Junto Backend Server Running on http://localhost:5000
 
 # Terminal 2: Start frontend
@@ -222,7 +221,7 @@ await API.reportUser(userId, reportedUserId, type)
 ```bash
 # Solution
 cd backend
-npm run dev
+npm run start
 # Check: http://localhost:5000/health should respond
 ```
 
@@ -239,23 +238,14 @@ npm run dev
 ```
 
 ### Create Event button does nothing
-**Problem:** currentUser not passed to component
+**Problem:** `currentUser` not passed to the component tree
 ```javascript
 // In App.tsx, Discover component should have:
 <Discover 
-  currentUser={currentUser}  // ← Add this
+  currentUser={currentUser}
   selectedLocation={selectedLocation}
   // ... other props
 />
-```
-
-### Swipes not recorded
-**Problem:** User ID not available
-```javascript
-// Verify in console
-console.log('Current user:', currentUser)
-// Should have:
-// { id: 'uuid', phone_number: '+234...', token: '...' }
 ```
 
 ---
@@ -280,18 +270,18 @@ Update these components to receive and use `currentUser`:
 ### Messages Component
 Located: [src/pages/Messages.tsx](src/pages/Messages.tsx)
 
-**To wire:**
-1. Import `import * as API from '../services/api'`
-2. Add `useEffect` to fetch conversations on mount
-3. Update `handleSend` to call `API.sendMessage()`
-4. Update `getConversations()` to use API data
+**Still to finish:**
+1. Replace demo threads with persisted conversation data
+2. Persist outgoing messages to the backend
+3. Add realtime updates for new messages and call state
+4. Connect read receipts and deletes to the API
 
-**Key Functions Ready:**
+**Useful API functions already available:**
 ```typescript
 API.getConversations(userId)
-API.getConversation(conversationId, limit, offset)
-API.sendMessage(conversationId, recipientId, content, type)
-API.markMessagesAsRead(conversationId)
+API.sendMessage(conversationId, recipientId, content)
+API.markAsRead(messageId)
+API.deleteMessage(messageId)
 ```
 
 ---
@@ -299,23 +289,19 @@ API.markMessagesAsRead(conversationId)
 ### Host Dashboard
 Located: [src/pages/HostDashboard.tsx](src/pages/HostDashboard.tsx)
 
-**To wire:**
-1. Fetch user's hosted events: `API.getHostEvents(userId)`
-2. Fetch applications: `API.getEventApplications(eventId)`
-3. Accept/reject: `API.updateApplicationStatus(appId, status)`
-4. Update event: `API.updateEvent(eventId, updates)`
+**Still to finish:**
+1. Wire accept/reject and event updates directly from the host view
+2. Add guest check-in and post-event review actions
 
 ---
 
 ### Safety Centre
 Located: [src/pages/SafetyCentre.tsx](src/pages/SafetyCentre.tsx)
 
-**To wire:**
-1. Add trusted contact: `API.addTrustedContact(userId, name, phone)`
-2. Get contacts: `API.getTrustedContacts(userId)`
-3. Block user: `API.blockUser(userId, blockedUserId)`
-4. Report user: `API.reportUser(userId, reportedId, type)`
-5. SOS alert: `API.triggerSOS(userId, message)`
+**Still to finish:**
+1. Connect trusted contact verification to a real provider
+2. Move remaining local audit/history items into durable storage
+3. Add stronger safety escalation and moderation workflows
 
 ---
 
@@ -323,17 +309,17 @@ Located: [src/pages/SafetyCentre.tsx](src/pages/SafetyCentre.tsx)
 
 | Feature | Backend | Frontend | Status |
 |---------|---------|----------|--------|
-| **Auth** | ✅ | ✅ | Fully Integrated |
-| **Discover Events** | ✅ | ✅ | Fully Integrated |
-| **Create Event** | ✅ | ✅ | Fully Integrated |
-| **Event Applications** | ✅ | ⏳ | Ready for wiring |
-| **Messaging** | ✅ | ⏳ | Ready for wiring |
-| **Nearby Swipes** | ✅ | ✅ | Fully Integrated |
-| **User Profile** | ✅ | ✅ | Fully Integrated |
-| **Travel Mode** | ✅ | ⏳ | Ready for wiring |
-| **Safety/Block/Report** | ✅ | ⏳ | Ready for wiring |
-| **Notifications** | ✅ | ⏳ | Ready for wiring |
-| **Billing Tiers** | ✅ | ✅ | Fully Integrated |
+| **Auth** | ✅ | ✅ | Working |
+| **Discover Events** | ✅ | ✅ | Working |
+| **Create Event** | ✅ | ✅ | Working |
+| **Event Applications** | ✅ | ✅ | Working with live data and empty-state fallback |
+| **Messaging** | ✅ | ⏳ | UI-first, realtime persistence still pending |
+| **Nearby Swipes** | ✅ | ✅ | Working |
+| **User Profile** | ✅ | ✅ | Working |
+| **Travel Mode** | ✅ | ✅ | Working with local saved-search support |
+| **Safety/Block/Report** | ✅ | ✅ | Working |
+| **Notifications** | ✅ | ✅ | Working with local + browser notification support |
+| **Billing Tiers** | ✅ | ⏳ | Provider integration pending |
 
 ---
 
@@ -356,9 +342,8 @@ Located: [src/pages/SafetyCentre.tsx](src/pages/SafetyCentre.tsx)
 1. **Backend Initialization** (if not done):
    ```bash
    cd backend
-   npm run migrate
-   npm run seed
-   npm run dev
+   npm install
+   npm run start
    ```
 
 2. **Start Frontend**:
@@ -377,8 +362,10 @@ Located: [src/pages/SafetyCentre.tsx](src/pages/SafetyCentre.tsx)
    - Fill form and submit
    - Should appear in Discover
 
-5. **Wire Remaining Components**:
-   - Follow sections above for Messages, Host Dashboard, Safety Centre
+5. **Finish the remaining provider-backed pieces**:
+   - Messaging persistence and realtime updates
+   - Billing checkout/provider integration
+   - Trusted contact verification and safety hardening
 
 ---
 
@@ -411,16 +398,19 @@ Events (6 endpoints)
 
 ---
 
-## ✨ Integration Complete!
+## ✨ Integration Status
 
-All major features are now wired to the backend API. The frontend will:
+The frontend already does the heavy lifting for the main user journey:
 - ✅ Authenticate with phone number
-- ✅ Fetch events from database  
-- ✅ Create events and save to database
+- ✅ Fetch events from the database
+- ✅ Create events and save them
 - ✅ Record user swipes and matches
 - ✅ Load user profiles
-- ✅ Display error messages and loading states
+- ✅ Display errors and loading states
 
-**Estimated time to wire remaining components:** 2-3 hours
+What is still left:
+- Messaging persistence and realtime updates
+- Billing checkout and provider integration
+- Verification and deeper safety automation
 
 Happy coding! 🎉

@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
+import { mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
 import { initWebSocket } from './websocket.js';
@@ -32,12 +35,18 @@ import notificationPreferencesRoutes from './api/routes/notificationPreferences.
 import fraudDetectionRoutes from './api/routes/fraudDetection.js';
 import followupRoutes from './api/routes/followup.js';
 import otpRoutes from './api/routes/otp.js';
+import uploadsRoutes from './api/routes/uploads.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const uploadsDir = join(__dirname, '..', process.env.UPLOAD_STORAGE_DIR || 'uploads');
+
+mkdirSync(uploadsDir, { recursive: true });
 
 // CORS Middleware - MUST be first
 app.use((req, res, next) => {
@@ -90,6 +99,8 @@ app.use('/api/check-ins', checkInsRoutes);
 app.use('/api/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/fraud', fraudDetectionRoutes);
 app.use('/api/followups', followupRoutes);
+app.use('/api/uploads', uploadsRoutes);
+app.use('/uploads', express.static(uploadsDir));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

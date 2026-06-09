@@ -136,6 +136,13 @@ export interface PushSubscription {
   };
 }
 
+export interface UploadedMedia {
+  url: string;
+  file_name?: string;
+  mime_type?: string;
+  size?: number;
+}
+
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
@@ -327,6 +334,71 @@ export async function getReferralInfo(userId: string): Promise<{
   return apiCall(`/users/${userId}/referral`);
 }
 
+// ==================== VERIFICATION ====================
+
+export async function sendVerificationCode(payload: {
+  userId: string;
+  verificationType: 'email' | 'phone';
+  email?: string;
+  phoneNumber?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  verification_id: string;
+  code_for_testing?: string;
+  expires_in_seconds?: number;
+}> {
+  return apiCall('/verification/send', 'POST', {
+    user_id: payload.userId,
+    verification_type: payload.verificationType,
+    email: payload.email,
+    phone_number: payload.phoneNumber,
+  });
+}
+
+export async function verifyVerificationCode(payload: {
+  userId: string;
+  verificationType: 'email' | 'phone';
+  code: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  verified_at?: string;
+}> {
+  return apiCall('/verification/verify', 'POST', {
+    user_id: payload.userId,
+    verification_type: payload.verificationType,
+    verification_code: payload.code,
+  });
+}
+
+export async function resendVerificationCode(payload: {
+  userId: string;
+  verificationType: 'email' | 'phone';
+}): Promise<{
+  success: boolean;
+  message: string;
+  code_for_testing?: string;
+  expires_in_seconds?: number;
+}> {
+  return apiCall('/verification/resend', 'POST', {
+    user_id: payload.userId,
+    verification_type: payload.verificationType,
+  });
+}
+
+export async function checkVerificationStatus(
+  userId: string,
+  verificationType: 'email' | 'phone'
+): Promise<{
+  success: boolean;
+  is_verified: boolean;
+  verification_type: 'email' | 'phone';
+  verified_at?: string | null;
+}> {
+  return apiCall(`/verification/status/${userId}/${verificationType}`);
+}
+
 export async function getUserProfile(userId: string): Promise<UserProfile> {
   const response = await apiCall(`/users/${userId}/profile`);
   return normalizeUserProfile(response.profile || response.user || response);
@@ -335,6 +407,18 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
 export async function updateUserProfile(userId: string, profile: Partial<UserProfile>): Promise<UserProfile> {
   const response = await apiCall(`/users/${userId}/profile`, 'PUT', profile);
   return normalizeUserProfile(response.profile || (await getUserProfile(userId)));
+}
+
+export async function uploadMedia(
+  dataUrl: string,
+  options?: { fileName?: string; mimeType?: string; folder?: string }
+): Promise<UploadedMedia> {
+  return apiCall('/uploads/media', 'POST', {
+    data_url: dataUrl,
+    file_name: options?.fileName,
+    mime_type: options?.mimeType,
+    folder: options?.folder || 'media',
+  });
 }
 
 export async function searchUsers(query: string): Promise<User[]> {
@@ -411,6 +495,11 @@ export async function withdrawApplication(applicationId: string): Promise<void> 
 
 export async function getEventCapacityInfo(eventId: string): Promise<any> {
   return apiCall(`/applications/event/${eventId}/capacity`);
+}
+
+export async function getEventCheckIns(eventId: string): Promise<any[]> {
+  const response = await apiCall(`/check-ins/event/${eventId}`);
+  return Array.isArray(response) ? response : response.checkIns || [];
 }
 
 // ==================== MESSAGES ====================
@@ -609,9 +698,16 @@ export async function reportUser(
   reporterId: string,
   reportedUserId: string,
   reportType: string,
-  description?: string
+  description?: string,
+  evidenceUrls?: string[]
 ): Promise<{ report_id: string; status: string; message: string }> {
-  return apiCall('/reports/report', 'POST', { reporter_id: reporterId, reported_user_id: reportedUserId, report_type: reportType, description });
+  return apiCall('/reports/report', 'POST', {
+    reporter_id: reporterId,
+    reported_user_id: reportedUserId,
+    report_type: reportType,
+    description,
+    evidence_urls: evidenceUrls || [],
+  });
 }
 
 export async function blockUser(
@@ -777,10 +873,6 @@ export async function checkIntoEvent(
 export async function getUserCheckIns(userId: string): Promise<any[]> {
   const response = await apiCall(`/check-ins/user/${userId}`);
   return response || [];
-}
-
-export async function getEventCheckIns(eventId: string): Promise<any> {
-  return apiCall(`/check-ins/event/${eventId}`);
 }
 
 export async function hasCheckedIn(eventId: string, userId: string): Promise<any> {

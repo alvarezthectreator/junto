@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TopHeader } from '../components/TopHeader';
@@ -32,6 +32,7 @@ import {
   readEventActivities,
   type EventActivity,
 } from '../utils/localActivity';
+import { applicationsChangedEventName } from './EventDetail';
 
 interface MyRequestsProps {
   onNavigate?: (page: string) => void;
@@ -77,6 +78,7 @@ interface HostedEvent {
 interface UserApplicationHistory {
   id: string;
   eventId?: string;
+  backendId?: string;
   eventTitle: string;
   hostName: string;
   city: string;
@@ -101,6 +103,7 @@ interface DeletedEventTombstone {
 }
 
 type NoticeTone = 'success' | 'error';
+type RequestsTab = 'Hosted' | 'Applications';
 
 function parseEventDateTime(eventDate?: string, eventTime?: string) {
   if (!eventDate) return null;
@@ -233,6 +236,7 @@ function mapApplicationToHistory(application: any): UserApplicationHistory {
   return {
     id: String(application.id || application.application_id || application.backend_id || `${application.event_id || application.eventId}-${application.user_id || application.userId}-${submittedAt}`),
     eventId: application.event_id ? String(application.event_id) : application.eventId ? String(application.eventId) : undefined,
+    backendId: application.backend_id ? String(application.backend_id) : application.backendId ? String(application.backendId) : undefined,
     eventTitle: application.event_title || application.title || application.eventTitle || 'Event',
     hostName: application.host_name || application.display_name || application.hostName || 'Host',
     city: application.location || application.location_city || application.city || 'Unknown location',
@@ -573,7 +577,9 @@ function EditEventModalForm({
 export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyRequestsProps) {
   const navigate = useNavigate();
   const { setSelectedUser } = useAppContext();
-  const [activeTab, setActiveTab] = useState('Received');
+  const hostedEventsLoadedRef = useRef(false);
+  const userApplicationsLoadedRef = useRef(false);
+  const [activeTab, setActiveTab] = useState<RequestsTab>('Hosted');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -592,7 +598,10 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
   const [userApplicationsLoading, setUserApplicationsLoading] = useState(true);
   const [userApplicationsError, setUserApplicationsError] = useState('');
   const [eventActivityFeed, setEventActivityFeed] = useState<EventActivity[]>([]);
-  const tabs = ['Received', 'Send'];
+  const tabs: Array<{ key: RequestsTab; label: string; description: string }> = [
+    { key: 'Hosted', label: 'Hosted events', description: 'Manage applications on your events' },
+    { key: 'Applications', label: 'Application history', description: 'Track your requests and follow-ups' },
+  ];
 
   // Get current user ID from localStorage
   const getCurrentUserId = () => {
@@ -617,17 +626,23 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
     }, duration);
   };
 
-  // Fetch user's hosted events
   useEffect(() => {
+    let cancelled = false;
+
     const fetchHostedEvents = async () => {
+      const showInitialLoading = !hostedEventsLoadedRef.current;
+
       try {
-        setLoading(true);
+        if (showInitialLoading) {
+          setLoading(true);
+        }
         setError(null);
         const userId = getCurrentUserId();
         
         if (!userId) {
           setError('Please log in to view your requests');
           setLoading(false);
+          hostedEventsLoadedRef.current = true;
           return;
         }
 
@@ -657,35 +672,64 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
           ),
         }));
 
-        try {
-          const deletedEvents = readDeletedEventTombstones();
-          setHostedEvents(eventsWithMergedApps.filter((event) => !isDeletedEvent(event, deletedEvents)));
-        } catch {
-          setHostedEvents(eventsWithMergedApps);
+        if (!cancelled) {
+          try {
+            const deletedEvents = readDeletedEventTombstones();
+            setHostedEvents(eventsWithMergedApps.filter((event) => !isDeletedEvent(event, deletedEvents)));
+          } catch {
+            setHostedEvents(eventsWithMergedApps);
+          }
+          hostedEventsLoadedRef.current = true;
         }
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Failed to fetch hosted events:', err);
         setError(err.message || 'Failed to load your events');
       } finally {
-        setLoading(false);
+        if (!cancelled && showInitialLoading) {
+          setLoading(false);
+          hostedEventsLoadedRef.current = true;
+        }
       }
     };
 
     fetchHostedEvents();
+    const handleRefresh = () => {
+      fetchHostedEvents();
+    };
+
+    window.addEventListener(applicationsChangedEventName, handleRefresh);
+    window.addEventListener('storage', handleRefresh);
+    const refreshInterval = window.setInterval(handleRefresh, 20000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(applicationsChangedEventName, handleRefresh);
+      window.removeEventListener('storage', handleRefresh);
+      window.clearInterval(refreshInterval);
+    };
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchUserApplications = async () => {
       const userId = getCurrentUserId();
       if (!userId) {
-        setUserApplicationsLoading(false);
-        setUserApplications([]);
+        if (!cancelled) {
+          setUserApplicationsLoading(false);
+          setUserApplications([]);
+          userApplicationsLoadedRef.current = true;
+        }
         return;
       }
 
       try {
-        setUserApplicationsLoading(true);
-        setUserApplicationsError('');
+        const showInitialLoading = !userApplicationsLoadedRef.current;
+        if (!cancelled && showInitialLoading) {
+          setUserApplicationsLoading(true);
+          setUserApplicationsError('');
+        }
 
         const response = await API.getUserApplications(userId);
         const apiApplications = (response?.applications || []).map(mapApplicationToHistory);
@@ -693,8 +737,12 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
           .filter((application: any) => String(application.user_id || '') === String(userId))
           .map(mapApplicationToHistory);
 
-        setUserApplications(mergeApplicationHistory(apiApplications, localApplications));
+        if (!cancelled) {
+          setUserApplications(mergeApplicationHistory(apiApplications, localApplications));
+          userApplicationsLoadedRef.current = true;
+        }
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to fetch user applications:', error);
         setUserApplicationsError('Unable to load your applications right now.');
 
@@ -703,11 +751,28 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
           .map(mapApplicationToHistory);
         setUserApplications(localApplications);
       } finally {
-        setUserApplicationsLoading(false);
+        if (!cancelled) {
+          setUserApplicationsLoading(false);
+          userApplicationsLoadedRef.current = true;
+        }
       }
     };
 
     fetchUserApplications();
+    const handleRefresh = () => {
+      fetchUserApplications();
+    };
+
+    window.addEventListener(applicationsChangedEventName, handleRefresh);
+    window.addEventListener('storage', handleRefresh);
+    const refreshInterval = window.setInterval(handleRefresh, 20000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(applicationsChangedEventName, handleRefresh);
+      window.removeEventListener('storage', handleRefresh);
+      window.clearInterval(refreshInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -948,8 +1013,8 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
     return 0; // recent is default order
   });
 
-  // Combined requests for "Received" tab (active + past)
-  const allReceivedRequests = [...sortedRequests, ...pastRequests];
+  // Combined requests for "Hosted" tab (active + past)
+  const allHostedRequests = [...sortedRequests, ...pastRequests];
 
   const openInterestedModal = (eventId: string) => {
     setSelectedEventId(eventId);
@@ -1445,26 +1510,27 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
             {/* Tab Buttons - Top */}
             <div className="mb-8 flex items-center gap-3">
               {tabs.map((tab) => {
-                const isActive = activeTab === tab;
+                const isActive = activeTab === tab.key;
                 return (
                   <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className="flex-1 px-6 py-3 rounded-full font-semibold transition-all"
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className="flex-1 rounded-3xl border px-5 py-4 text-left transition-all"
                     style={{
-                      background: isActive ? '#F59E0B' : 'rgba(255,255,255,0.08)',
-                      color: isActive ? '#111' : '#fff',
-                      border: `1px solid ${isActive ? '#F59E0B' : 'rgba(255,255,255,0.1)'}`,
+                      background: isActive ? 'rgba(245, 158, 11, 0.14)' : 'rgba(255,255,255,0.05)',
+                      color: isActive ? '#fff' : '#d1d5db',
+                      border: `1px solid ${isActive ? 'rgba(245, 158, 11, 0.28)' : 'rgba(255,255,255,0.08)'}`,
                     }}
                   >
-                    {tab}
+                    <p className="text-sm font-semibold">{tab.label}</p>
+                    <p className="mt-1 text-xs text-gray-400">{tab.description}</p>
                   </button>
                 );
               })}
             </div>
 
-            {/* Stats Row - Only show for Received tab */}
-            {activeTab === 'Received' && (
+            {/* Stats Row - Only show for Hosted tab */}
+            {activeTab === 'Hosted' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
               <div className="bg-[#1A1A21] border border-white/5 rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-[#F59E0B]/10 flex items-center justify-center">
@@ -1496,8 +1562,8 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               </div>
             )}
 
-            {/* Event History Feed - Only show for Received tab */}
-            {activeTab === 'Received' && (
+            {/* Event History Feed - Only show for Hosted tab */}
+            {activeTab === 'Hosted' && (
             <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1540,8 +1606,8 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
             </div>
             )}
 
-            {/* Attendee history - Only show for Send tab */}
-            {activeTab === 'Send' && (
+            {/* Attendee history - Only show for Applications tab */}
+            {activeTab === 'Applications' && (
             <div className="mb-10 rounded-3xl border border-white/5 bg-[#1A1A21] p-5 sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1574,6 +1640,14 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                       accepted: 'border-green-500/20 bg-green-500/10 text-green-300',
                       declined: 'border-red-500/20 bg-red-500/10 text-red-300',
                     }[application.status];
+
+                    const hasFollowUpPath = application.status !== 'pending';
+                    const nextStep =
+                      application.status === 'accepted'
+                        ? 'Message the host to finalize plans.'
+                        : application.status === 'declined'
+                          ? 'Browse more events or ask for feedback.'
+                          : 'Wait for the host to respond or update your note.';
 
                     const timelineSteps = [
                       { label: 'Applied', active: true },
@@ -1613,21 +1687,34 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                           ))}
                         </div>
 
+                        <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#F59E0B]">Next step</p>
+                          <p className="mt-2 text-sm text-gray-300">{nextStep}</p>
+                        </div>
+
                         <p className="mt-4 text-sm text-gray-300">
                           {application.status === 'accepted'
                             ? 'You are in. Message the host and lock it into your schedule.'
                             : application.status === 'declined'
-                              ? 'This one did not land. Browse more events or reach out to the host for context.'
-                              : 'The host is still reviewing your note. We will keep this updated.'}
+                              ? 'This one did not land. Your timeline still keeps the record so you can follow up or try again elsewhere.'
+                              : 'The host is still reviewing your note. We will keep this updated in real time.'}
                         </p>
 
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {application.status !== 'pending' && (
+                          {hasFollowUpPath && (
                             <button
                               onClick={() => onNavigate?.('main')}
                               className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
                             >
-                              Browse more
+                              Browse events
+                            </button>
+                          )}
+                          {application.eventId && (
+                            <button
+                              onClick={() => navigate(`/event/${encodeURIComponent(application.eventId || '')}`)}
+                              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                            >
+                              View event
                             </button>
                           )}
                           <button
@@ -1637,6 +1724,47 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                             <MessageCircle size={14} className="inline-block mr-2" />
                             Message host
                           </button>
+                          {application.status === 'pending' && application.id && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const applicationIdentifier = application.backendId || application.id;
+                                  if (application.backendId) {
+                                    await API.withdrawApplication(applicationIdentifier);
+                                  }
+                                  const nextStoredApplications = readStoredEventApplications().filter((item: any) => {
+                                    const matchesEvent = String(item.event_id || item.eventId || '') === String(application.eventId || '');
+                                    const matchesUser = String(item.user_id || item.userId || '') === String(getCurrentUserId() || '');
+                                    const matchesId = String(item.id || item.application_id || item.backend_id || '') === String(applicationIdentifier);
+                                    return !(matchesEvent && matchesUser && matchesId);
+                                  });
+                                  writeStoredEventApplications(nextStoredApplications);
+
+                                  const userId = getCurrentUserId();
+                                  if (userId) {
+                                    const response = await API.getUserApplications(userId);
+                                    setUserApplications(
+                                      mergeApplicationHistory(
+                                        (response?.applications || []).map(mapApplicationToHistory),
+                                        readStoredEventApplications()
+                                          .filter((item: any) => String(item.user_id || '') === String(userId))
+                                          .map(mapApplicationToHistory)
+                                      )
+                                    );
+                                  } else {
+                                    setUserApplications((current) => current.filter((item) => item.id !== application.id));
+                                  }
+                                  showNotice('Application withdrawn', 'success');
+                                } catch (withdrawError) {
+                                  console.error('Failed to withdraw application:', withdrawError);
+                                  showNotice('Could not withdraw application', 'error');
+                                }
+                              }}
+                              className="rounded-full border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+                            >
+                              Withdraw
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1652,7 +1780,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
             )}
 
             {/* Sorting Controls */}
-            {activeTab === 'Received' && (
+            {activeTab === 'Hosted' && (
               <div className="mb-8 flex gap-3">
                 <select
                   value={sortBy}
@@ -1680,10 +1808,10 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
                 </div>
               )}
 
-              {activeTab === 'Received' && !loading && (
+              {activeTab === 'Hosted' && !loading && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {allReceivedRequests.length > 0 ? (
-                    allReceivedRequests.map((req) => {
+                  {allHostedRequests.length > 0 ? (
+                    allHostedRequests.map((req) => {
                       const isExpired = isEventExpired(req.event_date, req.event_time, req.status);
                       return (
                       <div
@@ -1784,7 +1912,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               </div>
             )}
 
-            {activeTab === 'Send' && (
+            {activeTab === 'Applications' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {userApplications.length > 0 ? (
                   userApplications.map((app) => (

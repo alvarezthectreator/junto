@@ -93,6 +93,12 @@ function ensureProductionTables() {
   const addReferralColumns = [
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
     `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
+    `ALTER TABLE reports ADD COLUMN evidence_urls TEXT;`,
+    `ALTER TABLE reports ADD COLUMN escalation_level VARCHAR(20) DEFAULT 'standard';`,
+    `ALTER TABLE reports ADD COLUMN escalation_reason TEXT;`,
+    `ALTER TABLE reports ADD COLUMN reviewed_by TEXT;`,
+    `ALTER TABLE reports ADD COLUMN review_note TEXT;`,
+    `ALTER TABLE reports ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`,
   ];
 
   addReferralColumns.forEach((statement) => {

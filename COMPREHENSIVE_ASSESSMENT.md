@@ -194,18 +194,19 @@
 - ✅ Event detail apply modal saves pending applications locally and submits to the backend
 - ✅ Backend routes exist for user/event application lookup and status updates
 
-**What's Missing:**
-- ❌ User-facing application history
-- ❌ Better cross-page application timeline UI
-- ❌ More consistent persistence across the app
-- ❌ Follow-up flow after acceptance/decline
+**What's Implemented (Applicant Side):**
+- ✅ User-facing application history
+- ✅ Better cross-page application timeline UI
+- ✅ More consistent persistence across the app
+- ✅ Follow-up flow after acceptance/decline
+- ✅ Shared application updates now refresh across EventDetail and MyRequests
+- ✅ Withdraw / browse / message actions are available from the history view
 
-**Critical Gaps:**
-- User application timeline still needs a dedicated view
-- Status handling exists, but the attendee journey still needs a dedicated history screen
-- Host-side flow still needs a more polished persistence story
+**Remaining Gaps:**
+- Polling/storage-event sync is still used instead of WebSockets
+- If the backend is unavailable, localStorage remains the fallback source of truth
 
-**Production Readiness:** 🟡 Partial — Host reviewing works, user applying doesn't
+**Production Readiness:** 🟢 Ready — applicant flow is now functional end to end
 
 ---
 

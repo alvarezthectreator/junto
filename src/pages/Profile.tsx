@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Award,
+  BadgeCheck,
   Briefcase,
   Calendar,
   Camera,
   CheckCircle2,
   ChevronRight,
+  AlertCircle,
   Download,
   Edit2,
   Eye,
@@ -17,9 +19,11 @@ import {
   Loader,
   MapPin,
   MessageCircle,
+  Mail,
   Moon,
   Phone,
   Plus,
+  RefreshCcw,
   Settings,
   ShieldCheck,
   Star,
@@ -100,6 +104,24 @@ const LOCATION_FLAGS: Record<string, string> = {
   Nairobi: '🇰🇪',
 };
 
+const ALLOWED_PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_PROFILE_IMAGE_BYTES = 8 * 1024 * 1024;
+const MIN_NAME_LENGTH = 2;
+const MIN_BIO_LENGTH = 40;
+const MAX_BIO_LENGTH = 280;
+const MAX_OCCUPATION_LENGTH = 80;
+const MAX_LOCATION_LENGTH = 80;
+const MAX_GENDER_LENGTH = 60;
+
+type VerificationChannel = 'email' | 'phone';
+type VerificationState = {
+  verified: boolean;
+  verifiedAt?: string | null;
+  code?: string | null;
+  loading: boolean;
+};
+type ProfileFieldErrors = Partial<Record<'name' | 'bio' | 'location' | 'occupation' | 'dob' | 'avatar' | 'email' | 'phone', string>>;
+
 function getInterestEmoji(interest: string) {
   return INTEREST_EMOJIS[interest] || '✨';
 }
@@ -139,8 +161,101 @@ function getAvatarSrc(avatarImage?: string) {
   return avatarImage && avatarImage.trim() ? avatarImage : DEFAULT_AVATAR;
 }
 
+function isDataUrl(value?: string) {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizeProfileText(value: string, maxLength: number) {
+  return value.trim().replace(/\s+/g, ' ').slice(0, maxLength);
+}
+
+function validateProfileDraft(profile: {
+  name: string;
+  bio: string;
+  interests: string[];
+  avatarImage: string;
+  photos: string[];
+  location: string;
+  occupation: string;
+  dob: string;
+  genderIdentity: string;
+}) {
+  const errors: ProfileFieldErrors = {};
+  const name = profile.name.trim();
+  const bio = profile.bio.trim();
+  const location = profile.location.trim();
+  const occupation = profile.occupation.trim();
+  const genderIdentity = profile.genderIdentity.trim();
+  const age = profile.dob ? getAgeFromDob(profile.dob) : null;
+
+  if (name.length < MIN_NAME_LENGTH) {
+    errors.name = 'Add your full name so people know who you are.';
+  } else if (name.length > 60) {
+    errors.name = 'Names should be 60 characters or less.';
+  } else if (!/^[a-zA-ZÀ-ÿ'’\-\s.]+$/.test(name)) {
+    errors.name = 'Use a real name with letters, spaces, apostrophes, or hyphens.';
+  }
+
+  if (bio.length < MIN_BIO_LENGTH) {
+    errors.bio = `Your bio should be at least ${MIN_BIO_LENGTH} characters.`;
+  } else if (bio.length > MAX_BIO_LENGTH) {
+    errors.bio = `Your bio should be ${MAX_BIO_LENGTH} characters or less.`;
+  }
+
+  if (!isDefaultAvatar(profile.avatarImage)) {
+    if (!isDataUrl(profile.avatarImage) && !/^https?:\/\//i.test(profile.avatarImage)) {
+      errors.avatar = 'Use a valid profile image URL or upload a new image.';
+    }
+  } else {
+    errors.avatar = 'Add a clear profile picture before saving.';
+  }
+
+  if (profile.photos.filter(Boolean).length > 4) {
+    errors.avatar = 'Keep your gallery to 4 photos or fewer.';
+  }
+
+  if (location.length > MAX_LOCATION_LENGTH) {
+    errors.location = `Location should be ${MAX_LOCATION_LENGTH} characters or less.`;
+  }
+
+  if (occupation.length > MAX_OCCUPATION_LENGTH) {
+    errors.occupation = `Occupation should be ${MAX_OCCUPATION_LENGTH} characters or less.`;
+  }
+
+  if (genderIdentity.length > MAX_GENDER_LENGTH) {
+    errors.occupation = 'Gender identity text is too long.';
+  }
+
+  if (profile.dob) {
+    if (Number.isNaN(new Date(profile.dob).getTime())) {
+      errors.dob = 'Please choose a valid birthdate.';
+    } else if (age !== null && age < 18) {
+      errors.dob = 'You must be at least 18 years old to use Junto.';
+    }
+  }
+
+  if (profile.interests.length < 2) {
+    errors.bio = errors.bio || 'Add at least 2 interests so your profile feels complete.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+  };
+}
+
+function getFirstErrorMessage(errors: ProfileFieldErrors) {
+  const orderedKeys: (keyof ProfileFieldErrors)[] = ['name', 'avatar', 'bio', 'location', 'occupation', 'dob', 'email', 'phone'];
+  for (const key of orderedKeys) {
+    if (errors[key]) {
+      return errors[key] as string;
+    }
+  }
+  return '';
 }
 
 function calculateReliabilityScore(profile: {
@@ -411,13 +526,24 @@ export const Profile: React.FC<ProfileProps> = ({
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
-  const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
-  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [idVerified, setIdVerified] = useState(false);
+  const [verificationModal, setVerificationModal] = useState<{
+    channel: VerificationChannel;
+    destination: string;
+  } | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationResendLoading, setVerificationResendLoading] = useState(false);
+  const [verificationState, setVerificationState] = useState<Record<VerificationChannel, VerificationState>>({
+    email: { verified: false, verifiedAt: null, code: null, loading: false },
+    phone: { verified: false, verifiedAt: null, code: null, loading: false },
+  });
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [identityScore, setIdentityScore] = useState<number | null>(null);
+  const [identityRiskLevel, setIdentityRiskLevel] = useState('');
+  const [identityStatusLoading, setIdentityStatusLoading] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileValidationError, setProfileValidationError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [serverReliabilityScore, setServerReliabilityScore] = useState<number | null>(null);
   const [photoEditorOpen, setPhotoEditorOpen] = useState(false);
   const [photoEditorSource, setPhotoEditorSource] = useState('');
@@ -598,6 +724,54 @@ export const Profile: React.FC<ProfileProps> = ({
     fetchHostedEventsCount();
   }, [currentUser?.id, isOwnProfile, selectedUser?.eventsHosted]);
 
+  useEffect(() => {
+    const loadTrustSignals = async () => {
+      if (!isOwnProfile || !currentUser?.id) {
+        return;
+      }
+
+      setIdentityStatusLoading(true);
+      try {
+        const [emailStatus, phoneStatus, fraudStatus] = await Promise.all([
+          API.checkVerificationStatus(currentUser.id, 'email').catch(() => null),
+          API.checkVerificationStatus(currentUser.id, 'phone').catch(() => null),
+          API.getUserFraudStatus(currentUser.id).catch(() => null),
+        ]);
+
+        setVerificationState({
+          email: {
+            verified: Boolean(emailStatus?.is_verified),
+            verifiedAt: emailStatus?.verified_at || null,
+            code: null,
+            loading: false,
+          },
+          phone: {
+            verified: Boolean(phoneStatus?.is_verified),
+            verifiedAt: phoneStatus?.verified_at || null,
+            code: null,
+            loading: false,
+          },
+        });
+
+        if (fraudStatus?.fraud_status) {
+          const status = fraudStatus.fraud_status;
+          setIdentityScore(typeof status.identity_score === 'number' ? clampScore(status.identity_score) : null);
+          setIdentityRiskLevel(String(status.risk_level || ''));
+          setIdentityVerified(
+            status.verification_status === 'verified' ||
+            (typeof status.identity_score === 'number' && status.identity_score >= 75)
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load trust signals:', error);
+      } finally {
+        setIdentityStatusLoading(false);
+      }
+    };
+
+    void loadTrustSignals();
+  }, [currentUser?.id, isOwnProfile]);
+
   const stats = {
     outings: 24,
     hosted: hostedEventsCount ?? 0,
@@ -642,11 +816,11 @@ export const Profile: React.FC<ProfileProps> = ({
     setPhotoUploadTarget(null);
   };
 
-  const openPhotoEditorWithFile = (dataUrl: string) => {
+  const openPhotoEditorWithFile = (dataUrl: string, target: 'avatar' | { type: 'gallery'; index: number }) => {
     setPhotoEditorSource(dataUrl);
     setPhotoEditorRotation(0);
     setPhotoEditorZoom(1);
-    setPhotoEditorAspect('square');
+    setPhotoEditorAspect(target === 'avatar' ? 'square' : 'portrait');
     setPhotoEditorBusy(false);
     setPhotoEditorOpen(true);
   };
@@ -660,13 +834,13 @@ export const Profile: React.FC<ProfileProps> = ({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setProfileValidationError('Please upload an image file.');
+      if (!ALLOWED_PROFILE_IMAGE_TYPES.includes(file.type.toLowerCase())) {
+        setProfileValidationError('Please upload a JPG, PNG, or WebP image.');
         return;
       }
 
-      if (file.size > 6 * 1024 * 1024) {
-        setProfileValidationError('Images must be smaller than 6MB.');
+      if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+        setProfileValidationError('Images must be 8MB or smaller.');
         return;
       }
 
@@ -677,7 +851,7 @@ export const Profile: React.FC<ProfileProps> = ({
           setProfileValidationError('Could not read that photo. Please try again.');
           return;
         }
-        openPhotoEditorWithFile(source);
+        openPhotoEditorWithFile(source, photoUploadTarget ?? 'avatar');
         setProfileValidationError('');
         setShowMessage('Photo added!');
         setTimeout(() => setShowMessage(''), 2000);
@@ -700,16 +874,27 @@ export const Profile: React.FC<ProfileProps> = ({
         zoom: photoEditorZoom,
       });
       const compressed = await compressImageDataUrl(edited, { maxDimension: 1280, quality: 0.84, maxBytes: 900000 });
+      let storedUrl = compressed;
+      try {
+        const uploaded = await API.uploadMedia(compressed, {
+          fileName: `profile-photo-${Date.now()}.jpg`,
+          mimeType: 'image/jpeg',
+          folder: 'profiles',
+        });
+        storedUrl = uploaded.url;
+      } catch (uploadError) {
+        console.warn('Falling back to local image data for profile photo:', uploadError);
+      }
       const nextGallery = [...profile.photos];
       if (photoUploadTarget && typeof photoUploadTarget === 'object' && photoUploadTarget.type === 'gallery') {
         while (nextGallery.length <= photoUploadTarget.index) {
           nextGallery.push('');
         }
-        nextGallery[photoUploadTarget.index] = compressed;
+        nextGallery[photoUploadTarget.index] = storedUrl;
       }
       const nextProfile = {
         ...profile,
-        avatarImage: photoUploadTarget === 'avatar' ? compressed : profile.avatarImage,
+        avatarImage: photoUploadTarget === 'avatar' ? storedUrl : profile.avatarImage,
         photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
       };
       setProfile({
@@ -732,42 +917,68 @@ export const Profile: React.FC<ProfileProps> = ({
   const handleSaveProfile = async () => {
     try {
       setProfileValidationError('');
-      if (!profile.name.trim()) {
-        setProfileValidationError('Please add your name.');
+      const normalizedProfile = {
+        ...profile,
+        name: normalizeProfileText(profile.name, 60),
+        bio: normalizeProfileText(profile.bio, MAX_BIO_LENGTH),
+        location: normalizeProfileText(profile.location, MAX_LOCATION_LENGTH),
+        occupation: normalizeProfileText(profile.occupation, MAX_OCCUPATION_LENGTH),
+        genderIdentity: normalizeProfileText(profile.genderIdentity, MAX_GENDER_LENGTH),
+      };
+
+      const validation = validateProfileDraft(normalizedProfile);
+      setFieldErrors(validation.errors);
+      if (!validation.valid) {
+        setProfileValidationError(getFirstErrorMessage(validation.errors) || 'Please fix the highlighted fields.');
         return;
       }
-      if (profile.bio.trim().length < 20) {
-        setProfileValidationError('Your bio should be at least 20 characters.');
-        return;
-      }
-      if (profile.dob) {
-        const age = getAgeFromDob(profile.dob);
-        if (age !== null && age < 18) {
-          setProfileValidationError('You must be at least 18 years old.');
-          return;
-        }
-      }
-      if (isDefaultAvatar(profile.avatarImage)) {
-        setProfileValidationError('Add a profile avatar before saving.');
+
+      if (profile.photos.filter(Boolean).length === 0) {
+        setProfileValidationError('Add at least one gallery photo before saving.');
         return;
       }
 
       setIsSavingProfile(true);
 
-      const nextReliabilityScore = calculateReliabilityScore(profile);
+      const nextReliabilityScore = calculateReliabilityScore(normalizedProfile);
       setProfile((current) => ({ ...current, reliabilityScore: nextReliabilityScore }));
 
       if (currentUser?.id) {
-        const updatedProfile = await API.updateUserProfile(currentUser.id, {
-          display_name: profile.name,
-          bio: profile.bio,
-          city: profile.location,
-          gender: profile.genderIdentity,
-          occupation: profile.occupation,
-          interests: profile.interests,
-          profile_photos: [profile.avatarImage, ...profile.photos.filter(Boolean)],
-          intro_video_url: profile.introVideo || undefined,
-          date_of_birth: profile.dob || undefined,
+        const mediaToStore = [normalizedProfile.avatarImage, ...normalizedProfile.photos.filter(Boolean)];
+        const storedMediaUrls: string[] = [];
+
+        for (let index = 0; index < mediaToStore.length; index += 1) {
+          const media = mediaToStore[index];
+          if (!media) continue;
+
+          if (!isDataUrl(media)) {
+            storedMediaUrls.push(media);
+            continue;
+          }
+
+          try {
+            const uploaded = await API.uploadMedia(media, {
+              fileName: index === 0 ? `avatar-${Date.now()}.jpg` : `gallery-${index}-${Date.now()}.jpg`,
+              mimeType: 'image/jpeg',
+              folder: 'profiles',
+            });
+            storedMediaUrls.push(uploaded.url);
+          } catch (uploadError) {
+            console.warn('Failed to upload profile media, keeping existing data URL:', uploadError);
+            storedMediaUrls.push(media);
+          }
+        }
+
+          const updatedProfile = await API.updateUserProfile(currentUser.id, {
+          display_name: normalizedProfile.name,
+          bio: normalizedProfile.bio,
+          city: normalizedProfile.location,
+          gender: normalizedProfile.genderIdentity,
+          occupation: normalizedProfile.occupation,
+          interests: normalizedProfile.interests,
+          profile_photos: storedMediaUrls,
+          intro_video_url: normalizedProfile.introVideo || undefined,
+          date_of_birth: normalizedProfile.dob || undefined,
         });
 
         setProfile((current) => ({
@@ -801,12 +1012,14 @@ export const Profile: React.FC<ProfileProps> = ({
             'currentUser',
             JSON.stringify({
               ...storedUser,
-              name: profile.name,
-              username: storedUser.username || profile.name,
+              name: normalizedProfile.name,
+              username: storedUser.username || normalizedProfile.name,
               profile_id: currentUser.profile_id || storedUser.profile_id,
-              date_of_birth: profile.dob || storedUser.date_of_birth || null,
-              gender: profile.genderIdentity || storedUser.gender || null,
-              occupation: profile.occupation || storedUser.occupation || null,
+              date_of_birth: normalizedProfile.dob || storedUser.date_of_birth || null,
+              gender: normalizedProfile.genderIdentity || storedUser.gender || null,
+              occupation: normalizedProfile.occupation || storedUser.occupation || null,
+              email: storedUser.email || currentUser.email || null,
+              phone: storedUser.phone || currentUser.phone || null,
             })
           );
         } catch (storageError) {
@@ -816,10 +1029,12 @@ export const Profile: React.FC<ProfileProps> = ({
 
       setShowMessage('Profile saved successfully!');
       setIsEditing(false);
+      setProfileValidationError('');
+      setFieldErrors({});
       setTimeout(() => setShowMessage(''), 2000);
     } catch (error) {
       console.error('Failed to save profile:', error);
-      setShowMessage('Failed to save profile. Please try again.');
+      setProfileValidationError(error instanceof Error ? error.message : 'Failed to save profile. Please try again.');
       setTimeout(() => setShowMessage(''), 2500);
     } finally {
       setIsSavingProfile(false);

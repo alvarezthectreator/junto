@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plane, Flame, Loader2 } from 'lucide-react';
+import { Plane, Flame, Loader2, Plus, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
 import { SearchFilter } from '../components/SearchFilter';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
-import { fadeInUp, staggerContainer, staggerItem, cardContainer, cardItem } from '../utils/animations';
 import * as API from '../services/api';
 import { DiscoverSocket } from '../services/discoverSocket';
 import type { DiscoverEventSeed } from '../data/discoverEvents';
@@ -35,7 +34,9 @@ type FeedEvent = DiscoverEventSeed & {
 
 const storedEventsKey = 'junto-created-events';
 const deletedEventsKey = 'junto-deleted-events';
+const savedEventsKey = 'junto-saved-events';
 const fallbackCoverImage = 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800';
+const cityOptions = ['All cities', 'Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Accra', 'Nairobi'];
 
 function parseEventDateTime(eventDate?: string, eventTime?: string) {
   if (!eventDate) return null;
@@ -218,6 +219,7 @@ function toFeedEventFromSeed(event: DiscoverEventSeed): FeedEvent {
 export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, selectedLocation = 'Lagos' }: DiscoverProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
   const [travelMode, setTravelMode] = useState(false);
@@ -225,11 +227,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [apiEvents, setApiEvents] = useState<API.Event[]>([]);
-  const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(true);
   const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
   const [displayLimit, setDisplayLimit] = useState(12);
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const [selectedCity, setSelectedCity] = useState(selectedLocation || currentUser?.city || 'Lagos');
+  const [feedNotice, setFeedNotice] = useState('');
+  const [applyingEventId, setApplyingEventId] = useState<string | null>(null);
   
   const filters = [
   'All vibes',
@@ -240,25 +244,31 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   'Males only',
   'Trending 🔥'];
 
-  // Fetch events from API on component mount
+  useEffect(() => {
+    const nextCity = selectedLocation || currentUser?.city || 'Lagos';
+    setSelectedCity(nextCity);
+  }, [selectedLocation, currentUser?.city]);
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        setLoading(true);
-        const response = await API.getEvents();
+        const response = await API.getEvents({
+          city: selectedCity === 'All cities' ? undefined : selectedCity,
+        });
+        setUseBackend(true);
         setApiEvents(response.events || []);
       } catch (error) {
         console.error('Failed to fetch events:', error);
         // Fall back to mock data if API fails
         setUseBackend(false);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchEvents();
+  }, [selectedCity]);
 
-    // Connect to WebSocket for real-time updates
+  // Connect to WebSocket for real-time updates
+  useEffect(() => {
     const socket = new DiscoverSocket(
       // On event updated
       (eventId) => {
@@ -311,6 +321,32 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   }, []);
 
   useEffect(() => {
+    if (!currentUser?.id) {
+      try {
+        const savedStored = localStorage.getItem(savedEventsKey);
+        const parsed = savedStored ? JSON.parse(savedStored) : [];
+        setSavedEventIds(Array.isArray(parsed) ? parsed.map(String) : []);
+      } catch {
+        setSavedEventIds([]);
+      }
+      return;
+    }
+
+    const loadSavedEvents = async () => {
+      try {
+        const response = await API.getSavedEvents(currentUser.id);
+        const ids = Array.isArray(response.events) ? response.events.map((event) => String(event.id)) : [];
+        setSavedEventIds(ids);
+        localStorage.setItem(savedEventsKey, JSON.stringify(ids));
+      } catch (error) {
+        console.error('Failed to load saved events:', error);
+      }
+    };
+
+    void loadSavedEvents();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
     const shouldPrompt = localStorage.getItem('junto-profile-completion-prompt') === 'true' || Boolean((location.state as any)?.showProfilePrompt);
     if (shouldPrompt) {
       setShowProfilePrompt(true);
@@ -333,7 +369,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       })
       : discoverEvents.map(toFeedEventFromSeed);
 
-    const merged = [...backendEvents];
+    const merged = [...backendEvents, ...localEvents];
     const deduped = new Map<string, FeedEvent>();
     merged.forEach((event) => {
       deduped.set(String(event.id), event);
@@ -350,6 +386,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       (activeFilter === 'Tonight' && event.event_date?.includes('today')) ||
       (activeFilter === 'This week' && true) ||
       (activeFilter === 'Trending 🔥' && event.max_guests && event.max_guests >= 7);
+
+    const matchesCity = selectedCity === 'All cities' || travelMode || (event.location_city || '').toLowerCase().includes(selectedCity.toLowerCase());
     
     const matchesSearch = searchTerm === '' || 
       event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -358,7 +396,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     
     const matchesSaved = !showSavedOnly || savedEventIds.includes(event.id);
     
-    return matchesFilter && matchesSearch && matchesSaved;
+    return matchesFilter && matchesSearch && matchesSaved && matchesCity;
   });
 
   // Sort events
@@ -370,13 +408,30 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   }
   // 'recent' is default array order
 
-  const toggleSaveEvent = (eventId: string) => {
-    setSavedEventIds(current =>
-      current.includes(eventId)
-        ? current.filter(id => id !== eventId)
-        : [...current, eventId]
-    );
-  };
+  useEffect(() => {
+    setDisplayLimit(12);
+  }, [searchTerm, activeFilter, showSavedOnly, selectedCity, sortBy, travelMode]);
+
+  useEffect(() => {
+    if (filteredEvents.length <= displayLimit) {
+      return;
+    }
+
+    const node = loadMoreRef.current;
+    if (!node) {
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting) {
+        setDisplayLimit((prev) => Math.min(prev + 12, filteredEvents.length));
+      }
+    }, { rootMargin: '240px' });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [filteredEvents.length, displayLimit]);
 
   const openEventDetail = (event: FeedEvent, index: number) => {
     let detailEvent: EventDetailData;
@@ -422,6 +477,31 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     onOpenEvent?.(detailEvent);
     navigate(`/event/${detailEvent.id}`, { state: { event: detailEvent } });
   };
+
+  const handleInterested = async (event: FeedEvent, index: number) => {
+    if (applyingEventId === event.id) {
+      return;
+    }
+
+    if (currentUser?.id) {
+      setApplyingEventId(event.id);
+      try {
+        await API.applyToEvent(currentUser.id, event.id, `Interested in ${event.title || event.actionText}`);
+        setFeedNotice('Interest sent to host');
+        window.setTimeout(() => setFeedNotice(''), 2500);
+      } catch (error) {
+        console.error('Failed to submit interest:', error);
+        setFeedNotice('Could not send interest right now');
+        window.setTimeout(() => setFeedNotice(''), 2500);
+      } finally {
+        setApplyingEventId(null);
+      }
+    }
+
+    openEventDetail(event, index);
+  };
+
+  const visibleEvents = filteredEvents.slice(0, displayLimit);
 
   return (
     <motion.div
@@ -563,8 +643,11 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       {/* Search & Filter */}
       <SearchFilter 
         onSearch={(results) => {
-          // Filter results are already handled by SearchFilter component
-          // which updates the event list via API
+          if (Array.isArray(results)) {
+            setUseBackend(true);
+            setApiEvents(results as API.Event[]);
+            setDisplayLimit(12);
+          }
         }} 
       />
 
@@ -629,7 +712,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Sorting and View Options */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex flex-col sm:flex-row gap-2 overflow-x-auto pb-2 w-full sm:w-auto">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'recent' | 'trending' | 'nearest')}
@@ -638,6 +721,17 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             <option value="recent">Recent first</option>
             <option value="trending">Trending</option>
             <option value="nearest">Nearest</option>
+          </select>
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
+          >
+            {cityOptions.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
           </select>
           <button
             onClick={() => setShowSavedOnly(!showSavedOnly)}
@@ -650,7 +744,16 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             ❤️ Saved
           </button>
         </div>
-        <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
+          <button
+            onClick={() => onNavigate('myhost')}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-95"
+          >
+            <Plus size={16} />
+            Create event
+          </button>
+        </div>
       </div>
 
       {/* Trending Banner */}
@@ -660,6 +763,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
           <span className="font-medium text-white">Trending:</span> <span className="hidden sm:inline">Movie nights in Lagos · 47 people interested this week</span><span className="sm:hidden">Movie nights</span>
         </p>
       </div>
+
+      {feedNotice && (
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs sm:text-sm text-emerald-300">
+          <Sparkles size={14} />
+          <span>{feedNotice}</span>
+        </div>
+      )}
 
       {/* Map Section */}
       <div className="mb-8 sm:mb-10">
@@ -684,40 +794,11 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Feed Grid with Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-12">
-        {filteredEvents.length > 0 ? (
-          filteredEvents.slice(0, displayLimit).map((event, index) => {
+        {visibleEvents.length > 0 ? (
+          visibleEvents.map((event, index) => {
             const actualIndex = events.indexOf(event);
-            const isSaved = savedEventIds.includes(event.id);
             return (
               <div key={index} className="relative group">
-                <div className="absolute top-4 right-4 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSaveEvent(event.id);
-                    }}
-                    className={`rounded-full p-2 transition-all ${
-                      isSaved
-                        ? 'bg-[#F59E0B]/20 text-[#F59E0B]'
-                        : 'bg-black/30 text-white hover:bg-black/50'
-                    }`}
-                    aria-label={isSaved ? 'Remove bookmark' : 'Bookmark event'}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill={isSaved ? 'currentColor' : 'none'}
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 5a2 2 0 012-2h6a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                      />
-                    </svg>
-                  </button>
-                </div>
                 <EventCard
                   index={index}
                   userInitial={event.userInitial}
@@ -737,7 +818,17 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
                   reviewCount={event.reviewCount}
                   eventId={event.id}
                   currentUserId={currentUser?.id}
-                  onInterested={() => openEventDetail(event, actualIndex)}
+                  onCardClick={() => openEventDetail(event, actualIndex)}
+                  onInterested={() => handleInterested(event, actualIndex)}
+                  onSaveChange={(saved) => {
+                    setSavedEventIds((current) => {
+                      const next = saved
+                        ? Array.from(new Set([...current, event.id]))
+                        : current.filter((id) => id !== event.id);
+                      localStorage.setItem(savedEventsKey, JSON.stringify(next));
+                      return next;
+                    });
+                  }}
                 />
               </div>
             );
@@ -765,6 +856,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             <span className="font-medium text-sm">Load more vibes</span>
           </button>
         )}
+        <div ref={loadMoreRef} className="h-1 w-full" />
       </div>
     </motion.div>);
 

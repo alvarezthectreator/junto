@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { reportUser, blockUser } from '../services/api';
+import { blockUser, reportUser, uploadMedia } from '../services/api';
 import {
   appendSafetyReportCase,
   upsertBlockedUserRecord,
@@ -69,13 +69,26 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
         reader.readAsDataURL(file);
       });
 
-      nextEvidence.push({
+      const attachment: SafetyEvidenceAttachment = {
         name: file.name,
         type: file.type,
         size: file.size,
         dataUrl,
         previewUrl: file.type.startsWith('image/') ? dataUrl : undefined,
-      });
+      };
+
+      try {
+        const uploaded = await uploadMedia(dataUrl, {
+          fileName: file.name,
+          mimeType: file.type,
+          folder: 'reports',
+        });
+        attachment.remoteUrl = uploaded.url;
+      } catch (uploadError) {
+        console.error('Failed to upload report evidence:', uploadError);
+      }
+
+      nextEvidence.push(attachment);
     }
 
     setEvidenceFiles((current) => [...current, ...nextEvidence].slice(0, 3));
@@ -94,7 +107,11 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
 
     setLoading(true);
     try {
-      await reportUser(userId, targetUserId, reportType, description);
+      const evidenceUrls = evidenceFiles
+        .map((file) => file.remoteUrl || file.dataUrl)
+        .filter(Boolean) as string[];
+
+      await reportUser(userId, targetUserId, reportType, description, evidenceUrls);
       appendSafetyReportCase({
         id: `report-${Date.now()}`,
         reporterUserId: userId,
@@ -209,7 +226,7 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Tell us what happened..."
+                placeholder="Tell us what happened and why this needs review..."
                 className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-gray-500 mt-2"
                 rows={4}
               />
@@ -224,7 +241,7 @@ export const ReportBlockModal: React.FC<ReportBlockModalProps> = ({
                 onChange={handleEvidenceChange}
                 className="mt-2 block w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-300 file:mr-4 file:rounded-full file:border-0 file:bg-yellow-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
               />
-              <p className="mt-2 text-xs text-gray-500">Screenshots or PDF evidence helps the review queue move faster.</p>
+              <p className="mt-2 text-xs text-gray-500">Screenshots or PDF evidence help the review queue move faster.</p>
             </div>
 
             {evidenceFiles.length > 0 && (

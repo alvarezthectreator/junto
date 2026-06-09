@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Download, MessageSquare, UserX, CheckCircle } from 'lucide-react';
+import { Download } from 'lucide-react';
 import GuestCard from './GuestCard';
 import { EventGuest } from '../../types/hostDashboard';
 import * as API from '../../services/api';
@@ -9,44 +9,9 @@ interface GuestsTabProps {
   isLightMode?: boolean;
 }
 
-const mockGuests: EventGuest[] = [
-  {
-    id: 'guest_1',
-    userId: 'user_1',
-    userName: 'Sarah Johnson',
-    userAvatar: '👩‍🦰',
-    eventId: 'event_1',
-    status: 'confirmed',
-    checkedIn: true,
-    joinedAt: new Date(Date.now() - 3 * 24 * 60 * 60000),
-    rating: 5
-  },
-  {
-    id: 'guest_2',
-    userId: 'user_2',
-    userName: 'Mike Chen',
-    userAvatar: '👨‍💼',
-    eventId: 'event_1',
-    status: 'confirmed',
-    checkedIn: false,
-    joinedAt: new Date(Date.now() - 2 * 24 * 60 * 60000),
-    rating: undefined
-  },
-  {
-    id: 'guest_3',
-    userId: 'user_3',
-    userName: 'Jessica Park',
-    userAvatar: '👩',
-    eventId: 'event_1',
-    status: 'maybe',
-    checkedIn: false,
-    joinedAt: new Date(Date.now() - 1 * 24 * 60 * 60000)
-  }
-];
-
 const GuestsTab: React.FC<GuestsTabProps> = ({ isLightMode = false }) => {
-  const [guests, setGuests] = useState<EventGuest[]>(mockGuests);
-  const [selectedEvent, setSelectedEvent] = useState('event_1');
+  const [guests, setGuests] = useState<EventGuest[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,26 +20,56 @@ const GuestsTab: React.FC<GuestsTabProps> = ({ isLightMode = false }) => {
         setLoading(true);
         const userId = API.getUserId();
         if (userId) {
-          const response = await API.getHostEvents(userId);
-          if (response.events.length > 0) {
-            setSelectedEvent(response.events[0].id);
+          const eventsResponse = await API.getHostEvents(userId);
+          const hostEvents = eventsResponse.events || [];
+          const eventId = selectedEvent || hostEvents[0]?.id || '';
+
+          if (hostEvents.length > 0 && !selectedEvent) {
+            setSelectedEvent(hostEvents[0].id);
           }
-          // In a real app, we'd fetch actual guests from accepted applications
-          // For now, we'll use mock data as a fallback
-          setGuests(mockGuests);
+
+          if (!eventId) {
+            setGuests([]);
+            return;
+          }
+
+          const [applicationsResponse, checkInsResponse] = await Promise.all([
+            API.getEventApplications(eventId),
+            API.getEventCheckIns(eventId),
+          ]);
+
+          const acceptedApplications = (applicationsResponse || []).filter((application: any) => application.status === 'accepted');
+          const checkIns = Array.isArray(checkInsResponse) ? checkInsResponse : [];
+
+          const nextGuests: EventGuest[] = acceptedApplications.map((application: any) => {
+            const matchingCheckIn = checkIns.find((checkIn: any) => checkIn.user_id === application.user_id);
+            return {
+              id: application.id,
+              userId: application.user_id,
+              userName: application.display_name || application.profile_id || 'Guest',
+              userAvatar: '👤',
+              eventId: application.event_id,
+              status: matchingCheckIn ? 'confirmed' : 'maybe',
+              checkedIn: Boolean(matchingCheckIn),
+              joinedAt: new Date(application.created_at || Date.now()),
+              rating: undefined,
+            };
+          });
+
+          setGuests(nextGuests);
         } else {
-          setGuests(mockGuests);
+          setGuests([]);
         }
       } catch (error) {
         console.error('Failed to fetch guests:', error);
-        setGuests(mockGuests);
+        setGuests([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchGuests();
-  }, []);
+  }, [selectedEvent]);
 
   const filteredGuests = guests.filter(g => g.eventId === selectedEvent);
   

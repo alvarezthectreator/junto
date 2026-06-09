@@ -9,44 +9,8 @@ interface ApplicationsTabProps {
   isLightMode?: boolean;
 }
 
-const mockApplications: EventApplication[] = [
-  {
-    id: 'app_1',
-    eventId: 'event_1',
-    userId: 'user_1',
-    userName: 'Sarah Johnson',
-    userAvatar: '👩‍🦰',
-    userRating: 4.8,
-    eventAttendance: 5,
-    appliedAt: new Date(Date.now() - 2 * 24 * 60 * 60000),
-    status: 'pending'
-  },
-  {
-    id: 'app_2',
-    eventId: 'event_1',
-    userId: 'user_2',
-    userName: 'Mike Chen',
-    userAvatar: '👨‍💼',
-    userRating: 4.5,
-    eventAttendance: 3,
-    appliedAt: new Date(Date.now() - 1 * 24 * 60 * 60000),
-    status: 'pending'
-  },
-  {
-    id: 'app_3',
-    eventId: 'event_1',
-    userId: 'user_3',
-    userName: 'Jessica Park',
-    userAvatar: '👩',
-    userRating: 4.9,
-    eventAttendance: 8,
-    appliedAt: new Date(Date.now() - 0.5 * 24 * 60 * 60000),
-    status: 'accepted'
-  }
-];
-
 const ApplicationsTab: React.FC<ApplicationsTabProps> = ({ isLightMode = false }) => {
-  const [applications, setApplications] = useState<EventApplication[]>(mockApplications);
+  const [applications, setApplications] = useState<EventApplication[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'accepted' | 'declined'>('all');
   const [loading, setLoading] = useState(true);
 
@@ -68,13 +32,13 @@ const ApplicationsTab: React.FC<ApplicationsTabProps> = ({ isLightMode = false }
             appliedAt: new Date(app.created_at),
             status: app.status || 'pending'
           }));
-          setApplications(apiApps.length > 0 ? apiApps : mockApplications);
+          setApplications(apiApps);
         } else {
-          setApplications(mockApplications);
+          setApplications([]);
         }
       } catch (error) {
         console.error('Failed to fetch applications:', error);
-        setApplications(mockApplications);
+        setApplications([]);
       } finally {
         setLoading(false);
       }

@@ -10,59 +10,8 @@ interface EventsTabProps {
   isLightMode?: boolean;
 }
 
-const mockEvents: HostedEvent[] = [
-  {
-    id: 'event_1',
-    title: 'Rooftop Dinner Party',
-    image: 'https://via.placeholder.com/300x200?text=Rooftop+Dinner',
-    description: 'Exclusive dinner with city views',
-    date: new Date('2026-05-25T20:00:00'),
-    location: 'San Francisco',
-    maxGuests: 20,
-    confirmedGuests: 18,
-    pendingApplications: 3,
-    price: 45,
-    status: 'active',
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60000),
-    audience: 'mixed',
-    hostRating: 4.8
-  },
-  {
-    id: 'event_2',
-    title: 'Wine Tasting Night',
-    image: 'https://via.placeholder.com/300x200?text=Wine+Tasting',
-    description: 'Explore premium wines',
-    date: new Date('2026-05-28T19:00:00'),
-    location: 'Oakland',
-    maxGuests: 30,
-    confirmedGuests: 30,
-    pendingApplications: 0,
-    price: 60,
-    status: 'full',
-    createdAt: new Date(Date.now() - 20 * 24 * 60 * 60000),
-    audience: 'mixed',
-    hostRating: 4.9
-  },
-  {
-    id: 'event_3',
-    title: 'Jazz Concert Evening',
-    image: 'https://via.placeholder.com/300x200?text=Jazz+Concert',
-    description: 'Live jazz performance',
-    date: new Date('2026-05-10T19:30:00'),
-    location: 'Berkeley',
-    maxGuests: 50,
-    confirmedGuests: 45,
-    pendingApplications: 0,
-    price: 35,
-    status: 'completed',
-    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60000),
-    audience: 'mixed',
-    hostRating: 4.7
-  }
-];
-
 const EventsTab: React.FC<EventsTabProps> = ({ isLightMode = false }) => {
-  const [events, setEvents] = useState<HostedEvent[]>(mockEvents);
+  const [events, setEvents] = useState<HostedEvent[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'full' | 'completed'>('all');
   const [loading, setLoading] = useState(true);
@@ -90,13 +39,13 @@ const EventsTab: React.FC<EventsTabProps> = ({ isLightMode = false }) => {
             audience: 'mixed',
             hostRating: 4.8
           }));
-          setEvents(apiEvents.length > 0 ? apiEvents : mockEvents);
+          setEvents(apiEvents);
         } else {
-          setEvents(mockEvents);
+          setEvents([]);
         }
       } catch (error) {
         console.error('Failed to fetch host events:', error);
-        setEvents(mockEvents);
+        setEvents([]);
       } finally {
         setLoading(false);
       }

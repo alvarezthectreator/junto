@@ -230,7 +230,7 @@ export function App() {
     window.scrollTo(0, 0);
   }, [currentPage]);
   
-  const handleLogin = useCallback((user: any, token: string) => {
+  const applyAuthenticatedSession = useCallback((user: any, token: string) => {
     // Set current user with provided user data
     const userData = { 
       id: user.id,
@@ -245,14 +245,20 @@ export function App() {
     setSelectedUser(null);
     // Store session token and user data
     localStorage.setItem('sessionToken', token);
+    localStorage.setItem('junto-session-token', token);
     localStorage.setItem('currentUser', JSON.stringify(userData));
     localStorage.setItem('userId', user.id);
     markSessionActivity();
-    navigate('/discover', { replace: true });
-    setActiveNav('Discover');
     setIsAuthenticated(true);
     setHasEntered(true);
-  }, [navigate]);
+    return userData;
+  }, []);
+
+  const handleLogin = useCallback((user: any, token: string) => {
+    applyAuthenticatedSession(user, token);
+    navigate('/discover', { replace: true });
+    setActiveNav('Discover');
+  }, [applyAuthenticatedSession, navigate]);
 
   const handleLogout = useCallback(() => {
     setHasEntered(false);
@@ -449,30 +455,7 @@ export function App() {
         <OTPSignup
           onSuccess={(token, user) => {
             window.sessionStorage.setItem(ONBOARDING_FLOW_KEY, 'true');
-            localStorage.setItem('sessionToken', token);
-            localStorage.setItem('junto-session-token', token);
-            localStorage.setItem('currentUser', JSON.stringify({
-              id: user.id,
-              username: user.username || user.display_name || 'User',
-              name: user.username || user.display_name || 'User',
-              profile_id: user.profile_id,
-              date_of_birth: user.date_of_birth || null,
-              gender: user.gender || null,
-              occupation: user.occupation || null,
-            }));
-            localStorage.setItem('userId', user.id);
-            setCurrentUser({
-              id: user.id,
-              username: user.username || user.display_name || 'User',
-              name: user.username || user.display_name || 'User',
-              profile_id: user.profile_id,
-              date_of_birth: user.date_of_birth || null,
-              gender: user.gender || null,
-              occupation: user.occupation || null,
-            });
-            setIsAuthenticated(true);
-            setHasEntered(true);
-            markSessionActivity();
+            applyAuthenticatedSession(user, token);
             navigate('/onboarding/interests', { replace: true });
           }}
           onBack={() => navigate('/discover')}
@@ -485,8 +468,6 @@ export function App() {
       return (
         <Landing
           onLogin={(user, token) => {
-            localStorage.setItem('sessionToken', token);
-            localStorage.setItem('junto-session-token', token);
             handleLogin(user, token);
           }}
           onSignupWithOTP={() => navigate('/signup-otp')}
