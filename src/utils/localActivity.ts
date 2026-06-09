@@ -3,6 +3,7 @@ const EVENT_ACTIVITY_KEY = 'junto-event-activity';
 const TRAVEL_SEARCHES_KEY = 'junto-travel-mode-searches';
 const SAFETY_REPORT_QUEUE_KEY = 'junto-safety-reports';
 const BLOCKED_USERS_KEY = 'junto-blocked-users';
+const SAFETY_ACTIONS_KEY = 'junto-safety-actions';
 const LOCAL_ACTIVITY_EVENT = 'junto-local-activity-updated';
 
 export type LocalNotification = {
@@ -65,6 +66,22 @@ export type BlockedUserRecord = {
   name: string;
   reason?: string;
   blockedAt?: string;
+};
+
+export type SafetyActionRecord = {
+  id: string;
+  action: 'sos' | 'report' | 'block' | 'checkin' | 'wellbeing' | 'verification';
+  targetUserName?: string;
+  targetUserId?: string;
+  reportType?: string;
+  reason?: string;
+  status: string;
+  createdAt: string;
+  description?: string;
+  evidence?: SafetyEvidenceAttachment[];
+  reviewStatus?: SafetyReportCase['status'];
+  locationText?: string;
+  locationUrl?: string;
 };
 
 function notifyLocalActivityUpdate() {
@@ -263,6 +280,37 @@ export function removeBlockedUserRecord(blockedUserId: string): BlockedUserRecor
   const nextBlocked = readBlockedUserRecords().filter((user) => String(user.id) !== String(blockedUserId));
   writeBlockedUserRecords(nextBlocked);
   return nextBlocked;
+}
+
+export function readSafetyActions(): SafetyActionRecord[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(SAFETY_ACTIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeSafetyActions(actions: SafetyActionRecord[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(SAFETY_ACTIONS_KEY, JSON.stringify(actions));
+  notifyLocalActivityUpdate();
+}
+
+export function appendSafetyAction(action: SafetyActionRecord): SafetyActionRecord[] {
+  if (typeof window === 'undefined') return [];
+
+  const nextActions = [
+    action,
+    ...readSafetyActions().filter((existing) => existing.id !== action.id),
+  ].slice(0, 20);
+
+  writeSafetyActions(nextActions);
+  return nextActions;
 }
 
 export function localActivityEventName(): string {

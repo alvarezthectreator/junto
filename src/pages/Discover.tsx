@@ -417,7 +417,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   }, [searchTerm, activeFilter, showSavedOnly, selectedCity, sortBy, travelMode]);
 
   useEffect(() => {
-    if (filteredEvents.length <= displayLimit) {
+    if (displayedEvents.length <= displayLimit) {
       return;
     }
 
@@ -429,13 +429,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     const observer = new IntersectionObserver((entries) => {
       const entry = entries[0];
       if (entry?.isIntersecting) {
-        setDisplayLimit((prev) => Math.min(prev + 12, filteredEvents.length));
+        setDisplayLimit((prev) => Math.min(prev + 12, displayedEvents.length));
       }
     }, { rootMargin: '240px' });
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [filteredEvents.length, displayLimit]);
+  }, [displayedEvents.length, displayLimit]);
 
   const openEventDetail = (event: FeedEvent, index: number) => {
     let detailEvent: EventDetailData;
@@ -505,7 +505,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     openEventDetail(event, index);
   };
 
-  const visibleEvents = filteredEvents.slice(0, displayLimit);
+  const displayedEvents = filteredEvents.length > 0 ? filteredEvents : events;
+  const visibleEvents = displayedEvents.slice(0, displayLimit);
 
   return (
     <motion.div
@@ -762,7 +763,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-gray-400">{filteredEvents.length} vibes found</span>
+          <span className="text-sm text-gray-400">{displayedEvents.length} vibes found</span>
           <button
             onClick={() => {
               trackEvent('discover_create_event_click', { city: selectedCity });
@@ -809,7 +810,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             Expand →
           </button>
         </div>
-        <EventsMap events={events} />
+        <EventsMap events={displayedEvents} />
       </div>
 
       {/* Feed Grid with Action Buttons */}
@@ -857,7 +858,15 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
           <div className="col-span-1 md:col-span-2 text-center py-12">
             <p className="text-gray-400 text-lg">No vibes found matching your search or filter.</p>
             <button
-              onClick={() => { setSearchTerm(''); setActiveFilter('All vibes'); setSortBy('recent'); setShowSavedOnly(false); }}
+              onClick={() => {
+                setSearchTerm('');
+                setActiveFilter('All vibes');
+                setSortBy('recent');
+                setShowSavedOnly(false);
+                setSelectedCity('All cities');
+                setTravelMode(false);
+                setDisplayLimit(12);
+              }}
               className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"
             >
               Clear filters →
@@ -868,7 +877,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Load More */}
       <div className="flex justify-center pb-20">
-        {filteredEvents.length > displayLimit && (
+        {displayedEvents.length > displayLimit && (
           <button 
             onClick={() => setDisplayLimit(prev => prev + 12)}
             className="flex items-center gap-2 px-6 py-3 rounded-full bg-transparent border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all group">

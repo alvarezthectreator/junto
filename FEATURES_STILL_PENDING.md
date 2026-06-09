@@ -14,12 +14,13 @@ This file tracks the gaps that are still open after the current profile, event, 
 - Notifications inbox, local notification sync, and browser notification support
 - OTP support screens and backend endpoints
 - Settings account utilities, notification preferences, referral info, blocked users, and data export
-- Local messaging prototype with attachments, voice notes, and call mockups
+- Messaging prototype with attachments, voice notes, local persistence, group chats, scheduled delivery, and call mockups
 
 ## Remaining items
 
 - Identity verification provider integration
-- Messaging persistence plus real-time transport for chat and calls
+- Server sync for safety events and moderation workflows
+- Server-backed messaging sync plus real-time transport for chat and calls
 - Premium billing provider integration and checkout flow
 - True push delivery provider integration and background job delivery
 - Deep account-security tooling: password change, 2FA, device/session management, recovery codes

@@ -103,10 +103,10 @@ const FEATURE_CARDS: AssessmentCard[] = [
   {
     title: 'Messaging',
     status: 'partial',
-    completion: '55%',
-    summary: 'The UI is a capable local prototype with send, attach, voice-note, and call mockups, but it still lacks durable chat infrastructure.',
-    done: ['Conversation list', 'Message composer', 'Attachment handling', 'Voice-note flow', 'Demo call modal'],
-    missing: ['Backend persistence', 'Group chat', 'Scheduled delivery', 'Realtime chat transport'],
+    completion: '75%',
+    summary: 'Messaging now persists locally, supports group threads, queues delayed sends, and auto-expires after the event window.',
+    done: ['Conversation list', 'Message composer', 'Attachment handling', 'Voice-note flow', 'Demo call modal', 'Local persistence', 'Group chat', 'Scheduled delivery', 'Event-based expiry'],
+    missing: ['Backend persistence and multi-device sync', 'Realtime chat transport', 'Enterprise delivery tracking/encryption', 'RTC provider integration'],
   },
   {
     title: 'Audio / Video Calls',
@@ -121,8 +121,8 @@ const FEATURE_CARDS: AssessmentCard[] = [
     status: 'done',
     completion: '90%',
     summary: 'Notifications now have backend sync, grouped inbox cards, bulk actions, browser alerts, and live connection indicators.',
-    done: ['WebSocket sync', 'Bulk actions', 'Grouped sections', 'Browser notifications', 'Notification preferences'],
-    missing: ['Native OS notification center integration', 'Swipe-to-delete polish'],
+    done: ['WebSocket sync', 'Bulk actions', 'Grouped sections', 'Browser notifications', 'Notification preferences', 'Native OS notification center integration', 'Swipe-to-delete polish'],
+    missing: ['Richer notification sound control'],
   },
   {
     title: 'Settings / Account',
@@ -135,10 +135,10 @@ const FEATURE_CARDS: AssessmentCard[] = [
   {
     title: 'Safety / Anti-Fraud',
     status: 'partial',
-    completion: '40%',
-    summary: 'The safety UI is broad, but the enforcement and verification layers are still backend-light.',
-    done: ['Trusted contacts UI', 'Report and block UI', 'SOS / check-in surfaces', 'Profile risk signals'],
-    missing: ['Provider-backed verification', 'Escalation automation', 'No-show detection', 'Fraud workflow'],
+    completion: '78%',
+    summary: 'Safety now has local persistence, SOS automation, check-ins, report/block handling, and a computed reliability score.',
+    done: ['Trusted contacts UI', 'Report and block UI', 'SOS / check-in surfaces', 'Profile risk signals', 'Local audit persistence', 'Location sharing', 'Emergency dialing', 'No-show detection', 'Wellbeing follow-up', 'Reliability score'],
+    missing: ['Provider-backed verification', 'Backend sync for safety events', 'Fraud workflow hardening'],
   },
 ];
 
@@ -302,7 +302,7 @@ export function ComprehensiveAssessment({ onNavigate = () => {} }: Comprehensive
             <ul className="space-y-3 text-sm text-slate-300">
               <li className="flex gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-300" />
-                Messaging still needs durable backend persistence, groups, and realtime transport.
+                Messaging still needs backend sync, realtime transport, and RTC provider integration.
               </li>
               <li className="flex gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-300" />
@@ -310,7 +310,7 @@ export function ComprehensiveAssessment({ onNavigate = () => {} }: Comprehensive
               </li>
               <li className="flex gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-rose-300" />
-                Safety and fraud handling still need provider-backed verification and more automation.
+                Safety is now much stronger locally, but provider-backed verification and server sync still need work.
               </li>
             </ul>
           </div>

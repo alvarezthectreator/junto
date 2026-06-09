@@ -1,32 +1,11 @@
 import React, { useState } from 'react';
 import { blockUser, reportUser, uploadMedia } from '../services/api';
 import {
+  appendSafetyAction,
   appendSafetyReportCase,
   upsertBlockedUserRecord,
   type SafetyEvidenceAttachment,
 } from '../utils/localActivity';
-
-const safetyActionsKey = 'junto-safety-actions';
-
-function readStoredSafetyActions() {
-  try {
-    const raw = localStorage.getItem(safetyActionsKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredSafetyActions(actions: any[]) {
-  localStorage.setItem(safetyActionsKey, JSON.stringify(actions));
-  window.dispatchEvent(new CustomEvent('junto-safety-updated'));
-}
-
-function appendSafetyAction(action: any) {
-  const nextActions = [action, ...readStoredSafetyActions()].slice(0, 20);
-  writeStoredSafetyActions(nextActions);
-}
 
 interface ReportBlockModalProps {
   userId: string;

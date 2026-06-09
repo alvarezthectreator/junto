@@ -357,6 +357,8 @@ export async function deleteAccount(req, res) {
 
     await query('DELETE FROM notifications WHERE user_id = ? OR related_user_id = ?', [userId, userId]);
     await query('DELETE FROM subscriptions WHERE user_id = ?', [userId]);
+    await query('DELETE FROM account_recovery_codes WHERE user_id = ?', [userId]);
+    await query('DELETE FROM user_sessions WHERE user_id = ?', [userId]);
     await query('DELETE FROM event_applications WHERE user_id = ?', [userId]);
     await query('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
     await query('DELETE FROM conversations WHERE user1_id = ? OR user2_id = ?', [userId, userId]);

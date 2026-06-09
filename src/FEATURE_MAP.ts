@@ -5,7 +5,7 @@ export const PAGE_STRUCTURE = {
   MAIN_NAVIGATION: {
     discover: 'Main event discovery board with filtering',
     myRequests: 'Join requests, applications, wishlist',
-    messages: 'Messaging UI with demo calls; realtime persistence still pending',
+    messages: 'Messaging UI with local persistence, group threads, scheduled sends, and demo calls',
     safety: 'Trust & safety features dashboard',
   },
 
@@ -61,9 +61,12 @@ export const PAGE_STRUCTURE = {
     },
 
     COMMUNICATION: {
-      messages: 'Messaging UI, local notifications, and call demos',
+      messages: 'Messaging UI with local persistence, local notifications, and call demos',
       // Features included:
       // - Text, Image, Audio, Video, GIF messages
+      // - Local persistence and event-based expiry
+      // - Scheduled sending queue
+      // - Group chat threads
       // - WebRTC peer-to-peer calls
       // - WhatsApp invite and sharing
       // - In-App Notifications Centre

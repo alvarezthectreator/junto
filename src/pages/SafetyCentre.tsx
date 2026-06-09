@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
+import { ReportBlockModal } from '../components/ReportBlockModal';
 import * as API from '../services/api';
 import {
-  appendSafetyReportCase,
+  appendSafetyAction,
   readBlockedUserRecords,
   readSafetyReportCases,
+  readSafetyActions,
   updateSafetyReportCase,
   type BlockedUserRecord,
-  type SafetyEvidenceAttachment,
+  type SafetyActionRecord,
   type SafetyReportCase,
 } from '../utils/localActivity';
+import { getUserLocation, isLocationAvailable } from '../utils/checkInUtils';
 import { formatPhoneForWhatsApp, sendSOSViaWhatsApp } from '../utils/whatsappShare';
 import {
   AlertTriangle,
@@ -32,9 +35,9 @@ interface SafetyCentreProps {
 }
 
 type SafetyTab = 'profile' | 'contacts' | 'history';
+type CheckInState = 'idle' | 'tracking' | 'safe' | 'missed';
 const contactsStorageKey = 'junto-safety-contacts';
 const historyStorageKey = 'junto-safety-history';
-const safetyActionsStorageKey = 'junto-safety-actions';
 
 const safetyTips = [
   'Share your Junto profile ID before heading out.',
@@ -64,19 +67,7 @@ const historyItems = [
   },
 ];
 
-type SafetyAction = {
-  id: string;
-  action: 'sos' | 'report' | 'block';
-  targetUserName?: string;
-  targetUserId?: string;
-  reportType?: string;
-  reason?: string;
-  status: string;
-  createdAt: string;
-  description?: string;
-  evidence?: SafetyEvidenceAttachment[];
-  reviewStatus?: SafetyReportCase['status'];
-};
+type SafetyAction = SafetyActionRecord;
 
 type SafetyContact = {
   id: string;
@@ -106,6 +97,10 @@ function normalizeSafetyContact(contact: any): SafetyContact {
 
 function generateVerificationCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function getMapsUrl(latitude: number, longitude: number) {
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
 }
 
 export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiveNav = () => {}, onCloseSidebar = () => {}, currentUser }) => {
@@ -146,10 +141,75 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
   const [safetyActions, setSafetyActions] = useState<SafetyAction[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
   const [reportQueue, setReportQueue] = useState<SafetyReportCase[]>([]);
+  const [verificationInputs, setVerificationInputs] = useState<Record<string, string>>({});
+  const [checkInState, setCheckInState] = useState<CheckInState>('idle');
+  const [checkInCountdown, setCheckInCountdown] = useState(0);
+  const [liveLocationText, setLiveLocationText] = useState('');
+  const [liveLocationUrl, setLiveLocationUrl] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTargetUserId, setReportTargetUserId] = useState('demo-user');
+  const [reportTargetUserName, setReportTargetUserName] = useState('Suspicious user');
   const sosTimerRef = useRef<number | null>(null);
+  const checkInTimerRef = useRef<number | null>(null);
+  const wellbeingTimerRef = useRef<number | null>(null);
 
   const profileId = 'JTO-9201-NG';
   const profilePhone = '+234 803 456 7890';
+  const verifiedContacts = contacts.filter((contact) => contact.verificationStatus === 'verified').length;
+  const safetyScore = useMemo(() => {
+    const base = 72;
+    const verificationBonus = Math.min(14, verifiedContacts * 7);
+    const blockPenalty = Math.min(18, blockedUsers.length * 4);
+    const reportPenalty = Math.min(12, reportQueue.filter((report) => report.status === 'submitted' || report.status === 'under_review').length * 3);
+    const checkInBonus = checkInState === 'safe' ? 8 : checkInState === 'tracking' ? 4 : 0;
+    return Math.max(30, Math.min(98, base + verificationBonus + checkInBonus - blockPenalty - reportPenalty));
+  }, [blockedUsers.length, checkInState, contacts, reportQueue]);
+
+  const persistHistory = (entry: typeof historyEntries[number]) => {
+    setHistoryEntries((current) => {
+      const nextHistory = [entry, ...current].slice(0, 6);
+      localStorage.setItem(historyStorageKey, JSON.stringify(nextHistory));
+      return nextHistory;
+    });
+  };
+
+  const persistSafetyAction = (action: SafetyAction) => {
+    const nextActions = appendSafetyAction(action);
+    setSafetyActions(nextActions);
+  };
+
+  const persistContacts = (nextContacts: SafetyContact[]) => {
+    setContacts(nextContacts);
+    localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+  };
+
+  const stopCheckInTimers = () => {
+    if (checkInTimerRef.current) {
+      window.clearInterval(checkInTimerRef.current);
+      checkInTimerRef.current = null;
+    }
+    if (wellbeingTimerRef.current) {
+      window.clearTimeout(wellbeingTimerRef.current);
+      wellbeingTimerRef.current = null;
+    }
+  };
+
+  const captureLiveLocation = async () => {
+    if (!isLocationAvailable()) {
+      return null;
+    }
+
+    try {
+      const location = await getUserLocation();
+      return {
+        text: `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+        url: getMapsUrl(location.latitude, location.longitude),
+      };
+    } catch (error) {
+      console.error('Failed to capture location:', error);
+      return null;
+    }
+  };
 
   const handleSOSActivate = async () => {
     if (!currentUser?.id) {
@@ -158,12 +218,17 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
     }
 
     try {
+      stopCheckInTimers();
       setSosActive(true);
       setSosCountdown(5);
       setSosMessage('Sending emergency signal to trusted contacts...');
 
       // Call SOS API
       await API.triggerSOS(currentUser.id, 'Emergency SOS activated - please contact me immediately');
+
+      const liveLocation = await captureLiveLocation();
+      const locationText = liveLocation?.text || 'Location unavailable';
+      const locationUrl = liveLocation?.url || '';
 
       if (sosTimerRef.current) {
         window.clearInterval(sosTimerRef.current);
@@ -176,14 +241,17 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
               window.clearInterval(sosTimerRef.current);
               sosTimerRef.current = null;
             }
-            const primaryContact = contacts.find((contact) => contact.isPrimary) || contacts[0];
-            if (primaryContact?.phone) {
-              sendSOSViaWhatsApp(
-                formatPhoneForWhatsApp(primaryContact.phone),
-                currentUser?.name || 'Junto member',
-                profilePhone
-              );
-            }
+            contacts.forEach((contact) => {
+              if (contact.phone) {
+                sendSOSViaWhatsApp(
+                  formatPhoneForWhatsApp(contact.phone),
+                  currentUser?.name || 'Junto member',
+                  profilePhone
+                );
+              }
+            });
+
+            window.open('tel:112', '_self');
 
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('Junto SOS sent', {
@@ -191,33 +259,48 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
               });
             }
 
-            setSosMessage('Emergency signal sent. WhatsApp ping prepared and emergency line 112 is ready.');
-            const nextHistory = [
-              {
-                id: Date.now().toString(),
-                title: 'SOS Activated',
-                time: new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
-                detail: `${contacts.length} contacts notified with live location and profile ID. Primary contact and emergency line 112 are ready.`,
-                status: 'Resolved',
-                icon: Heart,
-                accent: 'red',
-              },
-              ...historyEntries,
-            ].slice(0, 6);
-            setHistoryEntries(nextHistory);
-            localStorage.setItem(historyStorageKey, JSON.stringify(nextHistory));
+            setLiveLocationText(locationText);
+            setLiveLocationUrl(locationUrl);
+            setSosMessage(`Emergency signal sent. ${contacts.length} contacts notified and 112 opened.`);
+            persistHistory({
+              id: Date.now().toString(),
+              title: 'SOS Activated',
+              time: new Date().toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              }),
+              detail: `${contacts.length} contacts notified. Live location ${locationText}. Emergency line 112 opened.`,
+              status: 'Resolved',
+              icon: Heart,
+              accent: 'red',
+            });
 
-            const nextAction: SafetyAction = {
+            persistSafetyAction({
               id: `sos-${Date.now()}`,
               action: 'sos',
               status: 'sent',
               createdAt: new Date().toISOString(),
-              description: `SOS sent to ${contacts.length} trusted contacts. Primary contact and emergency line 112 prepared.`,
-            };
-            const nextActions = [nextAction, ...safetyActions].slice(0, 12);
-            setSafetyActions(nextActions);
-            localStorage.setItem(safetyActionsStorageKey, JSON.stringify(nextActions));
+              description: `SOS sent to ${contacts.length} trusted contacts. Emergency line 112 opened.`,
+              locationText,
+              locationUrl,
+            });
+
+            wellbeingTimerRef.current = window.setTimeout(() => {
+              persistSafetyAction({
+                id: `wellbeing-${Date.now()}`,
+                action: 'wellbeing',
+                status: 'scheduled',
+                createdAt: new Date().toISOString(),
+                description: 'Follow-up wellbeing check scheduled after SOS.',
+              });
+              setSosMessage('Wellbeing follow-up scheduled for later.');
+            }, 10000);
+
             setTimeout(() => setSosMessage(''), 3000);
+            setSosActive(false);
             return 0;
           }
           return prev - 1;
@@ -228,6 +311,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       setSosMessage('Failed to send emergency signal. Please try again.');
       setSosActive(false);
       setSosCountdown(0);
+      stopCheckInTimers();
     }
   };
 
@@ -236,6 +320,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       window.clearInterval(sosTimerRef.current);
       sosTimerRef.current = null;
     }
+    stopCheckInTimers();
     setSosActive(false);
     setSosCountdown(0);
     setSosMessage('');
@@ -277,8 +362,16 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       };
       
       const nextContacts = [...contacts, newContact];
-      setContacts(nextContacts);
-      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      persistContacts(nextContacts);
+      persistSafetyAction({
+        id: `verification-${Date.now()}`,
+        action: 'verification',
+        targetUserId: newContact.id,
+        targetUserName: newContact.name,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        description: `Verification code generated for ${newContact.name}.`,
+      });
       setNewContactName('');
       setNewContactPhone('');
       setNewContactRelationship('Friend');
@@ -308,8 +401,16 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
       setLoading(true);
       await API.deleteTrustedContact(contactId);
       const nextContacts = contacts.filter(c => c.id !== contactId);
-      setContacts(nextContacts);
-      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      persistContacts(nextContacts);
+      persistSafetyAction({
+        id: `block-${Date.now()}`,
+        action: 'block',
+        targetUserId: contactId,
+        targetUserName: contacts.find((contact) => contact.id === contactId)?.name || 'Contact',
+        status: 'saved',
+        createdAt: new Date().toISOString(),
+        description: 'Removed from trusted contacts locally.',
+      });
       setSosMessage('✓ Contact deleted');
       setTimeout(() => setSosMessage(''), 2000);
     } catch (error) {
@@ -356,8 +457,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
             }
           : contact
       );
-      setContacts(nextContacts);
-      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      persistContacts(nextContacts);
       setShowEditContactModal(false);
       setEditingContactId(null);
       setSosMessage('✓ Contact updated');
@@ -378,8 +478,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
         ...contact,
         isPrimary: contact.id === contactId,
       }));
-      setContacts(nextContacts);
-      localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+      persistContacts(nextContacts);
       await API.updateTrustedContact(contactId, { is_primary: true });
       setSosMessage('✓ Primary contact updated');
       setTimeout(() => setSosMessage(''), 2000);
@@ -406,8 +505,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
         : contact
     );
 
-    setContacts(nextContacts);
-    localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+    persistContacts(nextContacts);
 
     const contact = nextContacts.find((entry) => entry.id === contactId);
     const message = `Junto verification code for ${contact?.name || 'your trusted contact'}: ${nextCode}`;
@@ -441,9 +539,143 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
         : contact
     );
 
-    setContacts(nextContacts);
-    localStorage.setItem(contactsStorageKey, JSON.stringify(nextContacts));
+    persistContacts(nextContacts);
+    persistSafetyAction({
+      id: `verification-${Date.now()}`,
+      action: 'verification',
+      targetUserId: contactId,
+      targetUserName: nextContacts.find((contact) => contact.id === contactId)?.name || 'Contact',
+      status: 'verified',
+      createdAt: new Date().toISOString(),
+      description: 'Trusted contact verified locally.',
+    });
     setSosMessage('✓ Trusted contact verified');
+    setTimeout(() => setSosMessage(''), 2200);
+  };
+
+  const handleConfirmVerificationCode = (contactId: string) => {
+    const contact = contacts.find((entry) => entry.id === contactId);
+    const enteredCode = verificationInputs[contactId]?.trim();
+
+    if (!contact) {
+      return;
+    }
+
+    if (!enteredCode || enteredCode !== contact.verificationCode) {
+      setSosMessage('Verification code does not match.');
+      setTimeout(() => setSosMessage(''), 2200);
+      return;
+    }
+
+    markContactVerified(contactId);
+    setVerificationInputs((current) => ({ ...current, [contactId]: '' }));
+  };
+
+  const handleStartLiveCheckIn = async () => {
+    if (!currentUser?.id) {
+      setSosMessage('User ID not found');
+      return;
+    }
+
+    try {
+      setCheckInState('tracking');
+      setCheckInCountdown(60);
+      setSosMessage('Starting live check-in and location share...');
+
+      const liveLocation = await captureLiveLocation();
+      if (liveLocation) {
+        setLiveLocationText(liveLocation.text);
+        setLiveLocationUrl(liveLocation.url);
+      }
+
+      persistSafetyAction({
+        id: `checkin-${Date.now()}`,
+        action: 'checkin',
+        status: 'tracking',
+        createdAt: new Date().toISOString(),
+        description: 'Live check-in started locally.',
+        locationText: liveLocation?.text,
+        locationUrl: liveLocation?.url,
+      });
+
+      if (checkInTimerRef.current) {
+        window.clearInterval(checkInTimerRef.current);
+      }
+
+      checkInTimerRef.current = window.setInterval(() => {
+        setCheckInCountdown((prev) => {
+          if (prev <= 1) {
+            if (checkInTimerRef.current) {
+              window.clearInterval(checkInTimerRef.current);
+              checkInTimerRef.current = null;
+            }
+            setCheckInState('missed');
+            persistSafetyAction({
+              id: `noshow-${Date.now()}`,
+              action: 'checkin',
+              status: 'missed',
+              createdAt: new Date().toISOString(),
+              description: 'Check-in window expired without confirmation.',
+              locationText: liveLocation?.text,
+              locationUrl: liveLocation?.url,
+            });
+            persistHistory({
+              id: `noshow-${Date.now()}`,
+              title: 'Check-in missed',
+              time: new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+              detail: `No-show alert triggered. ${liveLocation?.text ? `Last location: ${liveLocation.text}.` : ''}`,
+              status: 'Alerted',
+              icon: AlertTriangle,
+              accent: 'amber',
+            });
+            setSosMessage('Check-in window expired. No-show alert recorded.');
+            setTimeout(() => setSosMessage(''), 2600);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      wellbeingTimerRef.current = window.setTimeout(() => {
+        persistSafetyAction({
+          id: `wellbeing-${Date.now()}`,
+          action: 'wellbeing',
+          status: 'scheduled',
+          createdAt: new Date().toISOString(),
+          description: 'Wellbeing follow-up scheduled after live check-in.',
+        });
+      }, 15000);
+
+      setTimeout(() => setSosMessage(''), 2200);
+    } catch (error) {
+      console.error('Failed to start live check-in:', error);
+      setCheckInState('idle');
+      setSosMessage('Unable to start live check-in.');
+    }
+  };
+
+  const handleConfirmSafe = () => {
+    stopCheckInTimers();
+    setCheckInState('safe');
+    persistSafetyAction({
+      id: `safe-${Date.now()}`,
+      action: 'wellbeing',
+      status: 'confirmed',
+      createdAt: new Date().toISOString(),
+      description: 'User confirmed they are safe.',
+      locationText: liveLocationText || undefined,
+      locationUrl: liveLocationUrl || undefined,
+    });
+    persistHistory({
+      id: `safe-${Date.now()}`,
+      title: 'Safe confirmation',
+      time: new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+      detail: 'The user confirmed they were safe and the check-in was closed.',
+      status: 'Resolved',
+      icon: Heart,
+      accent: 'amber',
+    });
+    setSosMessage('Safe confirmation recorded.');
     setTimeout(() => setSosMessage(''), 2200);
   };
 
@@ -464,6 +696,15 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
     const nextHistory = [escalationEntry, ...historyEntries].slice(0, 6);
     setHistoryEntries(nextHistory);
     localStorage.setItem(historyStorageKey, JSON.stringify(nextHistory));
+    persistSafetyAction({
+      id: `emergency-${Date.now()}`,
+      action: 'sos',
+      status: 'dialing',
+      createdAt: new Date().toISOString(),
+      description: `Emergency services opened via ${emergencyNumber}.`,
+      locationText: liveLocationText || undefined,
+      locationUrl: liveLocationUrl || undefined,
+    });
     setSosMessage('Emergency services path opened via 112.');
     setTimeout(() => setSosMessage(''), 2200);
   };
@@ -523,14 +764,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
 
   useEffect(() => {
     try {
-      const cachedActions = localStorage.getItem(safetyActionsStorageKey);
-      if (cachedActions) {
-        const parsed = JSON.parse(cachedActions);
-        if (Array.isArray(parsed)) {
-          setSafetyActions(parsed);
-        }
-      }
-
+      setSafetyActions(readSafetyActions());
       setBlockedUsers(readBlockedUserRecords());
       setReportQueue(readSafetyReportCases());
     } catch {
@@ -550,13 +784,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
   useEffect(() => {
     const loadSafetyAudit = () => {
       try {
-        const cachedActions = localStorage.getItem(safetyActionsStorageKey);
-        if (cachedActions) {
-          const parsedActions = JSON.parse(cachedActions);
-          if (Array.isArray(parsedActions)) {
-            setSafetyActions(parsedActions);
-          }
-        }
+        setSafetyActions(readSafetyActions());
         setBlockedUsers(readBlockedUserRecords());
         setReportQueue(readSafetyReportCases());
       } catch {
@@ -565,9 +793,9 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
     };
 
     loadSafetyAudit();
-    window.addEventListener('junto-safety-updated', loadSafetyAudit as EventListener);
+    window.addEventListener('junto-local-activity-updated', loadSafetyAudit as EventListener);
     return () => {
-      window.removeEventListener('junto-safety-updated', loadSafetyAudit as EventListener);
+      window.removeEventListener('junto-local-activity-updated', loadSafetyAudit as EventListener);
     };
   }, []);
 
@@ -610,7 +838,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                 you need it.
               </p>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="mt-8 grid gap-4 md:grid-cols-4">
                 <TopStat
                   icon={<ShieldCheck size={18} />}
                   title="Protection ready"
@@ -625,6 +853,11 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                   icon={<Phone size={18} />}
                   title={`${blockedUsers.length} blocked users`}
                   description="People you have removed from your safety circle."
+                />
+                <TopStat
+                  icon={<ShieldCheck size={18} />}
+                  title={`${safetyScore}/100 safety score`}
+                  description="A local trust score based on verification, check-ins, and safety activity."
                 />
               </div>
             </div>
@@ -765,6 +998,27 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                   </PanelCard>
 
                   <PanelCard
+                    eyebrow="Trust score"
+                    title="Your local reliability score"
+                    description="The score reacts to verified contacts, recent reports, blocked users, and check-ins."
+                  >
+                    <div className="rounded-[1.5rem] border border-white/10 bg-black/30 p-5">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-4xl font-bold text-yellow-300">{safetyScore}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-gray-500">out of 100</p>
+                        </div>
+                        <div className="rounded-full border border-yellow-500/20 bg-yellow-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-yellow-300">
+                          {checkInState === 'safe' ? 'Safe' : checkInState === 'tracking' ? 'Tracking' : 'Ready'}
+                        </div>
+                      </div>
+                      <p className="mt-4 text-sm text-gray-300">
+                        Verified contacts: {verifiedContacts} · Blocked users: {blockedUsers.length} · Active reports: {reportQueue.length}
+                      </p>
+                    </div>
+                  </PanelCard>
+
+                  <PanelCard
                     eyebrow="Primary line"
                     title="Registered phone number"
                     description="Shared together with your profile during urgent safety alerts."
@@ -776,6 +1030,53 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                         </div>
                         <span className="min-w-0 break-all font-mono text-lg text-white">{profilePhone}</span>
                       </div>
+                    </div>
+                  </PanelCard>
+
+                  <PanelCard
+                    eyebrow="Live check-in"
+                    title="Track your safety window"
+                    description="Start a short live check-in, share your location snapshot, and mark yourself safe when you’re done."
+                  >
+                    <div className="space-y-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={handleStartLiveCheckIn}
+                          className="rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/15"
+                        >
+                          Start live check-in
+                        </button>
+                        <button
+                          onClick={handleConfirmSafe}
+                          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                        >
+                          I am safe
+                        </button>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">State</p>
+                          <p className="mt-1 text-sm text-white">{checkInState}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Countdown</p>
+                          <p className="mt-1 text-sm text-white">{checkInCountdown}s</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Location</p>
+                          <p className="mt-1 truncate text-sm text-white">{liveLocationText || 'Not shared yet'}</p>
+                        </div>
+                      </div>
+                      {liveLocationUrl && (
+                        <a
+                          href={liveLocationUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/15"
+                        >
+                          Open location map
+                        </a>
+                      )}
                     </div>
                   </PanelCard>
                 </div>
@@ -858,6 +1159,40 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                               Mark verified
                             </button>
                           )}
+                          {contact.verificationStatus === 'pending' && (
+                            <div className="flex w-full flex-col gap-2 rounded-2xl border border-white/10 bg-black/20 p-3">
+                              <label className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
+                                Enter verification code
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  value={verificationInputs[contact.id] || ''}
+                                  onChange={(event) =>
+                                    setVerificationInputs((current) => ({ ...current, [contact.id]: event.target.value }))
+                                  }
+                                  placeholder={contact.verificationCode || '6-digit code'}
+                                  className="min-w-0 flex-1 rounded-full border border-white/10 bg-[#0F0F13] px-3 py-2 text-xs text-white placeholder:text-gray-500"
+                                />
+                                <button
+                                  onClick={() => handleConfirmVerificationCode(contact.id)}
+                                  disabled={loading}
+                                  className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300 transition hover:bg-blue-500/15 disabled:opacity-50"
+                                >
+                                  Confirm
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              setReportTargetUserId(contact.id);
+                              setReportTargetUserName(contact.name);
+                              setShowReportModal(true);
+                            }}
+                            className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/15"
+                          >
+                            Report
+                          </button>
                           <button
                             onClick={() => handleDeleteContact(contact.id)}
                             disabled={loading}
@@ -1072,6 +1407,31 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
                 </div>
               </PanelCard>
 
+              <PanelCard
+                eyebrow="Actions"
+                title="Report or block someone"
+                description="Open the incident form, attach evidence, and save the action locally."
+              >
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      setReportTargetUserId('demo-user');
+                      setReportTargetUserName('Suspicious user');
+                      setShowReportModal(true);
+                    }}
+                    className="rounded-full border border-yellow-500/20 bg-yellow-500/10 px-4 py-2 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-500/15"
+                  >
+                    Open report form
+                  </button>
+                  <button
+                    onClick={handleEmergencyServicesEscalation}
+                    className="rounded-full border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+                  >
+                    Dial 112
+                  </button>
+                </div>
+              </PanelCard>
+
               <div className="rounded-[2rem] border border-amber-500/25 bg-gradient-to-br from-amber-900/15 via-black to-[#121218] p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300/75">
                   Junto promise
@@ -1172,6 +1532,19 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
             </div>
           </motion.div>
         </motion.div>
+      )}
+
+      {showReportModal && (
+        <ReportBlockModal
+          userId={String(currentUser?.id || 'guest')}
+          targetUserId={reportTargetUserId}
+          targetUserName={reportTargetUserName}
+          onClose={() => setShowReportModal(false)}
+          onSuccess={() => {
+            setSosMessage('✓ Safety report saved locally');
+            setTimeout(() => setSosMessage(''), 2200);
+          }}
+        />
       )}
     </div>
   );

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,15 +8,10 @@ import {
   CheckCircle2,
   XCircle,
   Phone,
-  Menu,
-  X,
-  Plus,
-  Bell
 } from 'lucide-react';
 
 export function Safety() {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
     <div className="flex min-h-screen bg-[#0F0F13] text-white">
       <main className="mobile-page-main flex-1 w-full overflow-x-hidden">
@@ -45,6 +39,20 @@ export function Safety() {
           Your wellbeing is the vibe. Tools and tips to hang out with
           confidence.
         </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            onClick={() => navigate('/safety')}
+            className="rounded-full bg-yellow-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300"
+          >
+            Open Safety Centre
+          </button>
+          <button
+            onClick={() => navigate('/messages')}
+            className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            Open Messages
+          </button>
+        </div>
       </div>
 
       {/* Alerts */}

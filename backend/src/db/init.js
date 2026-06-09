@@ -92,6 +92,8 @@ export async function initializeDatabase() {
 function ensureProductionTables() {
   const addReferralColumns = [
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
+    `ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0;`,
+    `ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP;`,
     `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
     `ALTER TABLE reports ADD COLUMN evidence_urls TEXT;`,
     `ALTER TABLE reports ADD COLUMN escalation_level VARCHAR(20) DEFAULT 'standard';`,
@@ -157,6 +159,32 @@ function ensureProductionTables() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+  const createUserSessionsTable = `
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_id TEXT NOT NULL UNIQUE,
+      device_label VARCHAR(120),
+      user_agent TEXT,
+      ip_address VARCHAR(50),
+      is_active BOOLEAN DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      revoked_at TIMESTAMP
+    );
+  `;
+
+  const createRecoveryCodesTable = `
+    CREATE TABLE IF NOT EXISTS account_recovery_codes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      code_hint VARCHAR(16),
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
   
   db.run(createNotificationsTable, (err) => {
     if (err && !err.message.includes('already exists')) {
@@ -215,6 +243,26 @@ function ensureProductionTables() {
         console.warn('⚠️  Subscription index creation warning:', indexErr.message);
       }
     });
+  });
+
+  db.run(createUserSessionsTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create user_sessions table:', err.message);
+    } else {
+      console.log('✅ Ensured user_sessions table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_user_sessions_token_id ON user_sessions(token_id);');
+    }
+  });
+
+  db.run(createRecoveryCodesTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create account_recovery_codes table:', err.message);
+    } else {
+      console.log('✅ Ensured account_recovery_codes table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_id ON account_recovery_codes(user_id);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_recovery_codes_used_at ON account_recovery_codes(used_at);');
+    }
   });
 
   // Create notification preferences table

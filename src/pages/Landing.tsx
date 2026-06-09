@@ -22,7 +22,7 @@ function calculateAgeFromDob(dob: string) {
 }
 
 export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, token: string) => void; onSignupWithOTP?: () => void }) {
-  const [mode, setMode] = useState<'landing' | 'login' | 'signup'>('landing');
+  const [mode, setMode] = useState<'landing' | 'login' | 'signup'>('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -335,24 +335,25 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
             >
               <div className="landing-toggle-row" style={{
                 display: 'flex',
-                gap: '8px',
-                marginBottom: '18px',
-                padding: '6px',
+                gap: '6px',
+                marginBottom: '14px',
+                padding: '4px',
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '16px'
+                borderRadius: '14px'
               }}>
                 <button
                   type="button"
                   onClick={() => setMode('login')}
                   style={{
                     flex: 1,
-                    padding: '12px 14px',
-                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '11px',
                     border: 'none',
                     background: mode === 'login' ? 'linear-gradient(135deg, #FCD34D, #F59E0B)' : 'transparent',
                     color: mode === 'login' ? '#111318' : 'rgba(255,255,255,0.7)',
                     fontWeight: 700,
+                    fontSize: '13px',
                     cursor: 'pointer'
                   }}
                 >
@@ -363,12 +364,13 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   onClick={() => setMode('signup')}
                   style={{
                     flex: 1,
-                    padding: '12px 14px',
-                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    borderRadius: '11px',
                     border: 'none',
                     background: mode === 'signup' ? 'linear-gradient(135deg, #FCD34D, #F59E0B)' : 'transparent',
                     color: mode === 'signup' ? '#111318' : 'rgba(255,255,255,0.7)',
                     fontWeight: 700,
+                    fontSize: '13px',
                     cursor: 'pointer'
                   }}
                 >

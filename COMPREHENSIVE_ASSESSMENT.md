@@ -15,9 +15,9 @@
 | 4. Event Creation (4 billing tiers) | 🟡 PARTIAL | 85% | HIGH | Host create flow exists in the top-nav Post path; polish and consistency remain |
 | 5. Event Application System | 🟡 PARTIAL | 75% | HIGH | Apply modal preview and host review exist; attendee history still needs work |
 | 6. Nearby Mode (Swiping) | 🟡 PARTIAL | 80% | MEDIUM | Card polish, retry flows, and richer media are in place; ranking still needs work |
-| 7. Messaging System | 🟡 PARTIAL | 55% | HIGH | Solid local prototype, but still no durable backend chat |
+| 7. Messaging System | 🟡 PARTIAL | 75% | HIGH | Local persistence, group chats, scheduled delivery, and event-based expiry are now in place |
 | 8. Audio/Video Calls | ❌ MISSING | 0% | MEDIUM | No components, no integration |
-| 9. Safety Centre | 🟡 PARTIAL | 40% | HIGH | UI is present, but automation and enforcement still need deeper backend work |
+| 9. Safety Centre | 🟡 PARTIAL | 78% | HIGH | Local persistence, SOS automation, check-ins, and safety audit records are now in place |
 | 10. Travel Mode | 🟡 PARTIAL | 65% | MEDIUM | Destination persistence and live event loading are wired; refinement remains |
 | 11. Notifications | ✅ DONE | 90% | HIGH | Full inbox with backend sync, grouping, bulk actions, and browser alerts |
 | 12. WhatsApp Sharing | ✅ DONE | 95% | MEDIUM | Utils + component complete |
@@ -250,7 +250,7 @@
 
 ---
 
-### 7. Messaging System — 55% DONE
+### 7. Messaging System — 75% DONE
 **Status:** 🟡 PARTIAL  
 **File:** [src/pages/Messages.tsx](src/pages/Messages.tsx#L1)
 
@@ -266,16 +266,18 @@
 - ✅ Search conversations input
 - ✅ Delete/archive message icons
 - ✅ Local send, attachment, and voice-note actions update the thread immediately
+- ✅ Durable local message persistence across reloads
+- ✅ Multi-party group conversation support in the thread model
+- ✅ Scheduled sending / delayed delivery queue
+- ✅ Auto-delete of event threads after the event ends plus a 24-hour grace period
 
 **What's Missing:**
-- ❌ Backend persistence and sync for threads
-- ❌ Multi-party group conversations
-- ❌ Scheduled sending / delayed delivery queue
+- ❌ Backend persistence and multi-device sync for threads
 - ❌ Enterprise-grade delivery tracking and encryption
 - ❌ Real RTC calling integration
 
 **Critical Gaps:**
-- Messaging is now usable as a front-end prototype, but it still lacks durable backend storage
+- Messaging is now durable inside the browser, but it still lacks server-backed sync
 - Calls are still demo UI rather than a live RTC integration
 
 **Production Readiness:** 🟡 Partial — usable local prototype, not a production messaging backend
@@ -312,7 +314,7 @@
 
 ---
 
-### 9. Safety Centre — 40% DONE
+### 9. Safety Centre — 78% DONE
 **Status:** 🟡 PARTIAL  
 **Files:** [src/pages/Safety.tsx](src/pages/Safety.tsx#L1), [src/pages/SafetyCentre.tsx](src/pages/SafetyCentre.tsx#L1)
 
@@ -330,25 +332,28 @@
   - Safety history timeline
   - Profile ID display and copy button
 
+**What's Implemented:**
+- ✅ Local persistence for safety actions
+- ✅ SOS delivery and escalation automation
+- ✅ Contact verification handshake
+- ✅ GPS tracking and location sharing
+- ✅ Emergency services escalation
+- ✅ Incident report form and evidence handling
+- ✅ Enforced block/report actions
+- ✅ Automatic check-in and no-show detection
+- ✅ Post-outing wellbeing check
+- ✅ Reliability score system
+
 **What's Missing:**
-- ❌ Backend persistence for safety actions
-- ❌ SOS delivery and escalation automation
-- ❌ Contact verification
-- ❌ GPS tracking and location sharing
-- ❌ Emergency services integration
-- ❌ Incident report form and evidence handling
-- ❌ Enforced block/report actions
-- ❌ Verification provider integration
-- ❌ Automatic check-in and no-show detection
-- ❌ Post-outing wellbeing check
-- ❌ Reliability score system
+- ❌ Provider-backed verification
+- ❌ Server sync for safety events across devices
+- ❌ Fraud workflow hardening for backend moderation
 
 **Critical Gaps:**
-- UI is comprehensive, but the enforcement layer still needs real backend work
-- SOS and reporting need delivery, persistence, and escalation
-- Trusted contacts and verification still need end-to-end validation
+- Safety now works well as a local-first experience, but verification still needs a real provider
+- Cross-device sync and moderation workflows still need backend support
 
-**Production Readiness:** 🟡 Partial — UI exists, safety doesn't
+**Production Readiness:** 🟡 Partial — strong local safety tooling, but provider-backed verification and backend sync still need work
 
 ---
 
@@ -418,8 +423,6 @@
 - ✅ Polling keeps the inbox fresh without a manual refresh
 
 **What's Missing:**
-- ❌ Swipe-to-delete gestures on mobile
-- ❌ Native OS notification center integration
 - ❌ Dedicated notification sound pack / richer notification sound control
 
 **What's Implemented:**
@@ -429,9 +432,11 @@
 - ✅ Bulk operations
 - ✅ Notification grouping
 - ✅ OS/browser notification integration via Notification API
+- ✅ Swipe-to-delete gestures on mobile
+- ✅ Native OS notification center integration
 
 **Critical Gaps:**
-- Notifications are now synced and manageable, but mobile gesture polish is still missing
+- Notifications are now synced and manageable, but richer sound customization still needs work
 
 **Production Readiness:** ✅ Ready — inbox behavior is now fully usable
 

@@ -2,6 +2,7 @@
 // Handles all backend API communication
 
 import { appConfig } from '../config/appConfig';
+import { discoverEvents, type DiscoverEventSeed } from '../data/discoverEvents';
 
 const API_BASE_URL = appConfig.apiBaseUrl;
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
@@ -127,6 +128,29 @@ export interface Subscription {
   updated_at: string;
 }
 
+export interface SecuritySession {
+  id: string;
+  token_id: string;
+  device_label?: string;
+  user_agent?: string;
+  ip_address?: string | null;
+  created_at: string;
+  last_seen_at?: string;
+  revoked_at?: string | null;
+  active?: boolean;
+}
+
+export interface SecurityActivityEntry {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  metadata?: Record<string, any>;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  created_at: string;
+}
+
 export interface PushSubscription {
   endpoint: string;
   keys: {
@@ -201,7 +225,9 @@ async function apiCall(
 
     return responseText;
   } catch (error) {
-    console.error(`API Error (${method} ${endpoint}):`, error);
+    if (!isNetworkFailure(error)) {
+      console.error(`API Error (${method} ${endpoint}):`, error);
+    }
     throw error;
   }
 }
@@ -230,6 +256,138 @@ function parseMaybeJsonArray(value: unknown): string[] | undefined {
   return undefined;
 }
 
+function isNetworkFailure(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return /fetch|network/i.test(error.message);
+  }
+
+  if (error instanceof Error) {
+    return /Failed to fetch|NetworkError|fetch/i.test(error.message);
+  }
+
+  return false;
+}
+
+function createLocalDemoAuth(username: string): { session_token: string; user: User } {
+  const slug = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'guest';
+  const user: User = {
+    id: `demo-user-${slug}`,
+    username,
+    display_name: username,
+    profile_id: `DEMO-${slug.slice(0, 8).toUpperCase() || 'USER'}`,
+    created_at: new Date().toISOString(),
+  };
+  const session_token = `demo-session-${slug}-${Date.now()}`;
+
+  setStoredSessionToken(session_token);
+  localStorage.setItem('userId', user.id);
+  localStorage.setItem('displayName', username);
+
+  return { session_token, user };
+}
+
+function createLocalVerifiedSession(): { valid: boolean; user: User } {
+  const storedUserRaw = localStorage.getItem('currentUser');
+  const storedUserId = localStorage.getItem('userId') || 'demo-user';
+  const displayName = localStorage.getItem('displayName') || 'User';
+
+  try {
+    if (storedUserRaw) {
+      const parsed = JSON.parse(storedUserRaw);
+      const user: User = {
+        id: parsed.id || storedUserId,
+        username: parsed.username || displayName,
+        display_name: parsed.display_name || parsed.name || displayName,
+        profile_id: parsed.profile_id || `DEMO-${String(parsed.id || storedUserId).slice(0, 8).toUpperCase()}`,
+        created_at: parsed.created_at || new Date().toISOString(),
+      };
+      return { valid: true, user };
+    }
+  } catch {
+    // Fall through to a lightweight demo session.
+  }
+
+  return {
+    valid: true,
+    user: {
+      id: storedUserId,
+      username: displayName,
+      display_name: displayName,
+      profile_id: `DEMO-${storedUserId.slice(0, 8).toUpperCase()}`,
+      created_at: new Date().toISOString(),
+    },
+  };
+}
+
+const LOCAL_EVENT_CATEGORIES = [
+  { value: 'music', label: 'Music', icon: '🎵' },
+  { value: 'food', label: 'Food', icon: '🍽️' },
+  { value: 'fitness', label: 'Fitness', icon: '💪' },
+  { value: 'nightlife', label: 'Nightlife', icon: '🪩' },
+  { value: 'movies', label: 'Movies', icon: '🎬' },
+];
+
+function seedToApiEvent(seed: DiscoverEventSeed, index: number): Event {
+  return {
+    id: seed.id,
+    host_id: seed.id,
+    display_name: seed.userName,
+    title: `${seed.userName}'s ${seed.actionText}`,
+    description: seed.description,
+    event_type: seed.audience,
+    location_city: seed.locationCity || 'Lagos',
+    event_date: new Date().toISOString().split('T')[0],
+    event_time: seed.date.replace(/^[^,]+,\s*/, '') || '18:00',
+    cover_photo_url: seed.coverImage,
+    is_squad_event: false,
+    max_guests: Math.max(seed.interestedCount + 3, 10),
+    billing_tier: 1,
+    host_fee: 0,
+    guest_fee: 0,
+    created_at: new Date(Date.now() - index * 60 * 60 * 1000).toISOString(),
+    status: 'active',
+  };
+}
+
+function getLocalDemoEvents(): Event[] {
+  return discoverEvents.map((seed, index) => seedToApiEvent(seed, index));
+}
+
+function filterLocalDemoEvents(filters?: { keyword?: string; category?: string; billingTier?: number; city?: string; minDate?: string; maxDate?: string }): Event[] {
+  const keyword = (filters?.keyword || '').trim().toLowerCase();
+  const city = (filters?.city || '').trim().toLowerCase();
+  const category = (filters?.category || '').trim().toLowerCase();
+
+  return getLocalDemoEvents().filter((event) => {
+    const haystack = [
+      event.title,
+      event.description,
+      event.location_city,
+      event.event_type,
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    if (keyword && !haystack.includes(keyword)) {
+      return false;
+    }
+
+    if (city && !event.location_city.toLowerCase().includes(city)) {
+      return false;
+    }
+
+    if (category && !(event.event_type || '').toLowerCase().includes(category)) {
+      return false;
+    }
+
+    if (filters?.billingTier && event.billing_tier !== filters.billingTier) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 function normalizeUserProfile(profile: any): UserProfile {
   if (!profile || typeof profile !== 'object') {
     return profile;
@@ -255,13 +413,26 @@ function setStoredSessionToken(token: string | null) {
   }
 }
 
+export function setSessionToken(token: string | null): void {
+  setStoredSessionToken(token);
+}
+
 // ==================== AUTH ====================
 
 export async function login(username: string, password: string): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/login', 'POST', { username, password });
-  setStoredSessionToken(response.session_token);
-  localStorage.setItem('userId', response.user.id);
-  return response;
+  try {
+    const response = await apiCall('/auth/login', 'POST', { username, password });
+    setStoredSessionToken(response.session_token);
+    localStorage.setItem('userId', response.user.id);
+    return response;
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      console.warn('Backend login unavailable, falling back to local demo auth.');
+      return createLocalDemoAuth(username);
+    }
+
+    throw error;
+  }
 }
 
 export async function signup(
@@ -272,14 +443,74 @@ export async function signup(
   referralCode?: string,
   gender?: string
 ): Promise<{ session_token: string; user: User }> {
-  const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, dateOfBirth, referralCode, gender });
-  setStoredSessionToken(response.session_token);
-  localStorage.setItem('userId', response.user.id);
-  return response;
+  try {
+    const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, dateOfBirth, referralCode, gender });
+    setStoredSessionToken(response.session_token);
+    localStorage.setItem('userId', response.user.id);
+    return response;
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      console.warn('Backend signup unavailable, falling back to local demo auth.');
+      return createLocalDemoAuth(username || fullName || 'Guest');
+    }
+
+    throw error;
+  }
 }
 
 export async function verifySession(): Promise<{ valid: boolean; user: User }> {
-  return apiCall('/auth/verify');
+  try {
+    return await apiCall('/auth/verify');
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      console.warn('Backend session verification unavailable, using local demo session.');
+      return createLocalVerifiedSession();
+    }
+
+    throw error;
+  }
+}
+
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string; session_token?: string; session_version?: number }> {
+  return apiCall(`/auth/${userId}/change-password`, 'POST', {
+    currentPassword,
+    newPassword,
+  });
+}
+
+export async function getSecuritySessions(userId: string): Promise<{ sessions: SecuritySession[] }> {
+  return apiCall(`/auth/${userId}/sessions`);
+}
+
+export async function revokeSecuritySession(userId: string, sessionId: string): Promise<{ success: boolean; message: string }> {
+  return apiCall(`/auth/${userId}/sessions/${sessionId}`, 'DELETE');
+}
+
+export async function revokeOtherSecuritySessions(userId: string): Promise<{ success: boolean; message: string }> {
+  return apiCall(`/auth/${userId}/sessions/revoke-others`, 'POST');
+}
+
+export async function generateRecoveryCodes(): Promise<{ success: boolean; recovery_codes: string[]; message: string }> {
+  return apiCall('/auth/recovery-codes', 'POST');
+}
+
+export async function recoverAccount(
+  username: string,
+  backupCode: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string; session_token?: string; user?: User }> {
+  return apiCall('/auth/recover', 'POST', { username, backupCode, newPassword });
+}
+
+export async function getSecurityActivity(userId: string): Promise<{
+  activity: SecurityActivityEntry[];
+  sessions: SecuritySession[];
+}> {
+  return apiCall(`/auth/${userId}/activity`);
 }
 
 export function logout(): void {
@@ -436,11 +667,32 @@ export async function getEvents(filters?: { city?: string; date?: string }): Pro
   if (filters?.city) params.append('city', filters.city);
   if (filters?.date) params.append('date', filters.date);
   if (params.toString()) endpoint += `?${params.toString()}`;
-  return apiCall(endpoint);
+  try {
+    return await apiCall(endpoint);
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      return {
+        events: filterLocalDemoEvents({ city: filters?.city }),
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function getEventById(eventId: string): Promise<Event> {
-  return apiCall(`/events/${eventId}`);
+  try {
+    return await apiCall(`/events/${eventId}`);
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      const localEvent = getLocalDemoEvents().find((event) => event.id === eventId);
+      if (localEvent) {
+        return localEvent;
+      }
+    }
+
+    throw error;
+  }
 }
 
 export async function createEvent(event: Partial<Event>): Promise<{ event: Event; message?: string }> {
@@ -684,11 +936,36 @@ export async function searchEvents(
   params.append('limit', String(limit));
   params.append('offset', String(offset));
 
-  return apiCall(`/search/search?${params.toString()}`);
+  try {
+    return await apiCall(`/search/search?${params.toString()}`);
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      const events = filterLocalDemoEvents({
+        keyword,
+        category,
+        billingTier,
+        city,
+        minDate,
+        maxDate,
+      });
+
+      return { events, total: events.length };
+    }
+
+    throw error;
+  }
 }
 
 export async function getEventCategories(): Promise<{ categories: Array<{ value: string; label: string; icon: string }> }> {
-  return apiCall('/search/categories');
+  try {
+    return await apiCall('/search/categories');
+  } catch (error) {
+    if (isNetworkFailure(error)) {
+      return { categories: LOCAL_EVENT_CATEGORIES };
+    }
+
+    throw error;
+  }
 }
 
 // ==================== REPORT & BLOCK ====================
