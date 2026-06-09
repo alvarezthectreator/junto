@@ -558,29 +558,24 @@
 ## IMPLEMENTATION GAPS SUMMARY
 
 ### High Priority Missing Features
-1. **Event Creation Flow** — 0% (CRITICAL MVP blocker)
-2. **Messaging System** — 5% (core user interaction)
-3. **Apply to Events** — Cannot express interest (Discover feels broken)
-4. **Swiping/Nearby Mode** — 15% (core feature)
-5. **SMS/OTP Authentication** — 30% (Nigeria-critical)
+1. **Messaging persistence** — local prototype still needs durable backend threads
+2. **Audio/Video calls** — still no RTC provider or live media stack
+3. **Identity verification** — no provider-backed workflow yet
+4. **Premium billing** — checkout and provider integration still missing
+5. **SMS/OTP authentication** — still needs a real phone-first login flow
 
 ### Medium Priority Missing Features
-6. **Audio/Video Calls** — 0%
-7. **Travel Mode Setup** — Can't select destination
-8. **Anti-Fraud Backend** — No actual verification
-9. **Data Persistence** — Most features lose state on reload
-10. **Backend APIs** — All state is client-only
+6. **Advanced fraud enforcement** — report review, no-show handling, and scoring automation
+7. **Push delivery provider** — background delivery still needs a real push service
+8. **Account security tooling** — password change, 2FA, session/device management
+9. **Travel mode refinement** — destination selection and stronger backend matching
+10. **Messaging groups and scheduling** — one-to-one chat only for now
 
 ### Architecture Issues
-- ❌ **No Backend** — Entire app is frontend-only with mock data
-- ❌ **No State Management** — Using React hooks, no Redux/Zustand
-- ❌ **No Real-time Communication** — No WebSocket setup
-- ❌ **No Authentication System** — No JWT, sessions, or backend auth
-- ❌ **No Database Integration** — No Firestore, PostgreSQL, or MongoDB
-- ❌ **No File Storage** — No S3, Cloud Storage, or CDN
-- ❌ **No Payment Integration** — No Stripe, Paystack, or provider
-- ❌ **No SMS Provider** — No Twilio, AWS SNS integration
-- ❌ **No Maps Backend** — Using Leaflet with public tiles only
+- ✅ **Backend exists** — the app now has API routes for auth, notifications, settings, safety, nearby, and messaging
+- ✅ **Realtime scaffolding exists** — discovery and notifications can connect to WebSocket streams
+- ⚠️ **Durable sync remains incomplete** — some user flows still depend on local fallback state
+- ⚠️ **Provider integrations still missing** — payments, SMS, push delivery, and identity verification are not fully wired
 
 ---
 
@@ -590,36 +585,37 @@
 ✅ **Responsive Design** — Mobile-first, tested 375px-1920px  
 ✅ **Animation System** — 30+ variants, smooth UX  
 ✅ **Sidebar Navigation** — Full working navigation  
-✅ **Event Cards** — Beautiful UI, display-only  
-✅ **Notifications** — Full UI (needs backend)  
-✅ **Settings** — Full UI (needs backend)  
+✅ **Event Cards** — Beautiful UI and live event browsing  
+✅ **Notifications** — Backend sync, grouping, bulk actions, browser alerts  
+🟡 **Settings** — Useful account tools, but deeper security is still pending  
 ✅ **WhatsApp Sharing** — Complete integration  
-✅ **Profile Display** — Beautiful UI (editing limited)  
-✅ **Discover Filters** — Working search/filter logic
+✅ **Profile Display** — Beautiful UI with editable profile data  
+✅ **Discover Filters** — Working search/filter logic  
+✅ **Nearby mode** — usable swiping flow with polish improvements
 
 ---
 
 ## WHAT NEEDS WORK BEFORE MVP
 
 ### Phase 1 (Must Have - Week 1-2)
-1. **Event Creation** — Full create flow with image upload
-2. **Apply to Events** — One-click interest expression
-3. **Backend APIs** — Create, read, filter events
-4. **Data Persistence** — Save state to database
-5. **Event Detail** — Full detail view with routing
+1. **Messaging persistence** — durable threads and sync
+2. **Identity verification** — provider-backed onboarding
+3. **Audio/Video calls** — live RTC or provider integration
+4. **Premium billing** — checkout and subscription flow
+5. **SMS/OTP authentication** — true phone-first signup/login
 
 ### Phase 2 (Should Have - Week 2-3)
-6. **Messaging** — Real-time messages with WebSocket
-7. **Notifications** — Backend-driven notifications
-8. **SMS/OTP** — Phone verification flow
-9. **Profile Editing** — Save profile changes
-10. **Authentication** — Real login system with sessions
+6. **Advanced fraud** — no-show detection and moderation automation
+7. **Push delivery** — background job delivery and provider support
+8. **Account security** — password change, 2FA, device/session management
+9. **Travel mode** — stronger matching and destination setup
+10. **Group chat / scheduling** — multi-party chat and queued sends
 
 ### Phase 3 (Nice to Have - Week 3-4)
-11. **Nearby Swiping** — Card stack + gestures
-12. **Travel Mode** — Destination selection
-13. **Audio/Video Calls** — WebRTC or Agora
-14. **Anti-Fraud** — Verification + scoring
+11. **Notification badge support** — platform-specific badge behavior where available
+12. **Delivery tracking** — richer send/read analytics
+13. **OS integration** — broader native notification surface support
+14. **Polish pass** — more motion, haptics, and interaction refinement
 
 ---
 
