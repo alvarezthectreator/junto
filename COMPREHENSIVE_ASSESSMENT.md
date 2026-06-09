@@ -80,16 +80,19 @@
 - ✅ Responsive design
 
 **What's Missing:**
-- ❌ Profile picture cropping and stronger media validation
-- ❌ Reliability score earning logic
-- ❌ Phone/email verification flow
-- ❌ Identity verification integration
-- ❌ Profile completion progress
-- ❌ Better field-level validation and constraints
+- ❌ Identity verification provider integration
+- ❌ Harder server-side media moderation / abuse checks
+
+**What's Implemented:**
+- ✅ Profile picture cropping and stronger media validation
+- ✅ Reliability score earning logic
+- ✅ Phone/email verification flow
+- ✅ Profile completion progress
+- ✅ Better field-level validation and constraints
 
 **Critical Gaps:**
-- Profile editing now persists, but it still needs polish and validation
-- No identity verification or scoring logic yet
+- Identity verification still needs a real provider-backed workflow
+- Media handling is solid, but server-side moderation could be stricter
 - No full profile-completion UX
 
 **Production Readiness:** 🟡 Half-ready — UI is solid, logic is missing
@@ -116,24 +119,24 @@
 - ✅ Fully responsive (tested on 375px-1920px)
 
 **What's Missing:**
-- ❌ **No event detail navigation** — onOpenEvent exists but incomplete
-- ❌ **No pagination/load more** — All ~20 events shown at once
-- ❌ **No infinite scroll** — Fixed event list only
-- ❌ **No apply/interested button functionality** — EventCard has no click handler
-- ❌ **No save button working** — State exists but UI button missing
-- ❌ **No dynamic location filtering** — Selected location stored but unused
-- ❌ **No backend API** — Data hardcoded in discoverEvents.ts
-- ❌ **No event creation from here** — No "Create Event" button
-- ❌ **No city/location selector** — Only Lagos supported
-- ❌ **No real-time updates** — No WebSocket or polling
+- ❌ Event creation from this screen
+- ❌ Travel mode could be tighter with the rest of the discovery flow
+
+**What's Implemented:**
+- ✅ Event detail navigation
+- ✅ Pagination/load more
+- ✅ Infinite scroll
+- ✅ Apply/interested button functionality
+- ✅ Save button working
+- ✅ Dynamic location filtering
+- ✅ Backend API data source
+- ✅ City/location selector
+- ✅ Real-time updates via WebSocket/polling fallback
 
 **Critical Gaps:**
-- Filters and search work but opening an event is broken
-- The saved events feature doesn't display anywhere useful
-- No way to actually apply to an event from the feed
-- Travel Mode visible but not fully connected
+- Discovery is functional, but could still be expanded with more creator actions and travel-mode polish
 
-**Production Readiness:** 🟡 Partial — Filtering works, actions don't
+**Production Readiness:** 🟢 Ready — the feed actions and navigation now work
 
 ---
 
