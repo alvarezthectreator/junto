@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import GuestCard from './GuestCard';
 import { EventGuest } from '../../types/hostDashboard';
 import * as API from '../../services/api';
+import { getAvatarImageFromProfilePhotos, getAvatarInitial } from '../../utils/avatar';
 
 interface GuestsTabProps {
   isLightMode?: boolean;
@@ -47,7 +48,7 @@ const GuestsTab: React.FC<GuestsTabProps> = ({ isLightMode = false }) => {
               id: application.id,
               userId: application.user_id,
               userName: application.display_name || application.profile_id || 'Guest',
-              userAvatar: '👤',
+              userAvatar: getAvatarImageFromProfilePhotos(application.profile_photos) || application.user_avatar || getAvatarInitial(application.display_name || application.profile_id || 'G'),
               eventId: application.event_id,
               status: matchingCheckIn ? 'confirmed' : 'maybe',
               checkedIn: Boolean(matchingCheckIn),

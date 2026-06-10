@@ -1,4 +1,4 @@
-const CACHE_NAME = 'junto-app-v1';
+const CACHE_NAME = 'junto-app-v2';
 const APP_SHELL = [
   '/',
   '/discover',
@@ -6,13 +6,29 @@ const APP_SHELL = [
   '/junto-icon.svg',
 ];
 
+const IS_LOCAL_DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
+
 self.addEventListener('install', (event) => {
+  if (IS_LOCAL_DEV) {
+    self.skipWaiting();
+    return;
+  }
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
+  if (IS_LOCAL_DEV) {
+    event.waitUntil(
+      caches.keys().then((cacheNames) => Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName))))
+        .then(() => self.registration.unregister())
+        .then(() => self.clients.claim())
+    );
+    return;
+  }
+
   event.waitUntil(
     caches.keys().then((cacheNames) =>
       Promise.all(
@@ -25,6 +41,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (IS_LOCAL_DEV) {
+    return;
+  }
+
   if (event.request.method !== 'GET') {
     return;
   }

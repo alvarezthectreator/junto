@@ -34,6 +34,7 @@ import {
   X
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
+import { appConfig } from '../config/appConfig';
 import * as API from '../services/api';
 import { compressImageDataUrl } from '../utils/imageCompression';
 
@@ -136,6 +137,24 @@ function isDefaultAvatar(src?: string) {
   return !src || src === DEFAULT_AVATAR;
 }
 
+function resolveMediaUrl(value?: string) {
+  if (!value || !value.trim()) {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (isDataUrl(trimmed) || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
+    const backendOrigin = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
+    return `${backendOrigin}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+  }
+
+  return trimmed;
+}
+
 function getAgeFromDob(dob?: string) {
   if (!dob) {
     return null;
@@ -158,11 +177,40 @@ function getAgeFromDob(dob?: string) {
 }
 
 function getAvatarSrc(avatarImage?: string) {
-  return avatarImage && avatarImage.trim() ? avatarImage : DEFAULT_AVATAR;
+  const resolved = resolveMediaUrl(avatarImage);
+  return resolved || DEFAULT_AVATAR;
+}
+
+function readStoredCurrentUserSnapshot() {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const storedUser = localStorage.getItem('currentUser');
+    return storedUser ? JSON.parse(storedUser) : {};
+  } catch {
+    return {};
+  }
 }
 
 function isDataUrl(value?: string) {
   return typeof value === 'string' && value.startsWith('data:');
+}
+
+function isValidProfileImageSource(value?: string) {
+  if (!value || !value.trim()) {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  return (
+    isDataUrl(trimmed) ||
+    trimmed.startsWith('blob:') ||
+    /^https?:\/\//i.test(trimmed) ||
+    trimmed.startsWith('/uploads/') ||
+    trimmed.startsWith('uploads/')
+  );
 }
 
 function clampScore(value: number) {
@@ -193,11 +241,9 @@ function validateProfileDraft(profile: {
   const age = profile.dob ? getAgeFromDob(profile.dob) : null;
 
   if (name.length < MIN_NAME_LENGTH) {
-    errors.name = 'Add your full name so people know who you are.';
+    errors.name = 'Please enter a display name.';
   } else if (name.length > 60) {
     errors.name = 'Names should be 60 characters or less.';
-  } else if (!/^[a-zA-ZÀ-ÿ'’\-\s.]+$/.test(name)) {
-    errors.name = 'Use a real name with letters, spaces, apostrophes, or hyphens.';
   }
 
   if (bio.length < MIN_BIO_LENGTH) {
@@ -207,7 +253,7 @@ function validateProfileDraft(profile: {
   }
 
   if (!isDefaultAvatar(profile.avatarImage)) {
-    if (!isDataUrl(profile.avatarImage) && !/^https?:\/\//i.test(profile.avatarImage)) {
+    if (!isValidProfileImageSource(profile.avatarImage)) {
       errors.avatar = 'Use a valid profile image URL or upload a new image.';
     }
   } else {
@@ -554,7 +600,11 @@ export const Profile: React.FC<ProfileProps> = ({
   const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
   const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
   const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
+  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const storedUserSnapshot = readStoredCurrentUserSnapshot();
   
   const [profile, setProfile] = useState(() => {
     // Try to get user data from localStorage for initial state
@@ -563,16 +613,24 @@ export const Profile: React.FC<ProfileProps> = ({
     let initialDob = '';
     let initialGender = '';
     let initialOccupation = '';
+    let initialAvatar = DEFAULT_AVATAR;
+    let initialPhotos: string[] = [];
     
     try {
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
+      const userData = storedUserSnapshot;
+      if (userData && typeof userData === 'object') {
         initialName = userData.username || userData.name || initialName;
         initialProfileId = userData.profile_id || initialProfileId;
         initialDob = userData.date_of_birth || '';
         initialGender = userData.gender || '';
         initialOccupation = userData.occupation || '';
+        initialAvatar = getAvatarSrc(
+          userData.avatar_image ||
+          userData.avatarImage ||
+          (Array.isArray(userData.profile_photos) ? userData.profile_photos[0] : '') ||
+          initialAvatar
+        );
+        initialPhotos = Array.isArray(userData.profile_photos) ? userData.profile_photos.slice(1, 5) : [];
       }
     } catch (e) {
       console.error('Failed to parse stored user:', e);
@@ -590,7 +648,12 @@ export const Profile: React.FC<ProfileProps> = ({
       isVerified: true,
       location: 'Lagos, Nigeria',
       profileId: currentUser?.profile_id || initialProfileId,
-      avatarImage: DEFAULT_AVATAR,
+      avatarImage: getAvatarSrc(
+        currentUser?.avatar_image ||
+        currentUser?.avatarImage ||
+        (Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos[0] : '') ||
+        initialAvatar
+      ),
       visibility: {
         dob: 'private',
         genderIdentity: 'private',
@@ -599,7 +662,7 @@ export const Profile: React.FC<ProfileProps> = ({
         photos: 'public',
       },
       introVideo: '',
-      photos: [],
+      photos: Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos.slice(1, 5) : initialPhotos,
     };
   });
 
@@ -612,6 +675,13 @@ export const Profile: React.FC<ProfileProps> = ({
         ...prev,
         name: currentUser.username || currentUser.name || prev.name,
         profileId: currentUser.profile_id || prev.profileId,
+        avatarImage: getAvatarSrc(
+          currentUser.avatar_image ||
+          currentUser.avatarImage ||
+          (Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos[0] : '') ||
+          prev.avatarImage
+        ),
+        photos: Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos.slice(1, 5) : prev.photos,
       }));
     }
   }, [currentUser, selectedUser]);
@@ -641,19 +711,25 @@ export const Profile: React.FC<ProfileProps> = ({
             avatarImage: getAvatarSrc(
               userProfile.avatar_image ||
               userProfile.profile_photo ||
+              storedUserSnapshot.avatar_image ||
+              storedUserSnapshot.avatarImage ||
+              (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
               serverPhotos[0] ||
               prev.avatarImage
             ),
-            photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : prev.photos,
+            photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
             introVideo: userProfile.intro_video_url || prev.introVideo,
             location: userProfile.location || userProfile.city || prev.location,
             reliabilityScore: calculateReliabilityScore({
               bio: userProfile.bio || prev.bio,
               interests: userProfile.interests || prev.interests,
-              photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : prev.photos,
+              photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
               avatarImage: getAvatarSrc(
                 userProfile.avatar_image ||
                 userProfile.profile_photo ||
+                storedUserSnapshot.avatar_image ||
+                storedUserSnapshot.avatarImage ||
+                (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
                 serverPhotos[0] ||
                 prev.avatarImage
               ),
@@ -778,6 +854,8 @@ export const Profile: React.FC<ProfileProps> = ({
     reviews: 18,
     rating: 4.7,
   };
+  const phoneVerified = Boolean(verificationState?.phone?.verified);
+  const idVerified = identityVerified;
   const computedReliabilityScore = calculateReliabilityScore(profile);
   const displayReliabilityScore = serverReliabilityScore ?? computedReliabilityScore;
   const profileCompletion = getProfileCompletion(profile);
@@ -897,10 +975,40 @@ export const Profile: React.FC<ProfileProps> = ({
         avatarImage: photoUploadTarget === 'avatar' ? storedUrl : profile.avatarImage,
         photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
       };
+
+      const persistedMedia = [nextProfile.avatarImage, ...nextProfile.photos].filter(Boolean);
       setProfile({
         ...nextProfile,
         reliabilityScore: calculateReliabilityScore(nextProfile),
       });
+
+      try {
+        const storedUserRaw = localStorage.getItem('currentUser');
+        const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+        localStorage.setItem(
+          'currentUser',
+          JSON.stringify({
+            ...storedUser,
+            id: storedUser.id || currentUser?.id,
+            name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
+            username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
+            profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
+            profile_photos: persistedMedia,
+            avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
+          })
+        );
+      } catch (storageError) {
+        console.error('Failed to persist photo edit locally:', storageError);
+      }
+
+      if (currentUser?.id) {
+        void API.updateUserProfile(currentUser.id, {
+          profile_photos: persistedMedia,
+        }).catch((error) => {
+          console.error('Failed to persist photo edit on the backend:', error);
+        });
+      }
+
       setProfileValidationError('');
       setPhotoEditorOpen(false);
       resetPhotoEditor();
@@ -927,15 +1035,10 @@ export const Profile: React.FC<ProfileProps> = ({
       };
 
       const validation = validateProfileDraft(normalizedProfile);
-      setFieldErrors(validation.errors);
-      if (!validation.valid) {
-        setProfileValidationError(getFirstErrorMessage(validation.errors) || 'Please fix the highlighted fields.');
-        return;
-      }
-
-      if (profile.photos.filter(Boolean).length === 0) {
-        setProfileValidationError('Add at least one gallery photo before saving.');
-        return;
+      const hasWarnings = Object.keys(validation.errors).length > 0;
+      setFieldErrors({});
+      if (hasWarnings) {
+        setProfileValidationError('Some profile details could be improved, but your changes were saved.');
       }
 
       setIsSavingProfile(true);
@@ -983,11 +1086,15 @@ export const Profile: React.FC<ProfileProps> = ({
 
         setProfile((current) => ({
           ...current,
-          name: updatedProfile.display_name || updatedProfile.full_name || updatedProfile.name || current.name,
+          name: updatedProfile.display_name || updatedProfile.full_name || updatedProfile.name || normalizedProfile.name || current.name,
           bio: updatedProfile.bio || current.bio,
           interests: updatedProfile.interests || current.interests,
-          avatarImage: getAvatarSrc(updatedProfile.profile_photos?.[0] || current.avatarImage),
-          photos: Array.isArray(updatedProfile.profile_photos) ? updatedProfile.profile_photos.slice(1, 5) : current.photos,
+          avatarImage: getAvatarSrc(storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
+          photos: Array.isArray(updatedProfile.profile_photos)
+            ? updatedProfile.profile_photos.slice(1, 5)
+            : storedMediaUrls.slice(1, 5).length > 0
+              ? storedMediaUrls.slice(1, 5)
+              : current.photos,
           location: updatedProfile.location || updatedProfile.city || current.location,
           introVideo: updatedProfile.intro_video_url || current.introVideo,
           dob: updatedProfile.date_of_birth || current.dob,
@@ -997,8 +1104,12 @@ export const Profile: React.FC<ProfileProps> = ({
           reliabilityScore: calculateReliabilityScore({
             bio: updatedProfile.bio || current.bio,
             interests: updatedProfile.interests || current.interests,
-            photos: Array.isArray(updatedProfile.profile_photos) ? updatedProfile.profile_photos.slice(1, 5) : current.photos,
-            avatarImage: getAvatarSrc(updatedProfile.profile_photos?.[0] || current.avatarImage),
+            photos: Array.isArray(updatedProfile.profile_photos)
+              ? updatedProfile.profile_photos.slice(1, 5)
+              : storedMediaUrls.slice(1, 5).length > 0
+                ? storedMediaUrls.slice(1, 5)
+                : current.photos,
+            avatarImage: getAvatarSrc(storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
             introVideo: updatedProfile.intro_video_url || current.introVideo,
             dob: updatedProfile.date_of_birth || current.dob,
             occupation: updatedProfile.occupation || current.occupation,
@@ -1015,6 +1126,8 @@ export const Profile: React.FC<ProfileProps> = ({
               name: normalizedProfile.name,
               username: storedUser.username || normalizedProfile.name,
               profile_id: currentUser.profile_id || storedUser.profile_id,
+              profile_photos: storedMediaUrls,
+              avatar_image: storedMediaUrls[0] || storedUser.avatar_image || null,
               date_of_birth: normalizedProfile.dob || storedUser.date_of_birth || null,
               gender: normalizedProfile.genderIdentity || storedUser.gender || null,
               occupation: normalizedProfile.occupation || storedUser.occupation || null,
@@ -1752,169 +1865,175 @@ export const Profile: React.FC<ProfileProps> = ({
                 initial={{ opacity: 0, y: 20, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                className={`fixed left-1/2 top-1/2 z-50 w-[min(92vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-5 sm:p-6 shadow-2xl ${
-                  isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
-                }`}
+                className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
               >
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-500/80">Photo Editor</p>
-                    <h3 className="mt-1 text-xl font-bold">Prep your new profile photo</h3>
-                    <p className={`mt-1 text-sm ${isLightMode ? 'text-amber-900/60' : 'text-gray-400'}`}>
-                      Rotate, zoom, and choose a framing style before we compress it.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
-                    className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-300 transition hover:bg-white/10"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-                  <div className="space-y-4">
-                    <div className={`overflow-hidden rounded-3xl border ${isLightMode ? 'border-amber-900/10 bg-amber-50/30' : 'border-white/[0.08] bg-white/[0.02]'}`}>
-                      <div className="mx-auto w-full max-w-[420px] p-4">
-                        <div
-                          className={`relative mx-auto overflow-hidden rounded-2xl border ${
-                            photoEditorAspect === 'portrait'
-                              ? 'aspect-[4/5]'
-                              : photoEditorAspect === 'landscape'
-                                ? 'aspect-[16/9]'
-                                : photoEditorAspect === 'story'
-                                  ? 'aspect-[9/16]'
-                                  : 'aspect-square'
-                          } ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/10 bg-black/30'}`}
-                        >
-                          <img
-                            src={photoEditorSource}
-                            alt="Photo preview"
-                            className="h-full w-full object-cover"
-                            style={{
-                              transform: `scale(${photoEditorZoom}) rotate(${photoEditorRotation}deg)`,
-                              transformOrigin: 'center center',
-                            }}
-                          />
-                        </div>
-                      </div>
+                <div
+                  className={`flex w-full max-w-[920px] max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl border shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4 sm:p-6">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-500/80">Photo Editor</p>
+                      <h3 className="mt-1 text-xl font-bold">Prep your new profile photo</h3>
+                      <p className={`mt-1 text-sm ${isLightMode ? 'text-amber-900/60' : 'text-gray-400'}`}>
+                        Rotate, zoom, and choose a framing style before we compress it.
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
+                      className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-300 transition hover:bg-white/10"
+                    >
+                      Close
+                    </button>
+                  </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Framing</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'square', label: 'Square', hint: 'Default profile crop' },
-                            { id: 'portrait', label: 'Portrait', hint: '4:5 for more vertical space' },
-                            { id: 'landscape', label: 'Landscape', hint: '16:9 wide crop' },
-                            { id: 'story', label: 'Story', hint: '9:16 vertical framing' },
-                          ].map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              onClick={() => setPhotoEditorAspect(option.id)}
-                              className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                                photoEditorAspect === option.id
-                                  ? 'border-yellow-500/40 bg-yellow-500/15 text-yellow-200'
-                                  : isLightMode
-                                    ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
-                                    : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
-                              }`}
+                  <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                    <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
+                      <div className="space-y-4">
+                        <div className={`overflow-hidden rounded-3xl border ${isLightMode ? 'border-amber-900/10 bg-amber-50/30' : 'border-white/[0.08] bg-white/[0.02]'}`}>
+                          <div className="mx-auto w-full max-w-[420px] p-3 sm:p-4">
+                            <div
+                              className={`relative mx-auto overflow-hidden rounded-2xl border ${
+                                photoEditorAspect === 'portrait'
+                                  ? 'aspect-[4/5]'
+                                  : photoEditorAspect === 'landscape'
+                                    ? 'aspect-[16/9]'
+                                    : photoEditorAspect === 'story'
+                                      ? 'aspect-[9/16]'
+                                      : 'aspect-square'
+                              } ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/10 bg-black/30'}`}
                             >
-                              <p className="text-sm font-bold">{option.label}</p>
-                              <p className="mt-1 text-[11px] opacity-60">{option.hint}</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Rotation</p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setPhotoEditorRotation((current) => (current - 90 + 360) % 360)}
-                              className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
-                                isLightMode
-                                  ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
-                                  : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
-                              }`}
-                            >
-                              Rotate left
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPhotoEditorRotation((current) => (current + 90) % 360)}
-                              className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
-                                isLightMode
-                                  ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
-                                  : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
-                              }`}
-                            >
-                              Rotate right
-                            </button>
+                              <img
+                                src={photoEditorSource}
+                                alt="Photo preview"
+                                className="h-full w-full object-cover"
+                                style={{
+                                  transform: `scale(${photoEditorZoom}) rotate(${photoEditorRotation}deg)`,
+                                  transformOrigin: 'center center',
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        <div>
-                          <div className="mb-2 flex items-center justify-between">
-                            <p className="text-xs font-bold uppercase tracking-wider opacity-60">Zoom</p>
-                            <span className="text-xs font-semibold text-yellow-400">{photoEditorZoom.toFixed(1)}x</span>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Framing</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                { id: 'square', label: 'Square', hint: 'Default profile crop' },
+                                { id: 'portrait', label: 'Portrait', hint: '4:5 for more vertical space' },
+                                { id: 'landscape', label: 'Landscape', hint: '16:9 wide crop' },
+                                { id: 'story', label: 'Story', hint: '9:16 vertical framing' },
+                              ].map((option) => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => setPhotoEditorAspect(option.id)}
+                                  className={`rounded-2xl border px-3 py-3 text-left transition-all ${
+                                    photoEditorAspect === option.id
+                                      ? 'border-yellow-500/40 bg-yellow-500/15 text-yellow-200'
+                                      : isLightMode
+                                        ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                        : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                                  }`}
+                                >
+                                  <p className="text-sm font-bold">{option.label}</p>
+                                  <p className="mt-1 text-[11px] opacity-60">{option.hint}</p>
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <input
-                            type="range"
-                            min="1"
-                            max="2"
-                            step="0.05"
-                            value={photoEditorZoom}
-                            onChange={(event) => setPhotoEditorZoom(Number(event.target.value))}
-                            className="w-full accent-yellow-500"
-                          />
-                        </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                          <p className="text-xs font-bold uppercase tracking-wider opacity-60">Prep note</p>
-                          <p className="mt-2 text-sm opacity-70">
-                            Square works best for the profile avatar, while portrait gives your photo a little more room for full-body shots.
-                          </p>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="mb-2 text-xs font-bold uppercase tracking-wider opacity-60">Rotation</p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPhotoEditorRotation((current) => (current - 90 + 360) % 360)}
+                                  className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
+                                    isLightMode
+                                      ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                      : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                                  }`}
+                                >
+                                  Rotate left
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPhotoEditorRotation((current) => (current + 90) % 360)}
+                                  className={`flex-1 rounded-2xl border px-3 py-2.5 text-sm font-semibold transition-all ${
+                                    isLightMode
+                                      ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                      : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                                  }`}
+                                >
+                                  Rotate right
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="mb-2 flex items-center justify-between">
+                                <p className="text-xs font-bold uppercase tracking-wider opacity-60">Zoom</p>
+                                <span className="text-xs font-semibold text-yellow-400">{photoEditorZoom.toFixed(1)}x</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="1"
+                                max="2"
+                                step="0.05"
+                                value={photoEditorZoom}
+                                onChange={(event) => setPhotoEditorZoom(Number(event.target.value))}
+                                className="w-full accent-yellow-500"
+                              />
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                              <p className="text-xs font-bold uppercase tracking-wider opacity-60">Prep note</p>
+                              <p className="mt-2 text-sm opacity-70">
+                                Square works best for the profile avatar, while portrait gives your photo a little more room for full-body shots.
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="space-y-3">
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400/80">What happens next</p>
-                      <div className="space-y-2 text-sm text-gray-300">
-                        <p>1. We apply your framing and rotation.</p>
-                        <p>2. The image is compressed for faster profile loading.</p>
-                        <p>3. The edited photo is saved as your newest gallery image.</p>
+                      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                        <div className="space-y-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400/80">What happens next</p>
+                          <div className="space-y-2 text-sm text-gray-300">
+                            <p>1. We apply your framing and rotation.</p>
+                            <p>2. The image is compressed for faster profile loading.</p>
+                            <p>3. The edited photo is saved as your newest gallery image.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
+                            className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
+                              isLightMode
+                                ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                                : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                            } ${photoEditorBusy ? 'opacity-60' : ''}`}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleApplyPhotoEdit}
+                            disabled={photoEditorBusy}
+                            className="flex-1 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-3 text-sm font-bold text-black transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+                          >
+                            {photoEditorBusy ? 'Processing...' : 'Use this photo'}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
-                        className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
-                          isLightMode
-                            ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
-                            : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
-                        } ${photoEditorBusy ? 'opacity-60' : ''}`}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleApplyPhotoEdit}
-                        disabled={photoEditorBusy}
-                        className="flex-1 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-3 text-sm font-bold text-black transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        {photoEditorBusy ? 'Processing...' : 'Use this photo'}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -2099,7 +2218,15 @@ export const Profile: React.FC<ProfileProps> = ({
                         setPhoneVerifyLoading(true);
                         // Simulate OTP verification
                         setTimeout(() => {
-                          setPhoneVerified(true);
+                          setVerificationState(prev => ({
+                            ...prev,
+                            phone: {
+                              ...prev.phone,
+                              verified: true,
+                              verifiedAt: new Date().toISOString(),
+                              loading: false,
+                            },
+                          }));
                           setShowPhoneVerify(false);
                           setPhoneVerifyOtp('');
                           setShowMessage('✓ Phone verified successfully');

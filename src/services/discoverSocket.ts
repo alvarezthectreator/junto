@@ -3,6 +3,24 @@
 
 import { appConfig } from '../config/appConfig';
 
+function resolveWebSocketUrl() {
+  const configured = appConfig.wsUrl;
+  if (configured) {
+    try {
+      return new URL(configured).toString().replace(/\/+$/, '');
+    } catch {
+      // Fall through to runtime-derived fallback.
+    }
+  }
+
+  if (typeof window === 'undefined') {
+    return 'ws://localhost:5000';
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.hostname}:5000`;
+}
+
 export class DiscoverSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -32,8 +50,7 @@ export class DiscoverSocket {
 
   private connect() {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = appConfig.wsUrl || `${protocol}//${window.location.host}`;
+      const wsUrl = resolveWebSocketUrl();
 
       console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
       this.ws = new WebSocket(wsUrl);

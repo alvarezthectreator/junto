@@ -4,6 +4,7 @@ import { Check, X, MessageSquare } from 'lucide-react';
 import ApplicationCard from './ApplicationCard';
 import { EventApplication } from '../../types/hostDashboard';
 import * as API from '../../services/api';
+import { getAvatarImageFromProfilePhotos, getAvatarInitial } from '../../utils/avatar';
 
 interface ApplicationsTabProps {
   isLightMode?: boolean;
@@ -25,12 +26,13 @@ const ApplicationsTab: React.FC<ApplicationsTabProps> = ({ isLightMode = false }
             id: app.id,
             eventId: app.event_id,
             userId: app.user_id,
-            userName: app.user_id || 'Unknown',
-            userAvatar: '👤',
+            userName: app.display_name || app.profile_id || app.user_id || 'Unknown',
+            userAvatar: getAvatarImageFromProfilePhotos(app.profile_photos) || app.user_avatar || getAvatarInitial(app.display_name || app.profile_id || app.user_id || 'U'),
             userRating: 4.5,
             eventAttendance: 0,
             appliedAt: new Date(app.created_at),
-            status: app.status || 'pending'
+            status: app.status || 'pending',
+            message: app.message || app.personal_note || '',
           }));
           setApplications(apiApps);
         } else {

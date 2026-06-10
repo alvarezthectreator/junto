@@ -41,12 +41,24 @@ function normalizeUrl(value: EnvValue, fallback: string): string {
   return value.replace(/\/+$/, '');
 }
 
+function deriveWebSocketUrl(apiBaseUrl: string): string | undefined {
+  try {
+    const resolved = new URL(apiBaseUrl, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    const protocol = resolved.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${resolved.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
+const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), '/api');
+
 export const appConfig = {
   appName: readEnv('VITE_APP_NAME') || 'Junto',
   appDescription:
     readEnv('VITE_APP_DESCRIPTION') || 'Junto helps people discover events, nearby people, messages, and travel plans in one place.',
-  apiBaseUrl: normalizeUrl(readEnv('VITE_API_BASE_URL'), '/api'),
-  wsUrl: readEnv('VITE_WS_URL'),
+  apiBaseUrl,
+  wsUrl: readEnv('VITE_WS_URL') || deriveWebSocketUrl(apiBaseUrl),
   analyticsEndpoint: readEnv('VITE_ANALYTICS_ENDPOINT'),
   analyticsEnabled: parseBoolean(readEnv('VITE_ENABLE_ANALYTICS'), Boolean(readEnv('VITE_ANALYTICS_ENDPOINT'))),
   crashReportingEndpoint: readEnv('VITE_CRASH_REPORT_ENDPOINT'),

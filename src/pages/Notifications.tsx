@@ -34,6 +34,23 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
+function resolveNotificationsWebSocketUrl() {
+  if (appConfig.wsUrl) {
+    try {
+      return new URL(appConfig.wsUrl).toString().replace(/\/+$/, '');
+    } catch {
+      // Ignore malformed config and fall back to the backend port.
+    }
+  }
+
+  if (typeof window === 'undefined') {
+    return 'ws://localhost:5000';
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.hostname}:5000`;
+}
+
 interface NotificationItem {
   id: string;
   type: 'interest' | 'message' | 'application' | 'system' | 'event';
@@ -285,7 +302,7 @@ export function Notifications({
     };
     window.addEventListener(localActivityEventName(), refreshLocalNotifications as EventListener);
 
-    const wsUrl = appConfig.wsUrl || window.location.origin.replace(/^http/, 'ws');
+    const wsUrl = resolveNotificationsWebSocketUrl();
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(wsUrl);

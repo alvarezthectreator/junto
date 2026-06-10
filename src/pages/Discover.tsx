@@ -322,6 +322,15 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
   useEffect(() => {
     setLocalEvents(loadStoredCreatedEvents());
+
+    const handleStorageUpdate = () => {
+      setLocalEvents(loadStoredCreatedEvents());
+    };
+
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -361,7 +370,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const events = useMemo<FeedEvent[]>(() => {
     const deletedSignatures = readDeletedEventSignatures();
 
-    const backendEvents = useBackend && apiEvents.length > 0
+    const backendEvents = useBackend
       ? apiEvents.map((event, index) => {
         const feedEvent = toFeedEventFromApi(event, index);
         // If this is the current user's event, display as "You"
@@ -415,6 +424,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   useEffect(() => {
     setDisplayLimit(12);
   }, [searchTerm, activeFilter, showSavedOnly, selectedCity, sortBy, travelMode]);
+
+  const displayedEvents = filteredEvents.length > 0 ? filteredEvents : events;
+  const visibleEvents = displayedEvents.slice(0, displayLimit);
 
   useEffect(() => {
     if (displayedEvents.length <= displayLimit) {
@@ -505,8 +517,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     openEventDetail(event, index);
   };
 
-  const displayedEvents = filteredEvents.length > 0 ? filteredEvents : events;
-  const visibleEvents = displayedEvents.slice(0, displayLimit);
 
   return (
     <motion.div

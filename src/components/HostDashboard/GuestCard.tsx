@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare, UserX, CheckCircle, Star } from 'lucide-react';
 import { EventGuest } from '../../types/hostDashboard';
+import { getAvatarImageFromProfilePhotos, getAvatarInitial, isAvatarImageSource, resolveMediaUrl } from '../../utils/avatar';
 
 interface GuestCardProps {
   guest: EventGuest;
@@ -23,6 +24,9 @@ const GuestCard: React.FC<GuestCardProps> = ({ guest, isLightMode = false }) => 
     hover: { x: 4, transition: { duration: 0.2 } }
   };
 
+  const avatarImage = getAvatarImageFromProfilePhotos((guest as any).profile_photos) || resolveMediaUrl(guest.userAvatar);
+  const avatarInitial = getAvatarInitial(guest.userName);
+
   return (
     <motion.div
       variants={cardVariants}
@@ -32,7 +36,13 @@ const GuestCard: React.FC<GuestCardProps> = ({ guest, isLightMode = false }) => 
       <div className="flex items-start justify-between gap-4">
         {/* Guest Info */}
         <div className="flex items-center gap-3 flex-1">
-          <div className="text-3xl flex-shrink-0">{guest.userAvatar}</div>
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-sm font-semibold text-white">
+            {isAvatarImageSource(avatarImage) ? (
+              <img src={avatarImage} alt={guest.userName} className="h-full w-full object-cover" />
+            ) : (
+              <span>{avatarInitial}</span>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold truncate">{guest.userName}</h3>

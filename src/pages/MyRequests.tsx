@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import * as API from '../services/api';
 import { compressImageDataUrl } from '../utils/imageCompression';
+import { getAvatarImageFromProfilePhotos, getAvatarInitial, isAvatarImageSource } from '../utils/avatar';
 import {
   appendEventActivity,
   appendLocalNotification,
@@ -45,6 +46,7 @@ interface InterestedPerson {
   eventId?: string;
   name: string;
   avatar: string;
+  avatarImage?: string;
   joinedAt: string;
   joinedAtRaw?: string;
   message?: string;
@@ -209,14 +211,22 @@ function writeStoredEventApplications(applications: any[]) {
 function mapApplicationToPerson(application: any): InterestedPerson {
   const rawJoinedAt = application.created_at || application.joinedAt || application.applied_at || new Date().toISOString();
   const applicationId = String(application.id || application.application_id || application.backend_id || `${application.event_id}-${application.user_id}-${rawJoinedAt}`);
+  const displayName = application.user_name || application.display_name || application.name || 'Unknown User';
+  const avatarImage =
+    getAvatarImageFromProfilePhotos(application.profile_photos) ||
+    getAvatarImageFromProfilePhotos(application.profilePhotos) ||
+    getAvatarImageFromProfilePhotos(application.profile_photo) ||
+    getAvatarImageFromProfilePhotos(application.avatar_image) ||
+    getAvatarImageFromProfilePhotos(application.user_avatar);
 
   return {
     id: applicationId,
     eventId: application.event_id ? String(application.event_id) : undefined,
     applicationId: String(application.id || application.application_id || ''),
     backendId: application.backend_id ? String(application.backend_id) : undefined,
-    name: application.user_name || application.name || 'Unknown User',
-    avatar: application.user_avatar || '👤',
+    name: displayName,
+    avatar: getAvatarInitial(displayName),
+    avatarImage: avatarImage || undefined,
     joinedAt: formatRelativeTime(rawJoinedAt),
     joinedAtRaw: rawJoinedAt,
     message: application.message || application.note || '',
@@ -1188,11 +1198,17 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               selectedEvent.applications.map((person) => (
                 <div key={person.id} className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="text-3xl flex-shrink-0 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => {
+                    <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] cursor-pointer hover:opacity-75 transition-opacity" onClick={() => {
                       setShowInterestedModal(false);
                       openPersonProfile(person);
                     }}>
-                      {person.avatar || '👤'}
+                      {person.avatarImage && isAvatarImageSource(person.avatarImage) ? (
+                        <img src={person.avatarImage} alt={person.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-white">
+                          {person.avatar || getAvatarInitial(person.name)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p 

@@ -13,8 +13,8 @@ export async function getEvents(req, res) {
     let paramCount = 1;
 
     if (city) {
-      sql += ` AND e.location_city = $${paramCount}`;
-      params.push(city);
+      sql += ` AND e.location_city ILIKE $${paramCount}`;
+      params.push(`%${city}%`);
       paramCount++;
     }
 

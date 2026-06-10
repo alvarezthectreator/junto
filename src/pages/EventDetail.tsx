@@ -11,6 +11,7 @@ import { useAppContext } from '../context/AppContext';
 import * as API from '../services/api';
 import { isEventExpired, getRemainingCapacity, isEventAtCapacity } from '../utils/eventUtils';
 import { compressImageDataUrl } from '../utils/imageCompression';
+import { getAvatarImageFromProfilePhotos, resolveMediaUrl } from '../utils/avatar';
 import {
   appendEventActivity,
   appendLocalNotification,
@@ -230,7 +231,12 @@ function readCurrentUserSnapshot() {
       id: String(parsed.id || ''),
       name: String(parsed.name || parsed.username || 'You'),
       profile_id: String(parsed.profile_id || ''),
-      avatar: String(parsed.avatar || parsed.photo || '👤'),
+      avatar: String(parsed.avatar || parsed.photo || parsed.avatar_image || '👤'),
+      avatarImage:
+        getAvatarImageFromProfilePhotos(parsed.profile_photos) ||
+        resolveMediaUrl(parsed.avatar_image) ||
+        resolveMediaUrl(parsed.photo) ||
+        '',
       bio: String(parsed.bio || ''),
       location: String(parsed.location || ''),
     };
@@ -432,6 +438,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       const parsed = JSON.parse(savedApplication) as { status?: string; note?: string; updatedAt?: string };
       const normalizedStatus = normalizeApplicationStatus(parsed.status);
       if (normalizedStatus !== 'none') {
+        const currentUserSnapshot = readCurrentUserSnapshot();
         setApplicationStatus(normalizedStatus);
         setApplicationNote(parsed.note ?? '');
         setApplicationUpdatedAt((parsed as any).updatedAt || '');
@@ -440,7 +447,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
             {
               id: 'you',
               name: 'You',
-              avatar: '✨',
+              avatar: currentUserSnapshot?.avatarImage || currentUserSnapshot?.avatar || '✨',
               paymentStatus: normalizedStatus === 'accepted' ? 'host_covers' : 'pending',
               joinedAt: new Date(),
               status: normalizedStatus === 'accepted' ? 'confirmed' : 'pending',
@@ -529,12 +536,13 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
         setApplicationUpdatedAt(nextUpdatedAt);
 
         if (nextStatus === 'accepted') {
+          const currentUserSnapshot = readCurrentUserSnapshot();
           setIsJoined(true);
           setGuestList((current) => [
             {
               id: 'you',
               name: 'You',
-              avatar: '✨',
+              avatar: currentUserSnapshot?.avatarImage || currentUserSnapshot?.avatar || '✨',
               paymentStatus: 'host_covers',
               joinedAt: new Date(nextUpdatedAt),
               status: 'confirmed',
@@ -629,7 +637,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       host_id: event.host_id || '',
       user_id: currentUser?.id || window.localStorage.getItem('userId') || 'guest',
       user_name: currentUser?.name || 'Guest',
-      user_avatar: currentUser?.avatar || '👤',
+      user_avatar: currentUser?.avatarImage || currentUser?.avatar || '👤',
       message: applicationText.trim(),
       status: 'pending',
       created_at: new Date().toISOString(),
@@ -649,7 +657,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
         {
           id: 'you',
           name: 'You',
-          avatar: '✨',
+          avatar: currentUser?.avatarImage || currentUser?.avatar || '✨',
           paymentStatus: 'pending',
           joinedAt: new Date(),
           status: 'pending',

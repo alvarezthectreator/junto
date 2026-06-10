@@ -1,7 +1,7 @@
 import { appConfig } from '../config/appConfig';
 import { flushAnalyticsQueue, trackEvent } from './analytics';
 import { flushCrashReports, reportError } from './crashReporting';
-import { registerServiceWorker, updateThemeColor } from './pwa';
+import { clearServiceWorkers, registerServiceWorker, updateThemeColor } from './pwa';
 
 let hasBootstrapped = false;
 
@@ -12,6 +12,10 @@ export async function bootstrapPlatform(): Promise<void> {
 
   hasBootstrapped = true;
   updateThemeColor(appConfig.themeColor);
+
+  if (import.meta.env.DEV) {
+    await clearServiceWorkers();
+  }
 
   void registerServiceWorker();
   flushAnalyticsQueue();
