@@ -13,7 +13,7 @@ export async function getEvents(req, res) {
     let paramCount = 1;
 
     if (city) {
-      sql += ` AND e.location_city ILIKE $${paramCount}`;
+      sql += ` AND LOWER(e.location_city) LIKE LOWER($${paramCount})`;
       params.push(`%${city}%`);
       paramCount++;
     }
@@ -37,7 +37,7 @@ export async function getEvents(req, res) {
     }
 
     if (category) {
-      sql += ` AND e.description ILIKE $${paramCount}`;
+      sql += ` AND LOWER(e.description) LIKE LOWER($${paramCount})`;
       params.push(`%${category}%`);
       paramCount++;
     }

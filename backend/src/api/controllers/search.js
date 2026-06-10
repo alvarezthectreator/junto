@@ -19,7 +19,7 @@ export async function searchEvents(req, res) {
     const params = [];
 
     if (keyword) {
-      queryStr += ` AND (e.title ILIKE ? OR e.description ILIKE ?)`;
+      queryStr += ` AND (LOWER(e.title) LIKE LOWER(?) OR LOWER(e.description) LIKE LOWER(?))`;
       params.push(`%${keyword}%`, `%${keyword}%`);
     }
 
