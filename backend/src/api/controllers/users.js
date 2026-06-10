@@ -1,6 +1,41 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
+function normalizeProfilePhotos(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(String);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).map(String);
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+function enrichProfileRow(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  const profilePhotos = normalizeProfilePhotos(row.profile_photos);
+  return {
+    ...row,
+    profile_photos: profilePhotos,
+    avatar_image: row.avatar_image || profilePhotos[0] || null,
+  };
+}
+
 async function getReferralStats(userId) {
   const [userResult, countResult, referredUsersResult] = await Promise.all([
     query('SELECT id, profile_id FROM users WHERE id = $1', [userId]),
@@ -41,7 +76,7 @@ export async function getUserById(req, res) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: result.rows[0] });
+    res.json({ user: enrichProfileRow(result.rows[0]) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -63,7 +98,7 @@ export async function getUserProfile(req, res) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ profile: result.rows[0] });
+    res.json({ profile: enrichProfileRow(result.rows[0]) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -146,6 +181,13 @@ export async function updateUserProfile(req, res) {
       travel_destination_city !== undefined ||
       profile_photos !== undefined
     ) {
+      await query(
+        `INSERT INTO user_profiles (id, user_id, last_active, created_at, updated_at)
+         VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT(user_id) DO NOTHING`,
+        [uuidv4(), userId]
+      );
+
       const updates = [];
       const params = [];
       let paramCount = 1;
@@ -193,7 +235,7 @@ export async function updateUserProfile(req, res) {
     res.json({
       success: true,
       message: 'Profile updated',
-      profile: refreshed.rows[0] || null,
+      profile: enrichProfileRow(refreshed.rows[0] || null),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -323,7 +365,7 @@ export async function exportUserData(req, res) {
     res.json({
       exported_at: new Date().toISOString(),
       account: userResult.rows[0],
-      profile: userResult.rows[0],
+      profile: enrichProfileRow(userResult.rows[0]),
       events: eventsResult.rows,
       applications: applicationsResult.rows,
       messages: messagesResult.rows,

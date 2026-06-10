@@ -304,6 +304,19 @@ export function App() {
   }, [currentPage]);
   
   const applyAuthenticatedSession = useCallback((user: any, token: string) => {
+    const storedSnapshot = (() => {
+      if (typeof window === 'undefined') {
+        return {};
+      }
+
+      try {
+        const raw = window.localStorage.getItem('currentUser');
+        return raw ? JSON.parse(raw) : {};
+      } catch {
+        return {};
+      }
+    })();
+
     // Set current user with provided user data
     const userData = { 
       id: user.id,
@@ -312,7 +325,13 @@ export function App() {
       profile_id: user.profile_id,
       date_of_birth: user.date_of_birth || null,
       gender: user.gender || null,
-      occupation: user.occupation || null
+      occupation: user.occupation || null,
+      avatar_image: user.avatar_image || storedSnapshot.avatar_image || null,
+      profile_photos: Array.isArray(user.profile_photos)
+        ? user.profile_photos
+        : Array.isArray(storedSnapshot.profile_photos)
+          ? storedSnapshot.profile_photos
+          : [],
     };
     setCurrentUser(userData);
     setSelectedUser(null);
@@ -463,6 +482,12 @@ export function App() {
           ...verifiedUser,
           name: verifiedUser.username || verifiedUser.display_name || user.name || user.username || 'User',
           username: verifiedUser.username || user.username || user.name || 'User',
+          avatar_image: verifiedUser.avatar_image || user.avatar_image || null,
+          profile_photos: Array.isArray(verifiedUser.profile_photos)
+            ? verifiedUser.profile_photos
+            : Array.isArray(user.profile_photos)
+              ? user.profile_photos
+              : [],
         };
 
         localStorage.setItem('currentUser', JSON.stringify(mergedUser));
