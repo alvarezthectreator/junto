@@ -94,6 +94,8 @@ function ensureProductionTables() {
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
     `ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0;`,
     `ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP;`,
+    `ALTER TABLE users ADD COLUMN avatar_image TEXT;`,
+    `ALTER TABLE user_profiles ADD COLUMN avatar_image TEXT;`,
     `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
     `ALTER TABLE reports ADD COLUMN evidence_urls TEXT;`,
     `ALTER TABLE reports ADD COLUMN escalation_level VARCHAR(20) DEFAULT 'standard';`,
@@ -441,6 +443,56 @@ function ensureProductionTables() {
       db.run('CREATE INDEX IF NOT EXISTS idx_suspicious_activities_resolved ON suspicious_activities(resolved);');
     }
   });
+
+  db.all(
+    `SELECT user_id, profile_photos
+     FROM user_profiles
+     WHERE (avatar_image IS NULL OR avatar_image = '') AND profile_photos IS NOT NULL`,
+    [],
+    (err, rows = []) => {
+      if (err) {
+        console.warn('⚠️  Could not backfill avatar images:', err.message);
+        return;
+      }
+
+      rows.forEach((row) => {
+        let profilePhotos = [];
+
+        if (Array.isArray(row.profile_photos)) {
+          profilePhotos = row.profile_photos;
+        } else if (typeof row.profile_photos === 'string' && row.profile_photos.trim()) {
+          try {
+            const parsed = JSON.parse(row.profile_photos);
+            if (Array.isArray(parsed)) {
+              profilePhotos = parsed;
+            }
+          } catch {
+            profilePhotos = row.profile_photos
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean);
+          }
+        }
+
+        const avatarImage = profilePhotos[0];
+        if (!avatarImage) {
+          return;
+        }
+
+        db.run(
+          `UPDATE user_profiles
+           SET avatar_image = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ? AND (avatar_image IS NULL OR avatar_image = '')`,
+          [avatarImage, row.user_id],
+          (updateErr) => {
+            if (updateErr && !updateErr.message.includes('already exists')) {
+              console.warn('⚠️  Could not backfill avatar image for user:', row.user_id, updateErr.message);
+            }
+          }
+        );
+      });
+    }
+  );
 }
 
 // Run if called directly

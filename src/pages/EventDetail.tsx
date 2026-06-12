@@ -745,6 +745,50 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     window.setTimeout(() => setShareState(''), 2200);
   };
 
+  const openHostChat = () => {
+    const hostTarget = {
+      id: String(event.host_id || event.host.id || event.host.name),
+      name: event.host.name,
+      display_name: event.host.name,
+      profile_id: String(event.host_id || event.host.id || event.host.name),
+      avatarImage: event.host.avatar,
+      avatar_image: event.host.avatar,
+      city: event.location,
+      eventId: event.id,
+      source: 'event-host',
+    };
+
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('junto-message-target', JSON.stringify(hostTarget));
+    }
+
+    if (onNavigate) {
+      onNavigate('messages');
+    } else {
+      navigate('/messages');
+    }
+  };
+
+  const openHostProfile = () => {
+    setSelectedUser({
+      id: event.host_id || event.host.id || event.host.name,
+      name: event.host.name,
+      username: event.host.name,
+      display_name: event.host.name,
+      avatar: event.host.avatar,
+      avatar_image: event.host.avatar,
+      reliabilityScore: event.host.reliabilityScore,
+      isVerified: event.host.isVerified,
+      city: event.location,
+    });
+
+    if (onNavigate) {
+      onNavigate('profile');
+    } else {
+      navigate('/profile');
+    }
+  };
+
   const handleCancelAttendance = () => {
     setIsJoined(false);
     setApplicationStatus('none');
@@ -1131,7 +1175,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                           Withdraw application
                         </button>
                         <button
-                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          onClick={openHostChat}
                           className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
                         >
                           Message host
@@ -1142,7 +1186,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                     {applicationStatus === 'accepted' && (
                       <>
                         <button
-                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          onClick={openHostChat}
                           className="rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-sm font-semibold text-[#FBBF24] transition hover:bg-[#F59E0B]/20"
                         >
                           Message host
@@ -1165,7 +1209,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                           Browse more events
                         </button>
                         <button
-                          onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                          onClick={openHostChat}
                           className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                         >
                           Message host
@@ -1566,14 +1610,14 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <button
-                        onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                        onClick={openHostChat}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FB923C] py-3 font-semibold text-white transition hover:opacity-90"
                       >
                         <MessageCircle size={18} />
                         Message Host
                       </button>
                       <button
-                        onClick={() => onOpenMessages?.() ?? navigate('/messages')}
+                        onClick={openHostProfile}
                         className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10"
                       >
                         View All Events by {event.host.name}
@@ -1908,7 +1952,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                   I&apos;m Interested → {remainingCapacity > 0 && `(${remainingCapacity} spot${remainingCapacity !== 1 ? 's' : ''} left)`}
                 </button>
               )}
-              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={openHostChat} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 <MessageCircle size={16} /> Message
               </button>
               <button onClick={handleAddToCalendar} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
@@ -1926,7 +1970,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Cancel Application
               </button>
-              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={openHostChat} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Message Host
               </button>
               <button onClick={handleAddToCalendar} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
@@ -1944,7 +1988,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Withdraw
               </button>
-              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={openHostChat} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Message Host
               </button>
               <button onClick={handleAddToCalendar} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
@@ -1962,7 +2006,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
               <button onClick={() => onNavigate?.('main')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Browse more
               </button>
-              <button onClick={() => onOpenMessages?.() ?? navigate('/messages')} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={openHostChat} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Message Host
               </button>
               <button onClick={handleShare} className="sm:col-span-2 w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">

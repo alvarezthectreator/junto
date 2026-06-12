@@ -31,7 +31,7 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, verifySession } from './services/api';
+import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, getUserProfile, verifySession } from './services/api';
 import { appConfig } from './config/appConfig';
 import { trackEvent, trackPageView } from './services/analytics';
 import { updateThemeColor } from './services/pwa';
@@ -326,7 +326,8 @@ export function App() {
       date_of_birth: user.date_of_birth || null,
       gender: user.gender || null,
       occupation: user.occupation || null,
-      avatar_image: user.avatar_image || storedSnapshot.avatar_image || null,
+      avatar_image: user.avatar_image || user.avatar_url || storedSnapshot.avatar_image || storedSnapshot.avatar_url || null,
+      avatar_url: user.avatar_url || user.avatar_image || storedSnapshot.avatar_url || storedSnapshot.avatar_image || null,
       profile_photos: Array.isArray(user.profile_photos)
         ? user.profile_photos
         : Array.isArray(storedSnapshot.profile_photos)
@@ -433,6 +434,53 @@ export function App() {
   }, [handleLogout, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      return;
+    }
+
+    const alreadyHasAvatar = Boolean(
+      currentUser.avatar_image ||
+      currentUser.avatar_url ||
+      (Array.isArray(currentUser.profile_photos) && currentUser.profile_photos.length > 0)
+    );
+
+    if (alreadyHasAvatar) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const hydrateProfileMedia = async () => {
+      try {
+        const profile = await getUserProfile(currentUser.id);
+        const hydratedAvatar = profile.avatar_image || profile.avatar_url || (Array.isArray(profile.profile_photos) ? profile.profile_photos[0] : null);
+
+        if (!hydratedAvatar || cancelled) {
+          return;
+        }
+
+        const mergedUser = {
+          ...currentUser,
+          avatar_image: hydratedAvatar,
+          avatar_url: hydratedAvatar,
+          profile_photos: Array.isArray(profile.profile_photos) ? profile.profile_photos : currentUser.profile_photos || [],
+        };
+
+        setCurrentUser(mergedUser);
+        localStorage.setItem('currentUser', JSON.stringify(mergedUser));
+      } catch (error) {
+        console.error('Failed to hydrate profile media after login:', error);
+      }
+    };
+
+    void hydrateProfileMedia();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, currentUser?.avatar_image, currentUser?.avatar_url, currentUser?.id, currentUser?.profile_photos]);
+
+  useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
@@ -482,7 +530,8 @@ export function App() {
           ...verifiedUser,
           name: verifiedUser.username || verifiedUser.display_name || user.name || user.username || 'User',
           username: verifiedUser.username || user.username || user.name || 'User',
-          avatar_image: verifiedUser.avatar_image || user.avatar_image || null,
+          avatar_image: verifiedUser.avatar_image || verifiedUser.avatar_url || user.avatar_image || user.avatar_url || null,
+          avatar_url: verifiedUser.avatar_url || verifiedUser.avatar_image || user.avatar_url || user.avatar_image || null,
           profile_photos: Array.isArray(verifiedUser.profile_photos)
             ? verifiedUser.profile_photos
             : Array.isArray(user.profile_photos)
@@ -719,7 +768,7 @@ export function App() {
             {/* Page Content */}
             {activeNav === 'Discover' && <Discover onNavigate={navigateToPage} onOpenEvent={setSelectedEvent} currentUser={currentUser} />}
             {activeNav === 'My Requests' && <MyRequests />}
-            {activeNav === 'Messages' && <Messages />}
+            {activeNav === 'Messages' && <Messages currentUser={currentUser} onNavigate={navigateToPage} />}
             {activeNav === 'Safety' && <Safety />}
             {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} startEditing={Boolean((routeState as any)?.startEditing)} />}
             {activeNav === 'Nearby' && <Nearby onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}

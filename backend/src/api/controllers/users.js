@@ -29,10 +29,12 @@ function enrichProfileRow(row) {
   }
 
   const profilePhotos = normalizeProfilePhotos(row.profile_photos);
+  const avatarImage = row.avatar_image || row.user_avatar_image || profilePhotos[0] || null;
   return {
     ...row,
     profile_photos: profilePhotos,
-    avatar_image: row.avatar_image || profilePhotos[0] || null,
+    avatar_image: avatarImage,
+    avatar_url: avatarImage,
   };
 }
 
@@ -65,7 +67,7 @@ export async function getUserById(req, res) {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
        WHERE u.id = $1`,
@@ -87,7 +89,7 @@ export async function getUserProfile(req, res) {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
        WHERE u.id = $1`,
@@ -114,6 +116,7 @@ export async function updateUserProfile(req, res) {
       city,
       occupation,
       interests,
+      avatar_image,
       travel_mode_enabled,
       travel_destination_city,
       profile_photos,
@@ -122,7 +125,7 @@ export async function updateUserProfile(req, res) {
     } = req.body;
 
     // Update user table
-    if (display_name || bio || gender || city || occupation || intro_video_url || date_of_birth) {
+    if (display_name || bio || gender || city || occupation || avatar_image !== undefined || intro_video_url || date_of_birth) {
       const updates = [];
       const params = [];
       let paramCount = 1;
@@ -152,6 +155,11 @@ export async function updateUserProfile(req, res) {
         params.push(occupation);
         paramCount++;
       }
+      if (avatar_image !== undefined) {
+        updates.push(`avatar_image = $${paramCount}`);
+        params.push(avatar_image || null);
+        paramCount++;
+      }
       if (intro_video_url !== undefined) {
         updates.push(`intro_video_url = $${paramCount}`);
         params.push(intro_video_url || null);
@@ -177,6 +185,7 @@ export async function updateUserProfile(req, res) {
     // Update user_profiles table
     if (
       interests !== undefined ||
+      avatar_image !== undefined ||
       travel_mode_enabled !== undefined ||
       travel_destination_city !== undefined ||
       profile_photos !== undefined
@@ -195,6 +204,11 @@ export async function updateUserProfile(req, res) {
       if (interests !== undefined) {
         updates.push(`interests = $${paramCount}`);
         params.push(JSON.stringify(interests));
+        paramCount++;
+      }
+      if (avatar_image !== undefined) {
+        updates.push(`avatar_image = $${paramCount}`);
+        params.push(avatar_image || null);
         paramCount++;
       }
       if (travel_mode_enabled !== undefined) {
@@ -225,7 +239,7 @@ export async function updateUserProfile(req, res) {
     }
 
     const refreshed = await query(
-      `SELECT u.*, up.interests, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
        WHERE u.id = $1`,

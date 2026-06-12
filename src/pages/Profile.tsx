@@ -626,6 +626,7 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
         initialOccupation = userData.occupation || '';
         initialAvatar = getAvatarSrc(
           userData.avatar_image ||
+          userData.avatar_url ||
           userData.avatarImage ||
           (Array.isArray(userData.profile_photos) ? userData.profile_photos[0] : '') ||
           initialAvatar
@@ -648,11 +649,12 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
       isVerified: true,
       location: 'Lagos, Nigeria',
       profileId: currentUser?.profile_id || initialProfileId,
-      avatarImage: getAvatarSrc(
-        currentUser?.avatar_image ||
-        currentUser?.avatarImage ||
-        (Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos[0] : '') ||
-        initialAvatar
+        avatarImage: getAvatarSrc(
+          currentUser?.avatar_image ||
+          currentUser?.avatar_url ||
+          currentUser?.avatarImage ||
+          (Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos[0] : '') ||
+          initialAvatar
       ),
       visibility: {
         dob: 'private',
@@ -677,6 +679,7 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
         profileId: currentUser.profile_id || prev.profileId,
         avatarImage: getAvatarSrc(
           currentUser.avatar_image ||
+          currentUser.avatar_url ||
           currentUser.avatarImage ||
           (Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos[0] : '') ||
           prev.avatarImage
@@ -710,8 +713,10 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
             genderIdentity: userProfile.gender || prev.genderIdentity,
             avatarImage: getAvatarSrc(
               userProfile.avatar_image ||
+              userProfile.avatar_url ||
               userProfile.profile_photo ||
               storedUserSnapshot.avatar_image ||
+              storedUserSnapshot.avatar_url ||
               storedUserSnapshot.avatarImage ||
               (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
               serverPhotos[0] ||
@@ -726,8 +731,10 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
               photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
               avatarImage: getAvatarSrc(
                 userProfile.avatar_image ||
+                userProfile.avatar_url ||
                 userProfile.profile_photo ||
                 storedUserSnapshot.avatar_image ||
+                storedUserSnapshot.avatar_url ||
                 storedUserSnapshot.avatarImage ||
                 (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
                 serverPhotos[0] ||
@@ -987,15 +994,16 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
         const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
         localStorage.setItem(
           'currentUser',
-          JSON.stringify({
-            ...storedUser,
-            id: storedUser.id || currentUser?.id,
-            name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
-            username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
-            profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
-            profile_photos: persistedMedia,
-            avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
-          })
+            JSON.stringify({
+              ...storedUser,
+              id: storedUser.id || currentUser?.id,
+              name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
+              username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
+              profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
+              profile_photos: persistedMedia,
+              avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
+              avatar_url: persistedMedia[0] || storedUser.avatar_url || null,
+            })
         );
       } catch (storageError) {
         console.error('Failed to persist photo edit locally:', storageError);
@@ -1003,6 +1011,7 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
 
       if (currentUser?.id) {
         void API.updateUserProfile(currentUser.id, {
+          avatar_image: photoUploadTarget === 'avatar' ? (persistedMedia[0] || null) : undefined,
           profile_photos: persistedMedia,
         }).catch((error) => {
           console.error('Failed to persist photo edit on the backend:', error);
@@ -1072,13 +1081,14 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
           }
         }
 
-          const updatedProfile = await API.updateUserProfile(currentUser.id, {
+        const updatedProfile = await API.updateUserProfile(currentUser.id, {
           display_name: normalizedProfile.name,
           bio: normalizedProfile.bio,
           city: normalizedProfile.location,
           gender: normalizedProfile.genderIdentity,
           occupation: normalizedProfile.occupation,
           interests: normalizedProfile.interests,
+          avatar_image: storedMediaUrls[0] || undefined,
           profile_photos: storedMediaUrls,
           intro_video_url: normalizedProfile.introVideo || undefined,
           date_of_birth: normalizedProfile.dob || undefined,
@@ -1089,7 +1099,7 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
           name: updatedProfile.display_name || updatedProfile.full_name || updatedProfile.name || normalizedProfile.name || current.name,
           bio: updatedProfile.bio || current.bio,
           interests: updatedProfile.interests || current.interests,
-          avatarImage: getAvatarSrc(storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
+          avatarImage: getAvatarSrc(updatedProfile.avatar_image || storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
           photos: Array.isArray(updatedProfile.profile_photos)
             ? updatedProfile.profile_photos.slice(1, 5)
             : storedMediaUrls.slice(1, 5).length > 0
@@ -1109,7 +1119,7 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
               : storedMediaUrls.slice(1, 5).length > 0
                 ? storedMediaUrls.slice(1, 5)
                 : current.photos,
-            avatarImage: getAvatarSrc(storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
+            avatarImage: getAvatarSrc(updatedProfile.avatar_image || storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
             introVideo: updatedProfile.intro_video_url || current.introVideo,
             dob: updatedProfile.date_of_birth || current.dob,
             occupation: updatedProfile.occupation || current.occupation,
@@ -1127,7 +1137,8 @@ const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
               username: storedUser.username || normalizedProfile.name,
               profile_id: currentUser.profile_id || storedUser.profile_id,
               profile_photos: storedMediaUrls,
-              avatar_image: storedMediaUrls[0] || storedUser.avatar_image || null,
+              avatar_image: updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_image || null,
+              avatar_url: updatedProfile.avatar_url || updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_url || null,
               date_of_birth: normalizedProfile.dob || storedUser.date_of_birth || null,
               gender: normalizedProfile.genderIdentity || storedUser.gender || null,
               occupation: normalizedProfile.occupation || storedUser.occupation || null,

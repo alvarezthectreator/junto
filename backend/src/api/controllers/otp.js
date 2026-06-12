@@ -60,6 +60,43 @@ function buildOtpErrorResponse(emailResult) {
   };
 }
 
+function normalizeProfilePhotos(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(String);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).map(String);
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+function buildOtpUserPayload(userRow) {
+  const profilePhotos = normalizeProfilePhotos(userRow.profile_photos);
+  const avatarImage = userRow.avatar_image || profilePhotos[0] || null;
+
+  return {
+    id: userRow.id,
+    email: userRow.email,
+    display_name: userRow.display_name,
+    profile_id: userRow.profile_id,
+    avatar_image: avatarImage,
+    avatar_url: avatarImage,
+    profile_photos: profilePhotos,
+  };
+}
+
 /**
  * POST /api/auth/request-otp
  * Request an OTP code to be sent to email
@@ -275,6 +312,8 @@ export const verifyOTPCode = async (req, res) => {
                 email: normalizedEmail,
                 display_name: displayName,
                 profile_id: profileId,
+                avatar_image: null,
+                profile_photos: [],
               },
               isNewUser: true,
             });
@@ -296,12 +335,7 @@ export const verifyOTPCode = async (req, res) => {
           success: true,
           message: 'OTP verified. Login successful!',
           token,
-          user: {
-            id: user.id,
-            email: user.email,
-            display_name: user.display_name,
-            profile_id: user.profile_id,
-          },
+          user: buildOtpUserPayload(user),
           isNewUser: false,
         });
       }

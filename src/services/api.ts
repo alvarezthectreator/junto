@@ -24,6 +24,9 @@ export interface User {
   occupation?: string;
   referred_by_user_id?: string | null;
   created_at?: string;
+  avatar_image?: string | null;
+  avatar_url?: string | null;
+  profile_photos?: string[];
 }
 
 export interface UserProfile {
@@ -35,6 +38,8 @@ export interface UserProfile {
   bio?: string;
   profile_photo?: string;
   profile_photos?: string[];
+  avatar_image?: string | null;
+  avatar_url?: string | null;
   interests?: string[];
   city?: string;
   occupation?: string;
@@ -300,6 +305,9 @@ function createLocalVerifiedSession(): { valid: boolean; user: User } {
         display_name: parsed.display_name || parsed.name || displayName,
         profile_id: parsed.profile_id || `DEMO-${String(parsed.id || storedUserId).slice(0, 8).toUpperCase()}`,
         created_at: parsed.created_at || new Date().toISOString(),
+        avatar_image: parsed.avatar_image || parsed.avatar_url || null,
+        avatar_url: parsed.avatar_url || parsed.avatar_image || null,
+        profile_photos: parseMaybeJsonArray(parsed.profile_photos) || parsed.profile_photos || [],
       };
       return { valid: true, user };
     }
@@ -393,11 +401,16 @@ function normalizeUserProfile(profile: any): UserProfile {
     return profile;
   }
 
+  const profilePhotos = parseMaybeJsonArray(profile.profile_photos) || profile.profile_photos;
+  const avatarImage = profile.avatar_image || profile.avatar_url || (Array.isArray(profilePhotos) ? profilePhotos[0] : undefined);
+
   return {
     ...profile,
     name: profile.name || profile.display_name || profile.full_name || '',
     interests: parseMaybeJsonArray(profile.interests) || profile.interests,
-    profile_photos: parseMaybeJsonArray(profile.profile_photos) || profile.profile_photos,
+    profile_photos: profilePhotos,
+    avatar_image: avatarImage || null,
+    avatar_url: avatarImage || null,
   };
 }
 
@@ -761,12 +774,16 @@ export async function sendMessage(
   content: string,
   messageType: string = 'text'
 ): Promise<Message> {
-  return apiCall('/messages', 'POST', {
+  const response = await apiCall('/messages', 'POST', {
+    sender_id: getUserId(),
     conversation_id: conversationId,
     recipient_id: recipientId,
+    receiver_id: recipientId,
     content,
     message_type: messageType,
   });
+
+  return response.message || response;
 }
 
 export async function getConversations(userId: string): Promise<Conversation[]> {
@@ -778,7 +795,7 @@ export async function getConversation(
   limit: number = 50,
   offset: number = 0
 ): Promise<{ conversation: Conversation; messages: Message[] }> {
-  return apiCall(`/messages/conversations/${conversationId}?limit=${limit}&offset=${offset}`);
+  return apiCall(`/messages/${conversationId}?limit=${limit}&offset=${offset}`);
 }
 
 export async function markMessagesAsRead(conversationId: string): Promise<void> {

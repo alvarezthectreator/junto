@@ -3,9 +3,17 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function sendMessage(req, res) {
   try {
-    const { sender_id, receiver_id, content, message_type = 'text', media_url } = req.body;
+    const {
+      sender_id,
+      receiver_id,
+      recipient_id,
+      content,
+      message_type = 'text',
+      media_url,
+    } = req.body;
+    const resolvedReceiverId = receiver_id || recipient_id;
 
-    if (!sender_id || !receiver_id || !content) {
+    if (!sender_id || !resolvedReceiverId || !content) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -13,7 +21,7 @@ export async function sendMessage(req, res) {
     let convResult = await query(
       `SELECT id FROM conversations 
        WHERE (user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1)`,
-      [sender_id, receiver_id]
+      [sender_id, resolvedReceiverId]
     );
 
     let conversation_id;
@@ -21,7 +29,7 @@ export async function sendMessage(req, res) {
       const convId = uuidv4();
       await query(
         `INSERT INTO conversations (id, user1_id, user2_id) VALUES ($1, $2, $3)`,
-        [convId, sender_id, receiver_id]
+        [convId, sender_id, resolvedReceiverId]
       );
       conversation_id = convId;
     } else {
@@ -34,7 +42,7 @@ export async function sendMessage(req, res) {
       `INSERT INTO messages (id, conversation_id, sender_id, receiver_id, content, message_type, media_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [messageId, conversation_id, sender_id, receiver_id, content, message_type, media_url || null]
+      [messageId, conversation_id, sender_id, resolvedReceiverId, content, message_type, media_url || null]
     );
 
     // Update conversation timestamp
@@ -46,10 +54,11 @@ export async function sendMessage(req, res) {
     // Create notification
     const senderRes = await query('SELECT display_name FROM users WHERE id = $1', [sender_id]);
     if (senderRes.rows.length > 0) {
+      const notificationId = uuidv4();
       await query(
-        `INSERT INTO notifications (user_id, notification_type, related_user_id, title, body)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [receiver_id, 'new_message', sender_id, `Message from ${senderRes.rows[0].display_name}`, content.substring(0, 50)]
+        `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, datetime('now'))`,
+        [notificationId, resolvedReceiverId, 'new_message', sender_id, `Message from ${senderRes.rows[0].display_name}`, content.substring(0, 50)]
       );
     }
 

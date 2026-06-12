@@ -126,7 +126,7 @@ export async function getEventApplications(req, res) {
     const { eventId } = req.params;
     const { status } = req.query;
 
-    let sql = `SELECT ea.*, u.display_name, u.profile_id, u.bio, up.profile_photos
+    let sql = `SELECT ea.*, u.display_name, u.profile_id, u.bio, up.avatar_image, up.profile_photos
                FROM event_applications ea
                LEFT JOIN users u ON ea.user_id = u.id
                LEFT JOIN user_profiles up ON u.id = up.user_id

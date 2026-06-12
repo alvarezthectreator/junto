@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Bell, Compass, Flame, Loader2, MapPin, ShieldCheck, User, Heart, X } from "lucide-react";
+import { Bell, Compass, Flame, Loader2, MapPin, ShieldCheck, User, Heart, X, MessageCircle } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
+import { useAppContext } from "../context/AppContext";
 
 interface NearbyProps {
   onNavigate?: (page: string) => void;
@@ -92,11 +93,12 @@ export const Nearby: React.FC<NearbyProps> = ({
   isLightMode = false,
   currentUser,
 }) => {
+  const { setSelectedUser } = useAppContext();
   const [people, setPeople] = useState<NearbyPerson[]>(mockNearbyPeople);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<"All" | "Verified" | "Close" | "New">("All");
-  const [ageFilter, setAgeFilter] = useState<string | null>(null); // "18-30" | "30-50"
-  const [genderFilter, setGenderFilter] = useState<string | null>(null); // "Male" | "Female"
+  const [ageFilter, setAgeFilter] = useState<string | null>(null);
+  const [genderFilter, setGenderFilter] = useState<string | null>(null);
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [hobbyFilter, setHobbyFilter] = useState<string | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -143,57 +145,28 @@ export const Nearby: React.FC<NearbyProps> = ({
 
     fetchNearbyPeople();
 
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [currentUser?.id, refreshCount]);
 
   const filteredPeople = useMemo(() => {
     let filtered = people.filter(person => !dislikedUserIds.has(person.id) && !likedUserIds.has(person.id));
-    
-    // Apply basic filter
     switch (activeFilter) {
-      case "Verified":
-        filtered = filtered.filter((person) => person.isVerified);
-        break;
-      case "Close":
-        filtered = filtered.slice(0, 3);
-        break;
-      case "New":
-        filtered = filtered.filter((person) => person.badges.includes("Nearby"));
-        break;
+      case "Verified": filtered = filtered.filter((p) => p.isVerified); break;
+      case "Close": filtered = filtered.slice(0, 3); break;
+      case "New": filtered = filtered.filter((p) => p.badges.includes("Nearby")); break;
     }
-
-    // Apply advanced filters
-    if (verifiedOnly) {
-      filtered = filtered.filter((person) => person.isVerified);
-    }
-
+    if (verifiedOnly) filtered = filtered.filter((p) => p.isVerified);
     if (ageFilter) {
-      filtered = filtered.filter((person) => {
-        if (!person.age) return false;
-        if (ageFilter === "18-30") return person.age >= 18 && person.age <= 30;
-        if (ageFilter === "30-50") return person.age >= 30 && person.age <= 50;
+      filtered = filtered.filter((p) => {
+        if (!p.age) return false;
+        if (ageFilter === "18-30") return p.age >= 18 && p.age <= 30;
+        if (ageFilter === "30-50") return p.age >= 30 && p.age <= 50;
         return true;
       });
     }
-
-    if (genderFilter) {
-      filtered = filtered.filter((person) => person.gender === genderFilter);
-    }
-
-    if (languageFilter) {
-      filtered = filtered.filter((person) => 
-        person.language && person.language.includes(languageFilter)
-      );
-    }
-
-    if (hobbyFilter) {
-      filtered = filtered.filter((person) => 
-        person.hobbies && person.hobbies.includes(hobbyFilter)
-      );
-    }
-
+    if (genderFilter) filtered = filtered.filter((p) => p.gender === genderFilter);
+    if (languageFilter) filtered = filtered.filter((p) => p.language && p.language.includes(languageFilter));
+    if (hobbyFilter) filtered = filtered.filter((p) => p.hobbies && p.hobbies.includes(hobbyFilter));
     return filtered;
   }, [activeFilter, people, dislikedUserIds, likedUserIds, verifiedOnly, ageFilter, genderFilter, languageFilter, hobbyFilter]);
 
@@ -202,15 +175,12 @@ export const Nearby: React.FC<NearbyProps> = ({
 
   const handleDislikePerson = async (personId: string) => {
     if (!currentUser?.id) return;
-    
     try {
       const newDisliked = new Set(dislikedUserIds);
       newDisliked.add(personId);
       setDislikedUserIds(newDisliked);
       setSwipeMessage({ text: `Passed`, type: 'dislike' });
-      
       await API.swipeUser(currentUser.id, personId, 'left');
-      
       setTimeout(() => setSwipeMessage(null), 1500);
     } catch (error) {
       console.error('Failed to dislike user:', error);
@@ -224,20 +194,49 @@ export const Nearby: React.FC<NearbyProps> = ({
     setLikeActionModal(person);
   };
 
+  const openProfile = (person: NearbyPerson) => {
+    setSelectedUser?.({
+      id: person.id,
+      name: person.name,
+      username: person.name,
+      display_name: person.name,
+      profile_id: person.profileId,
+      city: person.city,
+      bio: person.bio,
+      avatarImage: person.avatarImage,
+      avatar_image: person.avatarImage,
+      profile_photos: person.gallery || [],
+      age: person.age,
+      gender: person.gender,
+      interests: person.hobbies || [],
+      location: person.city,
+    });
+    setActiveNav('Profile');
+    onNavigate('profile');
+  };
+
+  const openMessages = (person: NearbyPerson) => {
+    sessionStorage.setItem('junto-message-target', JSON.stringify({
+      id: person.id,
+      name: person.name,
+      display_name: person.name,
+      profile_id: person.profileId,
+      avatarImage: person.avatarImage || '',
+      city: person.city,
+    }));
+    setActiveNav('Messages');
+    onNavigate('messages');
+  };
+
   const handleSaveForLater = async (person: NearbyPerson) => {
     if (!currentUser?.id) return;
-    
     try {
-      // Save person to friends (using swipe right which creates a match)
       await API.swipeUser(currentUser.id, person.id, 'right');
-      
       const newLiked = new Set(likedUserIds);
       newLiked.add(person.id);
       setLikedUserIds(newLiked);
-      
       setSwipeMessage({ text: `✅ ${person.name} saved to your friends!`, type: 'like' });
       setLikeActionModal(null);
-      
       setTimeout(() => setSwipeMessage(null), 2500);
     } catch (error) {
       console.error('Failed to save person:', error);
@@ -245,509 +244,651 @@ export const Nearby: React.FC<NearbyProps> = ({
   };
 
   const handleCreateEvent = (person: NearbyPerson) => {
-    // Save the selected person to context/state for event creation
     setLikeActionModal(null);
-    // Navigate to event creation with this person pre-filled
     onNavigate('HostDashboard');
     setActiveNav('HostDashboard');
   };
 
-  const pageBg = isLightMode ? "#f8f3e8" : "#050505";
-  const pageText = isLightMode ? "#241b10" : "#fff";
-  const cardBg = isLightMode ? "rgba(255,250,242,0.92)" : "rgba(12,12,15,0.78)";
-  const panelBg = isLightMode ? "rgba(255,255,255,0.96)" : "rgba(26,26,33,0.92)";
-  const borderColor = isLightMode ? "rgba(36,27,16,0.10)" : "rgba(255,255,255,0.08)";
-  const mutedText = isLightMode ? "#8d7758" : "#9ca3af";
-  const subText = isLightMode ? "#7a674f" : "#d1d5db";
+  // ─── Theme tokens ────────────────────────────────────────────────────────────
+  const bg         = isLightMode ? "#F0EDE8" : "#0B0C14";
+  const surface    = isLightMode ? "rgba(255,255,255,0.85)" : "rgba(17,18,28,0.90)";
+  const surfaceAlt = isLightMode ? "rgba(255,255,255,0.65)" : "rgba(22,23,36,0.80)";
+  const border     = isLightMode ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.07)";
+  const coral      = "#FF6B47";
+  const teal       = "#00C9A7";
+  const ink        = isLightMode ? "#111118" : "#F2F0EC";
+  const muted      = isLightMode ? "#7a7670" : "#6B7280";
+  const glass      = isLightMode
+    ? "rgba(255,255,255,0.72)"
+    : "rgba(11,12,20,0.72)";
+
+  const filterBtnStyle = (active: boolean) => ({
+    background: active ? coral : surfaceAlt,
+    color: active ? "#fff" : ink,
+    border: `1px solid ${active ? coral : border}`,
+    borderRadius: "9999px",
+    padding: "6px 18px",
+    fontSize: "13px",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.18s ease",
+    backdropFilter: "blur(8px)",
+  } as React.CSSProperties);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: pageBg,
-        color: pageText,
-      }}
-      className="font-sans"
-    >
-      <main className="mobile-page-main mx-auto max-w-7xl px-4 py-5 pb-32 sm:px-6 lg:px-8">
+    <div style={{ minHeight: "100vh", background: bg, color: ink }} className="font-sans">
+
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
+      {swipeMessage && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="space-y-6"
+          exit={{ opacity: 0, y: -16 }}
+          style={{
+            position: "fixed", top: 20, right: 20, zIndex: 60,
+            background: swipeMessage.type === 'like' ? teal : coral,
+            color: "#fff",
+            borderRadius: "9999px",
+            padding: "8px 18px",
+            fontSize: "13px",
+            fontWeight: 700,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
+            display: "flex", alignItems: "center", gap: 8,
+          }}
         >
-          <section
+          <Bell size={13} />
+          {swipeMessage.text}
+        </motion.div>
+      )}
+
+      {/* ── Like-action Modal ─────────────────────────────────────────────── */}
+      {likeActionModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            background: "rgba(0,0,0,0.78)",
+            backdropFilter: "blur(12px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "0 16px",
+          }}
+          onClick={() => setLikeActionModal(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.93, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
             style={{
-              border: `1px solid ${borderColor}`,
-              background: isLightMode
-                ? "linear-gradient(180deg, rgba(255,250,242,0.98), rgba(255,245,230,0.84))"
-                : "linear-gradient(180deg, rgba(20,20,24,0.98), rgba(10,10,12,0.86))",
-              boxShadow: isLightMode ? "0 24px 80px rgba(120,53,15,0.08)" : "0 24px 80px rgba(0,0,0,0.32)",
+              width: "100%", maxWidth: 400,
+              background: isLightMode ? "#fff" : "#13141F",
+              border: `1px solid ${border}`,
+              borderRadius: "28px",
+              padding: "32px 28px",
+              boxShadow: "0 40px 100px rgba(0,0,0,0.4)",
             }}
-            className="overflow-hidden rounded-[2rem] p-5 sm:p-6 lg:p-8"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-500">
-                  <Flame size={14} />
-                  People registered near you
-                </div>
-                <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-                  Nearby people,
-                  <span className="italic text-amber-500"> one at a time.</span>
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: mutedText }}>
-                  Meet verified members close to you. Like someone to create an event together or save them as a friend.
-                </p>
+            {/* Avatar row */}
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: "50%",
+                background: `linear-gradient(135deg, ${coral}, #FF9F6B)`,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontSize: 32, marginBottom: 12,
+              }}>❤️</div>
+              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.4px" }}>
+                You liked {likeActionModal.name}
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                {(["All", "Verified", "Close", "New"] as const).map((filter) => {
-                  const active = activeFilter === filter;
-                  return (
-                    <button
-                      key={filter}
-                      onClick={() => setActiveFilter(filter)}
-                      className="rounded-full px-4 py-2 text-sm font-semibold transition"
-                      style={{
-                        background: active ? "#F59E0B" : panelBg,
-                        color: active ? "#111" : pageText,
-                        border: `1px solid ${active ? "#F59E0B" : borderColor}`,
-                      }}
-                    >
-                      {filter}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="rounded-full px-4 py-2 text-sm font-semibold transition"
-                  style={{
-                    background: showAdvancedFilters ? "#F59E0B" : panelBg,
-                    color: showAdvancedFilters ? "#111" : pageText,
-                    border: `1px solid ${showAdvancedFilters ? "#F59E0B" : borderColor}`,
-                  }}
-                >
-                  ⚙️ Filters
-                </button>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs" style={{ color: mutedText }}>
-                <span className="rounded-full border px-3 py-1" style={{ borderColor, background: panelBg }}>
-                  {filteredPeople.length} nearby profile{filteredPeople.length === 1 ? '' : 's'}
-                </span>
-                {currentUser?.city && (
-                  <span className="rounded-full border px-3 py-1" style={{ borderColor, background: panelBg }}>
-                    Based on {currentUser.city}
-                  </span>
-                )}
-              </div>
+              <div style={{ color: muted, fontSize: 13, marginTop: 4 }}>What's next?</div>
             </div>
-          </section>
 
-          {/* Advanced Filters */}
-          {showAdvancedFilters && (
-            <section
-              style={{
-                border: `1px solid ${borderColor}`,
-                background: cardBg,
-              }}
-              className="rounded-[2rem] p-6"
-            >
-              <h3 className="text-lg font-bold mb-6">Advanced Filters</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                {/* Age Filter */}
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Age Range</label>
-                  <div className="space-y-2">
-                    {["18-30", "30-50"].map((range) => (
-                      <button
-                        key={range}
-                        onClick={() => setAgeFilter(ageFilter === range ? null : range)}
-                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left"
-                        style={{
-                          background: ageFilter === range ? "#F59E0B" : "rgba(255,255,255,0.05)",
-                          color: ageFilter === range ? "#111" : pageText,
-                        }}
-                      >
-                        {range}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gender Filter */}
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Gender</label>
-                  <div className="space-y-2">
-                    {["Male", "Female"].map((gender) => (
-                      <button
-                        key={gender}
-                        onClick={() => setGenderFilter(genderFilter === gender ? null : gender)}
-                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left"
-                        style={{
-                          background: genderFilter === gender ? "#F59E0B" : "rgba(255,255,255,0.05)",
-                          color: genderFilter === gender ? "#111" : pageText,
-                        }}
-                      >
-                        {gender}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Language Filter */}
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Language</label>
-                  <div className="space-y-2">
-                    {["English", "French", "Spanish", "German"].map((lang) => (
-                      <button
-                        key={lang}
-                        onClick={() => setLanguageFilter(languageFilter === lang ? null : lang)}
-                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left truncate"
-                        style={{
-                          background: languageFilter === lang ? "#F59E0B" : "rgba(255,255,255,0.05)",
-                          color: languageFilter === lang ? "#111" : pageText,
-                        }}
-                      >
-                        {lang}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Hobbies Filter */}
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Hobbies</label>
-                  <div className="space-y-2">
-                    {["Hiking", "Sports", "Music", "Travel"].map((hobby) => (
-                      <button
-                        key={hobby}
-                        onClick={() => setHobbyFilter(hobbyFilter === hobby ? null : hobby)}
-                        className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left truncate"
-                        style={{
-                          background: hobbyFilter === hobby ? "#F59E0B" : "rgba(255,255,255,0.05)",
-                          color: hobbyFilter === hobby ? "#111" : pageText,
-                        }}
-                      >
-                        {hobby}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Verified Only */}
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: mutedText }}>Verification</label>
-                  <button
-                    onClick={() => setVerifiedOnly(!verifiedOnly)}
-                    className="w-full px-3 py-2 rounded-lg text-sm font-medium transition text-left flex items-center gap-2"
-                    style={{
-                      background: verifiedOnly ? "#10B981" : "rgba(255,255,255,0.05)",
-                      color: verifiedOnly ? "#fff" : pageText,
-                    }}
-                  >
-                    <ShieldCheck size={16} />
-                    Verified Only
-                  </button>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {swipeMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-md"
-              style={{
-                borderColor: swipeMessage.type === 'like' ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)',
-                background: swipeMessage.type === 'like' ? 'rgba(16,185,129,0.14)' : 'rgba(245,158,11,0.14)',
-                color: swipeMessage.type === 'like' ? '#34d399' : '#FCD34D',
-              }}
-            >
-              <Bell size={14} />
-              {swipeMessage.text}
-            </motion.div>
-          )}
-
-          {/* Like Action Modal */}
-          {likeActionModal && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
-              onClick={() => setLikeActionModal(null)}
-            >
-              <div
-                className="w-full max-w-md rounded-[2rem] border p-6 shadow-2xl"
-                style={{ borderColor, background: panelBg }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="text-center mb-6">
-                  <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-amber-500 text-5xl">
-                    ❤️
-                  </div>
-                  <h3 className="text-2xl font-bold">You liked {likeActionModal.name}!</h3>
-                  <p className="mt-2 text-sm" style={{ color: mutedText }}>
-                    What would you like to do next?
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    onClick={() => handleCreateEvent(likeActionModal)}
-                    className="w-full rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                    style={{ background: "#F59E0B", color: "#111" }}
-                  >
-                    ✨ Create an event with {likeActionModal.name}
-                  </button>
-                  <button
-                    onClick={() => handleSaveForLater(likeActionModal)}
-                    className="w-full rounded-full border px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                    style={{ borderColor, color: pageText }}
-                  >
-                    💾 Save for later
-                  </button>
-                  <button
-                    onClick={() => setLikeActionModal(null)}
-                    className="w-full rounded-full px-4 py-3 text-sm font-bold transition hover:opacity-90"
-                    style={{ background: "#6B7280", color: "#fff" }}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Single Card Display */}
-          <section className="mx-auto max-w-2xl">
-          {loading ? (
-              <div
-                className="flex items-center justify-center gap-3 rounded-[2rem] border p-8"
-                style={{ borderColor, background: cardBg }}
-              >
-                <Loader2 className="h-5 w-5 animate-spin text-amber-500" />
-                <span className="text-sm" style={{ color: subText }}>Loading nearby people...</span>
-              </div>
-            ) : fetchError ? (
-              <div
-                className="rounded-[2rem] border p-8 text-center space-y-4"
-                style={{ borderColor, background: cardBg }}
-              >
-                <div className="text-5xl">📡</div>
-                <h3 className="text-xl font-bold">Couldn’t load nearby people</h3>
-                <p style={{ color: mutedText }}>{fetchError}</p>
-                <div className="flex flex-wrap justify-center gap-3">
-                  <button
-                    onClick={() => setRefreshCount((count) => count + 1)}
-                    className="rounded-full px-4 py-2 text-sm font-semibold transition"
-                    style={{ background: "#F59E0B", color: "#111" }}
-                  >
-                    Retry
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveFilter("All");
-                      setAgeFilter(null);
-                      setGenderFilter(null);
-                      setLanguageFilter(null);
-                      setHobbyFilter(null);
-                      setVerifiedOnly(false);
-                      setRefreshCount((count) => count + 1);
-                    }}
-                    className="rounded-full border px-4 py-2 text-sm font-semibold transition"
-                    style={{ borderColor, color: pageText }}
-                  >
-                    Reset filters
-                  </button>
-                </div>
-              </div>
-            ) : currentPerson ? (
-              <motion.div
-                key={currentPerson.id}
-                initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 10 }}
-                transition={{ duration: 0.3 }}
-                className="relative rounded-[2rem] border overflow-hidden"
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { label: "👤  View profile", onClick: () => openProfile(likeActionModal), bg: surfaceAlt, color: ink },
+                { label: `💬  Message ${likeActionModal.name}`, onClick: () => openMessages(likeActionModal), bg: "#2563EB", color: "#fff" },
+                { label: `✨  Create an event together`, onClick: () => handleCreateEvent(likeActionModal), bg: coral, color: "#fff" },
+                { label: "💾  Save for later", onClick: () => handleSaveForLater(likeActionModal), bg: "transparent", color: ink, extraStyle: { border: `1px solid ${border}` } },
+              ].map((btn) => (
+                <button
+                  key={btn.label}
+                  onClick={btn.onClick}
+                  style={{
+                    background: btn.bg,
+                    color: btn.color,
+                    border: "none",
+                    borderRadius: "14px",
+                    padding: "13px 18px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "opacity 0.15s",
+                    ...(btn.extraStyle || {}),
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  {btn.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setLikeActionModal(null)}
                 style={{
-                  borderColor: 'rgba(245,158,11,0.28)',
-                  background: isLightMode ? 'rgba(255,255,255,0.96)' : 'rgba(18,18,23,0.98)',
-                  boxShadow: isLightMode ? '0 24px 70px rgba(120,53,15,0.12)' : '0 24px 70px rgba(0,0,0,0.34)',
+                  marginTop: 4, background: "transparent", border: "none",
+                  color: muted, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", padding: "8px",
                 }}
               >
-                {nextPeople.map((person, index) => (
-                  <div
-                    key={person.id}
-                    className="absolute inset-x-4 top-4 -z-0 rounded-[1.5rem] border shadow-2xl blur-[0.3px]"
-                    style={{
-                      borderColor,
-                      background: panelBg,
-                      transform: `translateY(${(index + 1) * 10}px) scale(${0.98 - index * 0.02})`,
-                      opacity: Math.max(0.15, 0.45 - index * 0.12),
-                    }}
-                  />
-                ))}
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
-                {/* Avatar / Media Section */}
-                <div className="relative h-44 overflow-hidden" style={{ background: isLightMode ? '#f6eddc' : '#14141b' }}>
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 120px" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+
+          {/* ── Page header ───────────────────────────────────────────────── */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: `${coral}18`, border: `1px solid ${coral}30`,
+              borderRadius: 9999, padding: "4px 12px",
+              fontSize: 11, fontWeight: 700, color: coral,
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              marginBottom: 12,
+            }}>
+              <MapPin size={11} />
+              People near you
+            </div>
+
+            <h1 style={{
+              fontSize: "clamp(28px, 6vw, 42px)",
+              fontWeight: 900,
+              letterSpacing: "-1.2px",
+              lineHeight: 1.08,
+              margin: "0 0 10px",
+            }}>
+              Nearby members,{" "}
+              <span style={{ color: coral, fontStyle: "italic" }}>one at a time.</span>
+            </h1>
+
+            <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 480, margin: 0 }}>
+              Browse verified Junto members close to you. Like to connect or message directly.
+            </p>
+          </div>
+
+          {/* ── Filter bar ────────────────────────────────────────────────── */}
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: 8,
+            marginBottom: showAdvancedFilters ? 16 : 24,
+          }}>
+            {(["All", "Verified", "Close", "New"] as const).map((f) => (
+              <button key={f} onClick={() => setActiveFilter(f)} style={filterBtnStyle(activeFilter === f)}>
+                {f}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              style={filterBtnStyle(showAdvancedFilters)}
+            >
+              ⚙ Filters
+            </button>
+            <button
+              onClick={() => { setActiveNav('Messages'); onNavigate('messages'); }}
+              style={{
+                ...filterBtnStyle(false),
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <MessageCircle size={13} /> Messages
+            </button>
+
+            {/* count chip */}
+            <span style={{
+              marginLeft: "auto",
+              background: surfaceAlt,
+              border: `1px solid ${border}`,
+              borderRadius: 9999,
+              padding: "6px 14px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: muted,
+              alignSelf: "center",
+              backdropFilter: "blur(8px)",
+            }}>
+              {filteredPeople.length} nearby
+            </span>
+          </div>
+
+          {/* ── Advanced filters panel ────────────────────────────────────── */}
+          {showAdvancedFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{
+                background: surface,
+                border: `1px solid ${border}`,
+                borderRadius: 20,
+                padding: "20px 20px",
+                marginBottom: 20,
+                backdropFilter: "blur(16px)",
+              }}
+            >
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: 20,
+              }}>
+                {/* Age */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Age</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {["18-30", "30-50"].map((r) => (
+                      <button key={r} onClick={() => setAgeFilter(ageFilter === r ? null : r)}
+                        style={{
+                          background: ageFilter === r ? coral : "transparent",
+                          color: ageFilter === r ? "#fff" : ink,
+                          border: `1px solid ${ageFilter === r ? coral : border}`,
+                          borderRadius: 10, padding: "7px 12px",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          textAlign: "left", transition: "all 0.15s",
+                        }}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Gender</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {["Male", "Female"].map((g) => (
+                      <button key={g} onClick={() => setGenderFilter(genderFilter === g ? null : g)}
+                        style={{
+                          background: genderFilter === g ? coral : "transparent",
+                          color: genderFilter === g ? "#fff" : ink,
+                          border: `1px solid ${genderFilter === g ? coral : border}`,
+                          borderRadius: 10, padding: "7px 12px",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          textAlign: "left", transition: "all 0.15s",
+                        }}>
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Language */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Language</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {["English", "French", "Spanish", "German"].map((l) => (
+                      <button key={l} onClick={() => setLanguageFilter(languageFilter === l ? null : l)}
+                        style={{
+                          background: languageFilter === l ? coral : "transparent",
+                          color: languageFilter === l ? "#fff" : ink,
+                          border: `1px solid ${languageFilter === l ? coral : border}`,
+                          borderRadius: 10, padding: "7px 12px",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          textAlign: "left", transition: "all 0.15s",
+                        }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hobbies */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Interests</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {["Hiking", "Sports", "Music", "Travel"].map((h) => (
+                      <button key={h} onClick={() => setHobbyFilter(hobbyFilter === h ? null : h)}
+                        style={{
+                          background: hobbyFilter === h ? coral : "transparent",
+                          color: hobbyFilter === h ? "#fff" : ink,
+                          border: `1px solid ${hobbyFilter === h ? coral : border}`,
+                          borderRadius: 10, padding: "7px 12px",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          textAlign: "left", transition: "all 0.15s",
+                        }}>
+                        {h}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Verified */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Status</div>
+                  <button
+                    onClick={() => setVerifiedOnly(!verifiedOnly)}
+                    style={{
+                      background: verifiedOnly ? teal : "transparent",
+                      color: verifiedOnly ? "#fff" : ink,
+                      border: `1px solid ${verifiedOnly ? teal : border}`,
+                      borderRadius: 10, padding: "7px 12px",
+                      fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      width: "100%", textAlign: "left",
+                      display: "flex", alignItems: "center", gap: 6,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <ShieldCheck size={14} />
+                    Verified only
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Main card area ────────────────────────────────────────────── */}
+          {loading ? (
+            <div style={{
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              gap: 14, padding: "72px 0",
+              background: surface, border: `1px solid ${border}`,
+              borderRadius: 24, backdropFilter: "blur(12px)",
+            }}>
+              <Loader2 style={{ color: coral, animation: "spin 1s linear infinite", width: 28, height: 28 }} />
+              <span style={{ color: muted, fontSize: 14 }}>Finding people near you…</span>
+            </div>
+
+          ) : fetchError ? (
+            <div style={{
+              textAlign: "center", padding: "56px 24px",
+              background: surface, border: `1px solid ${border}`,
+              borderRadius: 24, backdropFilter: "blur(12px)",
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Couldn't reach nearby</div>
+              <div style={{ color: muted, fontSize: 14, marginBottom: 24 }}>{fetchError}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                <button onClick={() => setRefreshCount(c => c + 1)} style={{ background: coral, color: "#fff", border: "none", borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  Retry
+                </button>
+                <button
+                  onClick={() => { setActiveFilter("All"); setAgeFilter(null); setGenderFilter(null); setLanguageFilter(null); setHobbyFilter(null); setVerifiedOnly(false); setRefreshCount(c => c + 1); }}
+                  style={{ background: "transparent", color: ink, border: `1px solid ${border}`, borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Reset filters
+                </button>
+              </div>
+            </div>
+
+          ) : currentPerson ? (
+            /* ── Person card — cinema-poster layout ── */
+            <div style={{ position: "relative" }}>
+              {/* Ghost stack cards behind */}
+              {nextPeople.slice(0, 2).map((_, i) => (
+                <div key={i} style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: 28,
+                  background: surface,
+                  border: `1px solid ${border}`,
+                  transform: `translateY(${(i + 1) * 8}px) scale(${0.97 - i * 0.025})`,
+                  opacity: 0.35 - i * 0.12,
+                  zIndex: -1,
+                }} />
+              ))}
+
+              <motion.div
+                key={currentPerson.id}
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  borderRadius: 28,
+                  overflow: "hidden",
+                  border: `1px solid ${border}`,
+                  boxShadow: isLightMode
+                    ? "0 20px 64px rgba(0,0,0,0.12)"
+                    : "0 20px 64px rgba(0,0,0,0.5)",
+                  background: isLightMode ? "#fff" : "#13141F",
+                }}
+              >
+                {/* ── Photo hero — full-bleed, tall ── */}
+                <div style={{ position: "relative", height: 340, background: isLightMode ? "#E8E3DC" : "#0F1018" }}>
                   {currentPerson.avatarImage ? (
                     <img
                       src={currentPerson.avatarImage}
                       alt={currentPerson.name}
-                      className="h-full w-full object-cover"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-5xl">
+                    <div style={{
+                      height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                      background: `linear-gradient(135deg, ${coral}22, ${teal}22)`,
+                      fontSize: 72, fontWeight: 900, color: coral,
+                      letterSpacing: "-2px",
+                    }}>
                       {currentPerson.avatar}
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+
+                  {/* Gradient overlay so text on photo is readable */}
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.18) 50%, transparent 100%)",
+                  }} />
+
+                  {/* ── Distance pill (top-right) ── */}
+                  <div style={{
+                    position: "absolute", top: 14, right: 14,
+                    background: glass,
+                    backdropFilter: "blur(14px)",
+                    border: `1px solid ${border}`,
+                    borderRadius: 9999,
+                    padding: "5px 12px",
+                    fontSize: 11, fontWeight: 700, color: "#fff",
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}>
+                    <MapPin size={10} />
+                    {currentPerson.proximityLabel}
+                  </div>
+
+                  {/* ── Verified badge (top-left) ── */}
+                  {currentPerson.isVerified && (
+                    <div style={{
+                      position: "absolute", top: 14, left: 14,
+                      background: `${teal}CC`,
+                      backdropFilter: "blur(10px)",
+                      borderRadius: 9999,
+                      padding: "5px 11px",
+                      fontSize: 11, fontWeight: 800, color: "#fff",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      <ShieldCheck size={11} />
+                      Verified
+                    </div>
+                  )}
+
+                  {/* ── Gallery thumbs (bottom-left) ── */}
                   {currentPerson.gallery && currentPerson.gallery.length > 1 && (
-                    <div className="absolute bottom-3 left-3 flex gap-2">
-                      {currentPerson.gallery.slice(0, 3).map((photo, index) => (
-                        <img
-                          key={`${currentPerson.id}-gallery-${index}`}
-                          src={photo}
-                          alt=""
-                          className="h-10 w-10 rounded-xl border border-white/20 object-cover shadow-lg"
-                        />
+                    <div style={{
+                      position: "absolute", bottom: 14, left: 14,
+                      display: "flex", gap: 6,
+                    }}>
+                      {currentPerson.gallery.slice(0, 3).map((photo, i) => (
+                        <img key={`${currentPerson.id}-g-${i}`} src={photo} alt=""
+                          style={{
+                            width: 38, height: 38, borderRadius: 10,
+                            objectFit: "cover",
+                            border: "2px solid rgba(255,255,255,0.25)",
+                            boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                          }} />
                       ))}
                     </div>
                   )}
+
+                  {/* ── Name overlay on photo ── */}
+                  <div style={{ position: "absolute", bottom: 14, right: 14, left: currentPerson.gallery && currentPerson.gallery.length > 1 ? 140 : 14 }}>
+                    <div style={{
+                      fontSize: "clamp(22px, 5vw, 30px)",
+                      fontWeight: 900,
+                      color: "#fff",
+                      letterSpacing: "-0.6px",
+                      lineHeight: 1.1,
+                      textShadow: "0 2px 12px rgba(0,0,0,0.5)",
+                    }}>
+                      {currentPerson.name}{currentPerson.age ? `, ${currentPerson.age}` : ""}
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.72)", marginTop: 3, fontWeight: 500 }}>
+                      {[currentPerson.city, currentPerson.gender].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Info Section */}
-                <div className="p-3 space-y-2">
-                  <div className="border-b pb-2" style={{ borderColor }}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <h2 className="text-lg font-bold">{currentPerson.name}{currentPerson.age && `, ${currentPerson.age}`}</h2>
-                          {currentPerson.isVerified && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-                              <ShieldCheck size={10} />
-                              Verified
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em]" style={{ color: mutedText }}>
-                          {currentPerson.city && `${currentPerson.city} · `}{currentPerson.gender && `${currentPerson.gender} · `}{currentPerson.profileId} · {currentPerson.proximityLabel}
-                        </p>
-                      </div>
-                    </div>
+                {/* ── Card body ── */}
+                <div style={{ padding: "20px 20px 24px" }}>
+                  {/* Profile ID */}
+                  <div style={{
+                    fontSize: 10, fontWeight: 800,
+                    textTransform: "uppercase", letterSpacing: "0.15em",
+                    color: muted, marginBottom: 12,
+                    fontFamily: "monospace",
+                  }}>
+                    {currentPerson.profileId}
                   </div>
 
-                  <div>
-                    <p className="text-sm leading-5" style={{ color: mutedText }}>
-                      {currentPerson.bio}
-                    </p>
-                  </div>
+                  {/* Bio */}
+                  <p style={{ fontSize: 14, color: muted, lineHeight: 1.6, margin: "0 0 16px" }}>
+                    {currentPerson.bio}
+                  </p>
 
-                  {/* Languages */}
-                  {currentPerson.language && currentPerson.language.length > 0 && (
-                    <div>
-                      <p className="text-[11px] uppercase tracking-widest font-semibold" style={{ color: mutedText }}>Languages</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {currentPerson.language.map((lang) => (
-                          <span key={lang} className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
-                            {lang}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Hobbies */}
-                  {currentPerson.hobbies && currentPerson.hobbies.length > 0 && (
-                    <div>
-                      <p className="text-[11px] uppercase tracking-widest font-semibold" style={{ color: mutedText }}>Interests</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {currentPerson.hobbies.map((hobby) => (
-                          <span key={hobby} className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: 'rgba(236,72,153,0.15)', color: '#EC4899' }}>
-                            {hobby}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-1">
-                    {currentPerson.badges.map((badge) => (
-                      <span
-                        key={badge}
-                        className="rounded-full px-2 py-1 text-[10px] font-semibold"
-                        style={{
-                          background: isLightMode ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.14)',
-                          color: isLightMode ? '#b45309' : '#FCD34D',
-                        }}
-                      >
-                        📍 {badge}
-                      </span>
+                  {/* Tags row */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+                    {currentPerson.language?.map((l) => (
+                      <span key={l} style={{
+                        background: `${teal}1A`, color: teal,
+                        border: `1px solid ${teal}30`,
+                        borderRadius: 9999, padding: "3px 10px",
+                        fontSize: 11, fontWeight: 700,
+                      }}>{l}</span>
+                    ))}
+                    {currentPerson.hobbies?.map((h) => (
+                      <span key={h} style={{
+                        background: `${coral}18`, color: coral,
+                        border: `1px solid ${coral}30`,
+                        borderRadius: 9999, padding: "3px 10px",
+                        fontSize: 11, fontWeight: 700,
+                      }}>{h}</span>
                     ))}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-2">
+                  {/* ── Action buttons ── */}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {/* Pass */}
                     <button
                       onClick={() => void handleDislikePerson(currentPerson.id)}
-                      className="flex-1 rounded-full px-3 py-2 text-xs font-bold transition hover:opacity-90 flex items-center justify-center gap-1"
-                      style={{ background: '#6B7280', color: '#fff' }}
+                      style={{
+                        flex: 1,
+                        background: isLightMode ? "#F0EDE8" : "#1E1F2E",
+                        color: muted,
+                        border: `1px solid ${border}`,
+                        borderRadius: 14,
+                        padding: "13px 0",
+                        fontSize: 13, fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B7280"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = border; }}
                     >
-                      <X size={14} />
-                      Pass
+                      <X size={15} /> Pass
                     </button>
+
+                    {/* Like */}
                     <button
                       onClick={() => handleLikeAndShowModal(currentPerson)}
-                      className="flex-1 rounded-full px-3 py-2 text-xs font-bold transition hover:opacity-90 flex items-center justify-center gap-1"
-                      style={{ background: '#10B981', color: '#fff' }}
+                      style={{
+                        flex: 2,
+                        background: coral,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 14,
+                        padding: "13px 0",
+                        fontSize: 13, fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        boxShadow: `0 6px 24px ${coral}44`,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.88"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
                     >
-                      <Heart size={14} />
-                      Like
+                      <Heart size={15} /> Like
+                    </button>
+
+                    {/* Message */}
+                    <button
+                      onClick={() => openMessages(currentPerson)}
+                      style={{
+                        flex: 1,
+                        background: isLightMode ? "#EEF2FF" : "#1E2640",
+                        color: "#2563EB",
+                        border: `1px solid rgba(37,99,235,0.20)`,
+                        borderRadius: 14,
+                        padding: "13px 0",
+                        fontSize: 13, fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#2563EB"; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = isLightMode ? "#EEF2FF" : "#1E2640"; e.currentTarget.style.color = "#2563EB"; }}
+                    >
+                      <Bell size={15} />
                     </button>
                   </div>
                 </div>
               </motion.div>
-            ) : (
-              <div
-                className="rounded-[2rem] border p-8 text-center"
-                style={{ borderColor, background: cardBg }}
-              >
-                <div className="text-5xl mb-3">🎉</div>
-                <h3 className="text-xl font-bold mb-2">No more people!</h3>
-                <p style={{ color: mutedText }}>
-                  You've browsed all nearby members. Try switching filters, reset them, or check back later.
-                </p>
-                <div className="mt-5 flex flex-wrap justify-center gap-3">
-                  <button
-                    onClick={() => {
-                      setActiveFilter("All");
-                      setAgeFilter(null);
-                      setGenderFilter(null);
-                      setLanguageFilter(null);
-                      setHobbyFilter(null);
-                      setVerifiedOnly(false);
-                    }}
-                    className="rounded-full border px-4 py-2 text-sm font-semibold transition"
-                    style={{ borderColor, color: pageText }}
-                  >
-                    Clear filters
-                  </button>
-                  <button
-                    onClick={() => setRefreshCount((count) => count + 1)}
-                    className="rounded-full px-4 py-2 text-sm font-semibold transition"
-                    style={{ background: '#F59E0B', color: '#111' }}
-                  >
-                    Refresh nearby
-                  </button>
-                </div>
+            </div>
+
+          ) : (
+            /* ── Empty state ── */
+            <div style={{
+              textAlign: "center", padding: "64px 24px",
+              background: surface, border: `1px solid ${border}`,
+              borderRadius: 24,
+            }}>
+              <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.4px", marginBottom: 8 }}>
+                You've seen everyone nearby
               </div>
-            )}
-          </section>
+              <div style={{ color: muted, fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
+                Try adjusting your filters or check back a bit later.
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { setActiveFilter("All"); setAgeFilter(null); setGenderFilter(null); setLanguageFilter(null); setHobbyFilter(null); setVerifiedOnly(false); }}
+                  style={{ background: "transparent", color: ink, border: `1px solid ${border}`, borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Clear filters
+                </button>
+                <button
+                  onClick={() => setRefreshCount(c => c + 1)}
+                  style={{ background: coral, color: "#fff", border: "none", borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          )}
+
         </motion.div>
       </main>
 

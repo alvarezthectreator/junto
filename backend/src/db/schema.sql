@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT,
   date_of_birth DATE,
   intro_video_url VARCHAR(500),
+  avatar_image TEXT,
   profile_id VARCHAR(20) UNIQUE,
   referred_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   interests TEXT[], -- array of interests
+  avatar_image TEXT,
   profile_photos TEXT[], -- array of photo URLs
   last_active TIMESTAMP,
   travel_mode_enabled BOOLEAN DEFAULT false,

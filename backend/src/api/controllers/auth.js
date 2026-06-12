@@ -11,6 +11,46 @@ function hashRecoveryCode(code) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
+function normalizeProfilePhotos(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(String);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).map(String);
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+function buildAuthUserPayload(userRow, profileRow = {}) {
+  const profilePhotos = normalizeProfilePhotos(profileRow.profile_photos);
+  const avatarImage = userRow.avatar_image || userRow.user_avatar_image || profileRow.avatar_image || profilePhotos[0] || null;
+
+  return {
+    id: userRow.id,
+    username: userRow.username,
+    display_name: userRow.display_name || userRow.username,
+    profile_id: userRow.profile_id,
+    gender: userRow.gender || null,
+    date_of_birth: userRow.date_of_birth || null,
+    occupation: userRow.occupation || null,
+    avatar_image: avatarImage,
+    avatar_url: avatarImage,
+    profile_photos: profilePhotos,
+  };
+}
+
 function generateRecoveryCode() {
   const raw = crypto.randomBytes(8).toString('hex').toUpperCase();
   return raw.match(/.{1,4}/g)?.join('-') || raw;
@@ -129,14 +169,22 @@ export async function dummyLogin(req, res) {
       user = result;
     }
 
+    const profileResult = await query(
+      `SELECT u.avatar_image AS user_avatar_image, up.avatar_image, up.profile_photos
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE u.id = ?`,
+      [user.rows[0].id]
+    );
+
+    const payload = buildAuthUserPayload(user.rows[0], profileResult.rows[0] || {});
+
     // Return user with dummy session token
     res.json({
       success: true,
       user: {
-        id: user.rows[0].id,
+        ...payload,
         phone_number: user.rows[0].phone_number,
-        display_name: user.rows[0].display_name,
-        profile_id: user.rows[0].profile_id
       },
       session_token: `dummy-session-${uuidv4()}`,
       message: '✅ Logged in successfully (dummy auth)'
@@ -170,20 +218,20 @@ export async function login(req, res) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
+    const profileResult = await query(
+      `SELECT u.avatar_image AS user_avatar_image, up.avatar_image, up.profile_photos
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE u.id = ?`,
+      [userData.id]
+    );
+
     // Return user with session token
     const session = await createAuthSession(userData, req, 'login');
 
     res.json({
       success: true,
-      user: {
-        id: userData.id,
-        username: userData.username,
-        display_name: userData.display_name || userData.username,
-        profile_id: userData.profile_id,
-        gender: userData.gender || null,
-        date_of_birth: userData.date_of_birth || null,
-        occupation: userData.occupation || null
-      },
+      user: buildAuthUserPayload(userData, profileResult.rows[0] || {}),
       session_token: session.token,
       message: '✅ Logged in successfully'
     });
@@ -252,7 +300,9 @@ export async function signup(req, res) {
         referred_by_user_id: referredByUserId,
         date_of_birth: dateOfBirth || null,
         gender: gender || null,
-        occupation: null
+        occupation: null,
+        avatar_image: null,
+        profile_photos: [],
       },
       session_token: session.token,
       message: '✅ Account created successfully'
@@ -277,17 +327,16 @@ export async function verifySession(req, res) {
     }
 
     const userData = user.rows[0];
+    const profileResult = await query(
+      `SELECT u.avatar_image AS user_avatar_image, up.avatar_image, up.profile_photos
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE u.id = ?`,
+      [userData.id]
+    );
     res.json({
       valid: true,
-      user: {
-        id: userData.id,
-        username: userData.username,
-        display_name: userData.display_name || userData.username,
-        profile_id: userData.profile_id,
-        gender: userData.gender || null,
-        date_of_birth: userData.date_of_birth || null,
-        occupation: userData.occupation || null,
-      },
+      user: buildAuthUserPayload(userData, profileResult.rows[0] || {}),
       message: 'Session valid'
     });
   } catch (error) {

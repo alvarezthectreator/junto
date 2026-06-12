@@ -31,8 +31,14 @@ import {
   upsertMessage,
   writeMessageStore,
 } from '../utils/messageStore';
+import * as API from '../services/api';
 
 type SchedulePreset = 'now' | '5m' | '1h' | 'tomorrow';
+
+interface MessagesProps {
+  currentUser?: any;
+  onNavigate?: (page: string) => void;
+}
 
 const scheduleLabels: Record<SchedulePreset, string> = {
   now: 'Send now',
@@ -96,6 +102,46 @@ function StatusDots() {
   );
 }
 
+function hashToConversationId(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash) + 1000;
+}
+
+function buildConversationColor(value: string) {
+  const colors = ['bg-[#4ECDC4]', 'bg-[#38BDF8]', 'bg-[#FB7185]', 'bg-[#F59E0B]', 'bg-[#FF8E72]', 'bg-[#FF6B6B]'];
+  return colors[Math.abs(hashToConversationId(value)) % colors.length];
+}
+
+function resolvePeerId(conversation: ConversationRecord | undefined, targetUser: any, currentUserId?: string) {
+  if (targetUser?.id) {
+    return String(targetUser.id);
+  }
+
+  if (conversation?.peerUserId) {
+    return String(conversation.peerUserId);
+  }
+
+  return currentUserId || '';
+}
+
+function isSameUser(valueA?: string | null, valueB?: string | null) {
+  return Boolean(valueA && valueB && String(valueA).trim().toLowerCase() === String(valueB).trim().toLowerCase());
+}
+
+function isCurrentUserConversation(conversation: ConversationRecord, currentUser: any) {
+  const currentUserId = String(currentUser?.id || '');
+  const currentUserName = String(currentUser?.name || currentUser?.display_name || currentUser?.username || currentUser?.email || '');
+
+  return (
+    (conversation.peerUserId && currentUserId && String(conversation.peerUserId) === currentUserId) ||
+    isSameUser(conversation.name, currentUserName) ||
+    isSameUser(conversation.context, 'Direct message') && isSameUser(conversation.name, currentUser?.email)
+  );
+}
+
 function CallModal({
   type,
   name,
@@ -146,8 +192,10 @@ function CallModal({
   );
 }
 
-export function Messages() {
+export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }: MessagesProps) {
   const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [targetUser, setTargetUser] = useState<any>(null);
   const [store, setStore] = useState<MessageStore>(() => readMessageStore());
   const [isReady, setIsReady] = useState(false);
   const [activeConversation, setActiveConversation] = useState(store.activeConversationId ?? 1);
@@ -162,11 +210,189 @@ export function Messages() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    try {
+      const storedUser = currentUserProp || window.localStorage.getItem('currentUser');
+      setCurrentUser(typeof storedUser === 'string' ? JSON.parse(storedUser) : storedUser);
+    } catch {
+      setCurrentUser(null);
+    }
+
+    try {
+      const targetRaw = window.sessionStorage.getItem('junto-message-target');
+      setTargetUser(targetRaw ? JSON.parse(targetRaw) : null);
+      window.sessionStorage.removeItem('junto-message-target');
+    } catch {
+      setTargetUser(null);
+    }
+
     const hydrated = writeMessageStore(purgeExpiredConversations(flushScheduledMessages(readMessageStore())));
     setStore(hydrated);
     setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
     setIsReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!isReady || !currentUser?.id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncBackendConversations = async () => {
+      try {
+        const response = await API.getConversations(currentUser.id);
+        if (cancelled || !Array.isArray(response)) {
+          return;
+        }
+
+        const backendConversations = await Promise.all(
+          response.map(async (conversation: any) => {
+            const conversationId = hashToConversationId(String(conversation.id));
+            const otherName = String(conversation.display_name || conversation.name || 'Chat');
+            const otherInitial = otherName.trim().charAt(0).toUpperCase() || 'C';
+            const threadResponse = await API.getConversation(String(conversation.id)).catch(() => ({ messages: [] }));
+            const backendMessages = Array.isArray((threadResponse as any)?.messages) ? (threadResponse as any).messages : [];
+            const mappedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
+              id: String(message.id),
+              from: String(message.sender_id) === String(currentUser.id) ? 'You' : otherName,
+              mine: String(message.sender_id) === String(currentUser.id),
+              type: (message.message_type || 'text') as MessageRecord['type'],
+              text: message.content || '',
+              url: message.media_url || undefined,
+              time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: message.is_read ? 'read' : 'delivered',
+              createdAt: message.created_at || new Date().toISOString(),
+              deliveredAt: message.created_at || undefined,
+              readAt: message.read_at || undefined,
+            }));
+
+            return {
+              conversationId,
+              conversation: {
+                id: conversationId,
+                peerUserId: String(conversation.other_user_id || ''),
+                name: otherName,
+                initial: otherInitial,
+                color: buildConversationColor(String(conversation.other_user_id || conversation.id)),
+                context: mappedMessages.length ? summarizeMessage(mappedMessages[mappedMessages.length - 1]) : 'Direct message',
+                routeLabel: 'Direct chat',
+                time: 'Now',
+                unread: false,
+                hangout: 'Direct message',
+                eventId: conversation.event_id,
+              } as ConversationRecord,
+              messages: mappedMessages,
+            };
+          })
+        );
+
+        const focusedPeerId = String(targetUser?.id || targetUser?.profile_id || '');
+        const filteredBackendConversations = backendConversations.filter(({ conversation }) => {
+          if (isCurrentUserConversation(conversation, currentUser)) {
+            return false;
+          }
+
+          if (focusedPeerId) {
+            return String(conversation.peerUserId || '') === focusedPeerId;
+          }
+
+          return true;
+        });
+
+        if (cancelled || filteredBackendConversations.length === 0) {
+          return;
+        }
+
+        setStore((current) => {
+          const nextConversations = [...current.conversations];
+          const nextThreads = { ...current.threads };
+
+          filteredBackendConversations.forEach(({ conversationId, conversation, messages }) => {
+            const existingIndex = nextConversations.findIndex((item) => item.id === conversationId);
+            if (existingIndex >= 0) {
+              nextConversations[existingIndex] = { ...nextConversations[existingIndex], ...conversation };
+            } else {
+              nextConversations.unshift(conversation);
+            }
+            nextThreads[conversationId] = messages;
+          });
+
+          const nextVisibleConversations = focusedPeerId
+            ? nextConversations.filter((conversation) =>
+                String(conversation.peerUserId || '') === focusedPeerId ||
+                isSameUser(conversation.name, String(targetUser?.name || targetUser?.display_name || ''))
+              )
+            : nextConversations.filter((conversation) => !isCurrentUserConversation(conversation, currentUser));
+
+          const nextStore = writeMessageStore({
+            ...current,
+            conversations: nextVisibleConversations.length ? nextVisibleConversations : nextConversations,
+            threads: nextThreads,
+            activeConversationId: (nextVisibleConversations.length ? nextVisibleConversations : nextConversations).find((conversation) => conversation.id === activeConversation)?.id
+              ?? (nextVisibleConversations.length ? nextVisibleConversations : nextConversations)[0]?.id
+              ?? current.activeConversationId
+              ?? 1,
+          });
+
+          return nextStore;
+        });
+      } catch (error) {
+        console.error('Failed to sync backend conversations:', error);
+      }
+    };
+
+    void syncBackendConversations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, isReady]);
+
+  useEffect(() => {
+    if (!targetUser) {
+      return;
+    }
+
+    const conversationId = hashToConversationId(String(targetUser.id || targetUser.profile_id || targetUser.name || 'chat'));
+    const displayName = String(targetUser.name || targetUser.display_name || 'Chat');
+    const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
+
+    setStore((current) => {
+      const existing = current.conversations.find((conversation) => conversation.id === conversationId);
+      const nextConversation = existing || {
+        id: conversationId,
+        peerUserId: String(targetUser.id || ''),
+        name: displayName,
+        initial,
+        color: buildConversationColor(String(targetUser.id || displayName)),
+        context: 'Direct message',
+        routeLabel: 'New chat',
+        time: 'Now',
+        unread: false,
+        hangout: targetUser.city || 'Direct message',
+      };
+
+      const nextStore = {
+        ...current,
+        conversations: existing
+          ? current.conversations.map((conversation) => conversation.id === conversationId ? nextConversation : conversation)
+          : [nextConversation, ...current.conversations],
+        threads: current.threads[conversationId] ? current.threads : { ...current.threads, [conversationId]: current.threads[conversationId] || [] },
+        activeConversationId: conversationId,
+      };
+
+      const normalized = writeMessageStore({
+        ...nextStore,
+        conversations: nextStore.conversations.filter((conversation) =>
+          String(conversation.peerUserId || '') === String(targetUser?.id || targetUser?.profile_id || '') ||
+          isSameUser(conversation.name, displayName)
+        ),
+      });
+      return normalized;
+    });
+
+    setActiveConversation(conversationId);
+  }, [targetUser]);
 
   useEffect(() => {
     if (!isReady) {
@@ -314,6 +540,13 @@ export function Messages() {
       })
     );
 
+    const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
+    if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
+      void API.sendMessage(null, targetRecipientId, value, 'text').catch((error) => {
+        console.error('Failed to send backend message:', error);
+      });
+    }
+
     setComposeText('');
     setSchedulePreset('now');
     setEmojiBurst(scheduledFor ? `Queued for ${scheduleLabels[schedulePreset]}` : 'Sent');
@@ -356,6 +589,13 @@ export function Messages() {
         }
       )
     );
+
+    const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
+    if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
+      void API.sendMessage(null, targetRecipientId, file.name, messageType).catch((error) => {
+        console.error('Failed to send backend attachment message:', error);
+      });
+    }
 
     event.target.value = '';
     setEmojiBurst('Attachment sent');
@@ -402,6 +642,13 @@ export function Messages() {
       )
     );
 
+    const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
+    if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
+      void API.sendMessage(null, targetRecipientId, 'Voice note', 'voice').catch((error) => {
+        console.error('Failed to send backend voice message:', error);
+      });
+    }
+
     setIsRecording(false);
     setRecordStartedAt(null);
     setEmojiBurst('Voice note sent');
@@ -411,6 +658,8 @@ export function Messages() {
   const handleDeleteMessage = (messageId: string) => {
     updateStore((current) => removeMessage(current, activeConversation, messageId));
   };
+
+  const hasConversation = Boolean(store.conversations.length);
 
   return (
     <>
@@ -571,13 +820,18 @@ export function Messages() {
               >
                 <Video size={17} />
               </button>
-              <button className="rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10">
-                View request
-              </button>
-            </div>
+            <button onClick={() => onNavigate('profile')} className="rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10">
+              View profile
+            </button>
+          </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
+            {!hasConversation && (
+              <div className="mb-4 rounded-3xl border border-white/5 bg-white/[0.03] p-6 text-center text-sm text-gray-400">
+                Your inbox is empty. Open Nearby and tap Message on a person to start a real conversation.
+              </div>
+            )}
             <div className="mb-4 text-center">
               <span className="rounded-full bg-[#0F0F13] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
                 Today
@@ -683,9 +937,6 @@ export function Messages() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white">{replyHint}</p>
-                  <p className="text-xs text-gray-400">
-                    Read receipts, photos, videos, voice notes, group chats, scheduled sends, and local persistence are all live.
-                  </p>
                 </div>
               </div>
             </div>
@@ -763,7 +1014,6 @@ export function Messages() {
                 </button>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-                <span>{activeConversationExpired ? 'This event has passed, so the thread is in cleanup mode.' : 'Messages persist locally and auto-expire after the event ends.'}</span>
                 <span>{activeLastMessage ? `Last message at ${activeLastMessage.time}` : 'No messages yet'}</span>
               </div>
             </div>
