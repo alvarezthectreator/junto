@@ -54,7 +54,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
       }
 
       const response = await API.login(loginUsername, loginPassword);
-      localStorage.setItem('displayName', response.user.display_name || loginUsername);
+      sessionStorage.setItem('displayName', response.user.display_name || loginUsername);
       onLogin(response.user, response.session_token);
       setMode('landing');
     } catch (err: any) {

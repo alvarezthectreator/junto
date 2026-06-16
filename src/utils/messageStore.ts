@@ -23,6 +23,7 @@ export type MessageRecord = {
 
 export type ConversationRecord = {
   id: number;
+  backendConversationId?: string;
   peerUserId?: string;
   name: string;
   initial: string;
@@ -115,6 +116,10 @@ function notifyStoreUpdate() {
   window.dispatchEvent(new CustomEvent(MESSAGE_STORE_EVENT));
 }
 
+export function getMessageStoreKey(scopeUserId?: string | null): string {
+  return scopeUserId ? `${MESSAGE_STORE_KEY}:${scopeUserId}` : MESSAGE_STORE_KEY;
+}
+
 function nowIso(now = Date.now()) {
   return new Date(now).toISOString();
 }
@@ -123,23 +128,25 @@ function formatClock(now = Date.now()) {
   return new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function readMessageStore(): MessageStore {
+export function readMessageStore(scopeUserId?: string | null): MessageStore {
   if (typeof window === 'undefined') {
     return createDefaultMessageStore();
   }
 
   try {
-    const raw = window.localStorage.getItem(MESSAGE_STORE_KEY);
-    if (!raw) {
+    const scopedKey = getMessageStoreKey(scopeUserId);
+    const raw = window.localStorage.getItem(scopedKey);
+    const legacyRaw = raw ? null : window.localStorage.getItem(MESSAGE_STORE_KEY);
+    const storeRaw = raw || legacyRaw;
+    if (!storeRaw) {
       return createDefaultMessageStore();
     }
 
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(storeRaw);
     const conversations = Array.isArray(parsed?.conversations) ? parsed.conversations : baseConversations;
     const threads = parsed?.threads && typeof parsed.threads === 'object' ? parsed.threads : baseThreads;
     const cleanedConversations = conversations.filter((conversation) => !isLegacySampleConversation(conversation));
-
-    return {
+    const normalizedStore: MessageStore = {
       conversations: cloneConversations(cleanedConversations),
       threads: cloneThreads(threads),
       activeConversationId: Number.isFinite(Number(parsed?.activeConversationId))
@@ -148,6 +155,13 @@ export function readMessageStore(): MessageStore {
         : cleanedConversations[0]?.id ?? 1,
       updatedAt: typeof parsed?.updatedAt === 'string' ? parsed.updatedAt : nowIso(),
     };
+
+    if (!raw && legacyRaw && scopeUserId) {
+      window.localStorage.setItem(scopedKey, JSON.stringify(normalizedStore));
+      window.localStorage.removeItem(MESSAGE_STORE_KEY);
+    }
+
+    return normalizedStore;
   } catch {
     return createDefaultMessageStore();
   }
@@ -162,11 +176,11 @@ export function createDefaultMessageStore(): MessageStore {
   };
 }
 
-export function writeMessageStore(store: MessageStore): MessageStore {
+export function writeMessageStore(store: MessageStore, scopeUserId?: string | null): MessageStore {
   const normalized = normalizeMessageStore(store);
 
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(MESSAGE_STORE_KEY, JSON.stringify(normalized));
+    window.localStorage.setItem(getMessageStoreKey(scopeUserId), JSON.stringify(normalized));
     notifyStoreUpdate();
   }
 

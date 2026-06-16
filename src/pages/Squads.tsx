@@ -18,7 +18,7 @@ const SquadsPage = () => {
     type: 'success',
   });
 
-  const userId = localStorage.getItem('userId');
+  const userId = API.getUserId();
 
   useEffect(() => {
     if (userId) {

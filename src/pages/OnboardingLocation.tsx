@@ -63,17 +63,14 @@ export function OnboardingLocation({
         travel_destination_city: selectedLocation,
       });
 
-      const storedRaw = localStorage.getItem('currentUser');
+      const storedRaw = sessionStorage.getItem('junto-current-user');
       if (storedRaw) {
         const stored = JSON.parse(storedRaw);
-        localStorage.setItem(
-          'currentUser',
-          JSON.stringify({
-            ...stored,
-            city: selectedLocation,
-            location: selectedLocation,
-          })
-        );
+        sessionStorage.setItem('junto-current-user', JSON.stringify({
+          ...stored,
+          city: selectedLocation,
+          location: selectedLocation,
+        }));
       }
 
       onComplete?.();

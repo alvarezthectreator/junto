@@ -1,6 +1,28 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 
+async function getOrCreateConversation(userId, otherUserId) {
+  const existing = await query(
+    `SELECT id FROM conversations
+     WHERE (user1_id = ? AND user2_id = ?)
+        OR (user1_id = ? AND user2_id = ?)`,
+    [userId, otherUserId, otherUserId, userId]
+  );
+
+  if (existing.rows && existing.rows.length > 0) {
+    return existing.rows[0].id;
+  }
+
+  const conversationId = uuidv4();
+  await query(
+    `INSERT INTO conversations (id, user1_id, user2_id, created_at, updated_at)
+     VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
+    [conversationId, userId, otherUserId]
+  );
+
+  return conversationId;
+}
+
 export async function applyToEvent(req, res) {
   try {
     const { event_id, user_id, message } = req.body;
@@ -76,6 +98,32 @@ export async function applyToEvent(req, res) {
            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
           [uuidv4(), eventData.host_id, 'new_application', user_id, 'New Event Application', notificationText]
         );
+
+        // Mirror the application note into the messages inbox so the host and applicant
+        // see it in the same direct-message thread as regular chat messages.
+        try {
+          const conversationId = await getOrCreateConversation(user_id, eventData.host_id);
+          const messageId = uuidv4();
+          const applicationMessage = message || (isAtCapacity ? `Interested in ${eventData.title} (waitlist)` : `Interested in ${eventData.title}`);
+
+          await query(
+            `INSERT INTO messages (
+               id, conversation_id, sender_id, receiver_id, content, message_type, media_url,
+               is_read, read_at, created_at
+             )
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, datetime('now'))`,
+            [messageId, conversationId, user_id, eventData.host_id, applicationMessage, 'text', null]
+          );
+
+          await query(
+            `UPDATE conversations
+             SET last_message_id = ?, last_message_at = datetime('now'), updated_at = datetime('now')
+             WHERE id = ?`,
+            [messageId, conversationId]
+          );
+        } catch (messageError) {
+          console.warn('Unable to mirror event application into messages:', messageError.message);
+        }
       }
     }
 

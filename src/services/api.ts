@@ -8,6 +8,8 @@ const API_BASE_URL = appConfig.apiBaseUrl;
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
 const SESSION_TOKEN_KEY = 'sessionToken';
 const LEGACY_SESSION_TOKEN_KEY = 'junto-session-token';
+const SESSION_USER_ID_KEY = 'junto-user-id';
+const SESSION_CURRENT_USER_KEY = 'junto-current-user';
 
 // Session token storage
 let sessionToken: string | null = null;
@@ -17,6 +19,7 @@ export interface User {
   id: string;
   username?: string;
   display_name?: string;
+  full_name?: string;
   phone_number?: string;
   profile_id: string;
   date_of_birth?: string;
@@ -96,6 +99,10 @@ export interface Message {
   receiver_id: string;
   content: string;
   message_type: string;
+  sender_display_name?: string;
+  sender_profile_id?: string;
+  sender_avatar_image?: string | null;
+  read_at?: string | null;
   created_at: string;
 }
 
@@ -105,6 +112,10 @@ export interface Conversation {
   user2_id: string;
   last_message_id?: string;
   last_message_at?: string;
+  other_user_id?: string;
+  display_name?: string;
+  profile_id?: string;
+  avatar_image?: string | null;
 }
 
 export interface Notification {
@@ -182,9 +193,10 @@ async function apiCall(
     'Content-Type': 'application/json',
   };
 
-  if (!sessionToken) {
-    sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || localStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
-  }
+if (!sessionToken) {
+  sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) 
+              || sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+}
 
   if (sessionToken) {
     headers['Authorization'] = `Bearer ${sessionToken}`;
@@ -285,16 +297,19 @@ function createLocalDemoAuth(username: string): { session_token: string; user: U
   const session_token = `demo-session-${slug}-${Date.now()}`;
 
   setStoredSessionToken(session_token);
-  localStorage.setItem('userId', user.id);
-  localStorage.setItem('displayName', username);
+  sessionStorage.setItem(SESSION_USER_ID_KEY, user.id);
+  sessionStorage.setItem(SESSION_CURRENT_USER_KEY, JSON.stringify(user));
+  localStorage.removeItem(SESSION_USER_ID_KEY);
+  localStorage.removeItem(SESSION_CURRENT_USER_KEY);
+  sessionStorage.setItem('displayName', username);
 
   return { session_token, user };
 }
 
 function createLocalVerifiedSession(): { valid: boolean; user: User } {
-  const storedUserRaw = localStorage.getItem('currentUser');
-  const storedUserId = localStorage.getItem('userId') || 'demo-user';
-  const displayName = localStorage.getItem('displayName') || 'User';
+  const storedUserRaw = sessionStorage.getItem(SESSION_CURRENT_USER_KEY);
+  const storedUserId = sessionStorage.getItem(SESSION_USER_ID_KEY) || 'demo-user';
+  const displayName = sessionStorage.getItem('displayName') || 'User';
 
   try {
     if (storedUserRaw) {
@@ -418,9 +433,11 @@ function setStoredSessionToken(token: string | null) {
   sessionToken = token;
 
   if (token) {
-    localStorage.setItem(SESSION_TOKEN_KEY, token);
-    localStorage.setItem(LEGACY_SESSION_TOKEN_KEY, token);
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    sessionStorage.setItem(LEGACY_SESSION_TOKEN_KEY, token);
   } else {
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
     localStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem(LEGACY_SESSION_TOKEN_KEY);
   }
@@ -436,7 +453,10 @@ export async function login(username: string, password: string): Promise<{ sessi
   try {
     const response = await apiCall('/auth/login', 'POST', { username, password });
     setStoredSessionToken(response.session_token);
-    localStorage.setItem('userId', response.user.id);
+    sessionStorage.setItem(SESSION_USER_ID_KEY, response.user.id);
+    sessionStorage.setItem(SESSION_CURRENT_USER_KEY, JSON.stringify(response.user));
+    localStorage.removeItem(SESSION_USER_ID_KEY);
+    localStorage.removeItem(SESSION_CURRENT_USER_KEY);
     return response;
   } catch (error) {
     if (isNetworkFailure(error)) {
@@ -459,7 +479,10 @@ export async function signup(
   try {
     const response = await apiCall('/auth/signup', 'POST', { username, fullName, password, dateOfBirth, referralCode, gender });
     setStoredSessionToken(response.session_token);
-    localStorage.setItem('userId', response.user.id);
+    sessionStorage.setItem(SESSION_USER_ID_KEY, response.user.id);
+    sessionStorage.setItem(SESSION_CURRENT_USER_KEY, JSON.stringify(response.user));
+    localStorage.removeItem(SESSION_USER_ID_KEY);
+    localStorage.removeItem(SESSION_CURRENT_USER_KEY);
     return response;
   } catch (error) {
     if (isNetworkFailure(error)) {
@@ -528,19 +551,35 @@ export async function getSecurityActivity(userId: string): Promise<{
 
 export function logout(): void {
   setStoredSessionToken(null);
-  localStorage.removeItem('userId');
+  sessionStorage.removeItem(SESSION_USER_ID_KEY);
+  sessionStorage.removeItem(SESSION_CURRENT_USER_KEY);
+  localStorage.removeItem(SESSION_USER_ID_KEY);
+  localStorage.removeItem(SESSION_CURRENT_USER_KEY);
   localStorage.removeItem(SESSION_ACTIVITY_KEY);
 }
 
 export function getSessionToken(): string | null {
   if (!sessionToken) {
-    sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || localStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+    sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
   }
   return sessionToken;
 }
 
 export function getUserId(): string | null {
-  return localStorage.getItem('userId');
+  return sessionStorage.getItem(SESSION_USER_ID_KEY);
+}
+
+export function getStoredCurrentUser(): User | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = sessionStorage.getItem(SESSION_CURRENT_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function markSessionActivity(): void {
@@ -774,8 +813,18 @@ export async function sendMessage(
   content: string,
   messageType: string = 'text'
 ): Promise<Message> {
+  const senderId =
+    getUserId() ||
+    (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem(SESSION_CURRENT_USER_KEY) || '{}')?.id || null;
+      } catch {
+        return null;
+      }
+    })();
+
   const response = await apiCall('/messages', 'POST', {
-    sender_id: getUserId(),
+    sender_id: senderId,
     conversation_id: conversationId,
     recipient_id: recipientId,
     receiver_id: recipientId,
@@ -787,7 +836,8 @@ export async function sendMessage(
 }
 
 export async function getConversations(userId: string): Promise<Conversation[]> {
-  return apiCall(`/messages/conversations/${userId}`);
+  const response = await apiCall(`/messages/conversations/${userId}`);
+  return Array.isArray(response) ? response : (response?.conversations ?? []);
 }
 
 export async function getConversation(

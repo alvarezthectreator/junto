@@ -21,8 +21,10 @@ import {
   MessageRecord,
   MessageStatus,
   MessageStore,
+  createDefaultMessageStore,
   flushScheduledMessages,
   formatMessageClock,
+  getMessageStoreKey,
   isConversationExpired,
   purgeExpiredConversations,
   readMessageStore,
@@ -115,6 +117,28 @@ function buildConversationColor(value: string) {
   return colors[Math.abs(hashToConversationId(value)) % colors.length];
 }
 
+function friendlyName(...candidates: Array<string | null | undefined>) {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+
+    const stripped = value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\d+$/g, '')
+      .trim();
+
+    if (!stripped) continue;
+
+    if (stripped.includes(' ')) {
+      return stripped.replace(/\s+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+  }
+
+  return 'Chat';
+}
+
 function resolvePeerId(conversation: ConversationRecord | undefined, targetUser: any, currentUserId?: string) {
   if (targetUser?.id) {
     return String(targetUser.id);
@@ -125,6 +149,36 @@ function resolvePeerId(conversation: ConversationRecord | undefined, targetUser:
   }
 
   return currentUserId || '';
+}
+
+function resolveConversationKey(conversation: any, fallback: string) {
+  const peerId = String(conversation?.other_user_id || conversation?.peerUserId || '');
+  if (peerId) {
+    return hashToConversationId(peerId);
+  }
+
+  const conversationId = String(conversation?.id || '');
+  if (conversationId) {
+    return hashToConversationId(conversationId);
+  }
+
+  return hashToConversationId(fallback);
+}
+
+function mergeMessageThreads(baseMessages: MessageRecord[], incomingMessages: MessageRecord[]): MessageRecord[] {
+  const seen = new Set<string>();
+  const merged: MessageRecord[] = [];
+
+  for (const message of [...baseMessages, ...incomingMessages]) {
+    const dedupeKey = `${message.id}|${message.createdAt}|${message.text || ''}|${message.from || ''}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+    merged.push(message);
+  }
+
+  return merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 function isSameUser(valueA?: string | null, valueB?: string | null) {
@@ -196,7 +250,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [targetUser, setTargetUser] = useState<any>(null);
-  const [store, setStore] = useState<MessageStore>(() => readMessageStore());
+  const [store, setStore] = useState<MessageStore>(() => createDefaultMessageStore());
   const [isReady, setIsReady] = useState(false);
   const [activeConversation, setActiveConversation] = useState(store.activeConversationId ?? 1);
   const [search, setSearch] = useState('');
@@ -211,10 +265,47 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
   useEffect(() => {
     try {
-      const storedUser = currentUserProp || window.localStorage.getItem('currentUser');
-      setCurrentUser(typeof storedUser === 'string' ? JSON.parse(storedUser) : storedUser);
+      const storedUser = currentUserProp || API.getStoredCurrentUser();
+      const resolvedUser = typeof storedUser === 'string' ? JSON.parse(storedUser) : storedUser;
+      setCurrentUser(resolvedUser);
+
+      const scopedUserId = String(resolvedUser?.id || API.getUserId() || '');
+      const hydrated = writeMessageStore(
+        purgeExpiredConversations(flushScheduledMessages(readMessageStore(scopedUserId || null))),
+        scopedUserId || null
+      );
+      setStore(hydrated);
+      setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
     } catch {
       setCurrentUser(null);
+
+      const hydrated = writeMessageStore(
+        purgeExpiredConversations(flushScheduledMessages(readMessageStore(null))),
+        null
+      );
+      setStore(hydrated);
+      setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
+    }
+
+    if (!currentUserProp && !API.getStoredCurrentUser()) {
+      void API.verifySession()
+        .then((session) => {
+          if (!session?.user) {
+            return;
+          }
+
+          setCurrentUser(session.user);
+          const scopedUserId = String(session.user.id || API.getUserId() || '');
+          const hydrated = writeMessageStore(
+            purgeExpiredConversations(flushScheduledMessages(readMessageStore(scopedUserId || null))),
+            scopedUserId || null
+          );
+          setStore(hydrated);
+          setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
+        })
+        .catch((error) => {
+          console.error('Failed to restore message session:', error);
+        });
     }
 
     try {
@@ -225,11 +316,8 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
       setTargetUser(null);
     }
 
-    const hydrated = writeMessageStore(purgeExpiredConversations(flushScheduledMessages(readMessageStore())));
-    setStore(hydrated);
-    setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
     setIsReady(true);
-  }, []);
+  }, [currentUserProp]);
 
   useEffect(() => {
     if (!isReady || !currentUser?.id) {
@@ -247,14 +335,20 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
         const backendConversations = await Promise.all(
           response.map(async (conversation: any) => {
-            const conversationId = hashToConversationId(String(conversation.id));
-            const otherName = String(conversation.display_name || conversation.name || 'Chat');
+            const conversationId = resolveConversationKey(conversation, String(conversation.id));
+            const otherName = friendlyName(conversation.display_name, conversation.name, conversation.username, 'Chat');
             const otherInitial = otherName.trim().charAt(0).toUpperCase() || 'C';
             const threadResponse = await API.getConversation(String(conversation.id)).catch(() => ({ messages: [] }));
             const backendMessages = Array.isArray((threadResponse as any)?.messages) ? (threadResponse as any).messages : [];
             const mappedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
               id: String(message.id),
-              from: String(message.sender_id) === String(currentUser.id) ? 'You' : otherName,
+              from: friendlyName(
+                message.sender_display_name,
+                message.sender_name,
+                String(message.sender_id) === String(currentUser.id)
+                  ? currentUser.display_name || currentUser.username || currentUser.name
+                  : otherName
+              ),
               mine: String(message.sender_id) === String(currentUser.id),
               type: (message.message_type || 'text') as MessageRecord['type'],
               text: message.content || '',
@@ -270,6 +364,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
               conversationId,
               conversation: {
                 id: conversationId,
+                backendConversationId: String(conversation.id),
                 peerUserId: String(conversation.other_user_id || ''),
                 name: otherName,
                 initial: otherInitial,
@@ -286,16 +381,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           })
         );
 
-        const focusedPeerId = String(targetUser?.id || targetUser?.profile_id || '');
         const filteredBackendConversations = backendConversations.filter(({ conversation }) => {
-          if (isCurrentUserConversation(conversation, currentUser)) {
-            return false;
-          }
-
-          if (focusedPeerId) {
-            return String(conversation.peerUserId || '') === focusedPeerId;
-          }
-
           return true;
         });
 
@@ -314,38 +400,51 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             } else {
               nextConversations.unshift(conversation);
             }
-            nextThreads[conversationId] = messages;
+            if (messages.length > 0) {
+              nextThreads[conversationId] = messages;
+            } else if (!nextThreads[conversationId]) {
+              nextThreads[conversationId] = [];
+            }
           });
 
-          const nextVisibleConversations = focusedPeerId
-            ? nextConversations.filter((conversation) =>
-                String(conversation.peerUserId || '') === focusedPeerId ||
-                isSameUser(conversation.name, String(targetUser?.name || targetUser?.display_name || ''))
-              )
-            : nextConversations.filter((conversation) => !isCurrentUserConversation(conversation, currentUser));
+          const nextVisibleConversations = nextConversations;
 
-          const nextStore = writeMessageStore({
-            ...current,
-            conversations: nextVisibleConversations.length ? nextVisibleConversations : nextConversations,
-            threads: nextThreads,
-            activeConversationId: (nextVisibleConversations.length ? nextVisibleConversations : nextConversations).find((conversation) => conversation.id === activeConversation)?.id
-              ?? (nextVisibleConversations.length ? nextVisibleConversations : nextConversations)[0]?.id
-              ?? current.activeConversationId
-              ?? 1,
-          });
+          const unsortedConversations = nextVisibleConversations.length ? nextVisibleConversations : nextConversations;
 
-          return nextStore;
+const sortedConversations = [...unsortedConversations].sort((a, b) => {
+  const aLast = current.threads[a.id]?.at(-1)?.createdAt ?? '';
+  const bLast = current.threads[b.id]?.at(-1)?.createdAt ?? '';
+  return bLast.localeCompare(aLast);
+});
+
+const nextStore = writeMessageStore({
+  ...current,
+  conversations: sortedConversations,
+  threads: nextThreads,
+  activeConversationId: sortedConversations.find((c) => c.id === activeConversation)?.id
+    ?? sortedConversations[0]?.id
+    ?? current.activeConversationId
+    ?? 1,
+}, currentUser?.id);
+
+return nextStore;
         });
       } catch (error) {
         console.error('Failed to sync backend conversations:', error);
       }
     };
 
-    void syncBackendConversations();
+  void syncBackendConversations();
 
-    return () => {
-      cancelled = true;
-    };
+// Poll every 5 seconds for new messages
+const pollInterval = window.setInterval(() => {
+  void syncBackendConversations();
+}, 5000);
+
+return () => {
+  cancelled = true;
+  window.clearInterval(pollInterval);
+};
   }, [currentUser?.id, isReady]);
 
   useEffect(() => {
@@ -354,7 +453,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     }
 
     const conversationId = hashToConversationId(String(targetUser.id || targetUser.profile_id || targetUser.name || 'chat'));
-    const displayName = String(targetUser.name || targetUser.display_name || 'Chat');
+    const displayName = friendlyName(targetUser.display_name, targetUser.name, targetUser.username, 'Chat');
     const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
 
     setStore((current) => {
@@ -381,18 +480,21 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
         activeConversationId: conversationId,
       };
 
-      const normalized = writeMessageStore({
-        ...nextStore,
-        conversations: nextStore.conversations.filter((conversation) =>
-          String(conversation.peerUserId || '') === String(targetUser?.id || targetUser?.profile_id || '') ||
-          isSameUser(conversation.name, displayName)
-        ),
-      });
+      const normalized = writeMessageStore(
+        {
+          ...nextStore,
+          conversations: nextStore.conversations.filter((conversation) =>
+            String(conversation.peerUserId || '') === String(targetUser?.id || targetUser?.profile_id || '') ||
+            isSameUser(conversation.name, displayName)
+          ),
+        },
+        currentUser?.id
+      );
       return normalized;
     });
 
     setActiveConversation(conversationId);
-  }, [targetUser]);
+  }, [targetUser, currentUser?.id]);
 
   useEffect(() => {
     if (!isReady) {
@@ -402,8 +504,8 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     writeMessageStore({
       ...store,
       activeConversationId: activeConversation,
-    });
-  }, [activeConversation, isReady, store]);
+    }, currentUser?.id);
+  }, [activeConversation, isReady, store, currentUser?.id]);
 
   useEffect(() => {
     if (!isReady) {
@@ -426,16 +528,17 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     }
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== 'junto-message-store-v2') {
+      const scopedKey = getMessageStoreKey(currentUser?.id);
+      if (event.key && event.key !== scopedKey) {
         return;
       }
 
-      setStore(readMessageStore());
+      setStore(readMessageStore(currentUser?.id));
     };
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [isReady]);
+  }, [isReady, currentUser?.id]);
 
   useEffect(() => {
     if (!store.conversations.some((conversation) => conversation.id === activeConversation)) {
@@ -446,6 +549,8 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const activeConversationData: ConversationRecord | undefined = useMemo(() => {
     return store.conversations.find((conversation) => conversation.id === activeConversation) ?? store.conversations[0];
   }, [activeConversation, store.conversations]);
+
+  const activeConversationLabel = friendlyName(activeConversationData?.name, activeConversationData?.context, 'Chat');
 
   const activeMessages = store.threads[activeConversation] ?? [];
 
@@ -469,7 +574,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
   const activeLastMessage = activeMessages[activeMessages.length - 1];
   const replyHint = activeConversationData?.typing
-    ? `${activeConversationData?.name ?? 'This chat'} is typing...`
+    ? `${activeConversationLabel} is typing...`
     : 'Tap to send a reply';
 
   const activeConversationExpired = activeConversationData ? isConversationExpired(activeConversationData) : false;
@@ -508,6 +613,69 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const handleSelectConversation = (conversationId: number) => {
     setActiveConversation(conversationId);
     markConversationRead(conversationId);
+
+    const conversation = store.conversations.find((item) => item.id === conversationId);
+    if (conversation?.backendConversationId) {
+      void (async () => {
+        try {
+          const response = await API.getConversation(conversation.backendConversationId);
+          const backendMessages = Array.isArray(response?.messages) ? response.messages : [];
+          const normalizedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
+            id: String(message.id),
+            from: friendlyName(
+              message.sender_display_name,
+              message.sender_name,
+              String(message.sender_id) === String(currentUser?.id)
+                ? currentUser?.display_name || currentUser?.username || currentUser?.name
+                : conversation.name
+            ),
+            mine: String(message.sender_id) === String(currentUser?.id),
+            type: (message.message_type || 'text') as MessageRecord['type'],
+            text: message.content || '',
+            url: message.media_url || undefined,
+            time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: message.is_read ? 'read' : 'delivered',
+            createdAt: message.created_at || new Date().toISOString(),
+            deliveredAt: message.created_at || undefined,
+            readAt: message.read_at || undefined,
+          }));
+
+          if (!normalizedMessages.length) {
+            return;
+          }
+
+          setStore((current) => {
+            const currentThread = current.threads[conversationId] ?? [];
+            const nextThread = mergeMessageThreads(currentThread, normalizedMessages);
+            return writeMessageStore(
+              {
+                ...current,
+                threads: {
+                  ...current.threads,
+                  [conversationId]: nextThread,
+                },
+              conversations: [
+  {
+    ...current.conversations.find((item) => item.id === conversationId)!,
+    context: summarizeMessage(nextThread[nextThread.length - 1]) || '',
+    time: 'Just now',
+    unread: false,
+  },
+  ...current.conversations.filter((item) => item.id !== conversationId),
+],
+              },
+              currentUser?.id
+            );
+          });
+
+          await API.markMessagesAsRead(conversation.backendConversationId).catch((error) => {
+            console.error('Failed to mark conversation as read:', error);
+          });
+        } catch (error) {
+          console.error('Failed to refresh conversation thread:', error);
+        }
+      })();
+    }
   };
 
   const handleSend = () => {
@@ -519,9 +687,10 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     const scheduledFor = getScheduleTime(schedulePreset);
     const status: MessageStatus = scheduledFor ? 'scheduled' : 'read';
     const now = new Date().toISOString();
+    const senderName = friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You');
     const message: MessageRecord = {
       id: `${activeConversation}-${Date.now()}`,
-      from: 'You',
+      from: senderName,
       mine: true,
       type: 'text',
       text: value,
@@ -533,12 +702,19 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
       readAt: scheduledFor ? undefined : now,
     };
 
-    updateStore((current) =>
-      updateConversation(upsertMessage(current, activeConversation, message), activeConversation, {
-        unread: false,
-        time: scheduledFor ? scheduleLabels[schedulePreset] : 'Just now',
-      })
-    );
+    updateStore((current) => {
+  const next = updateConversation(upsertMessage(current, activeConversation, message), activeConversation, {
+    unread: false,
+    time: scheduledFor ? scheduleLabels[schedulePreset] : 'Just now',
+  });
+  return {
+    ...next,
+    conversations: [
+      next.conversations.find((c) => c.id === activeConversation)!,
+      ...next.conversations.filter((c) => c.id !== activeConversation),
+    ],
+  };
+});
 
     const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
     if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
@@ -565,12 +741,13 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     const isAudio = file.type.startsWith('audio/');
     const messageType: MessageRecord['type'] = isImage ? 'image' : isVideo ? 'video' : 'voice';
     const now = new Date().toISOString();
+    const senderName = friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You');
 
     updateStore((current) =>
       updateConversation(
         upsertMessage(current, activeConversation, {
           id: `${activeConversation}-${Date.now()}`,
-          from: 'You',
+          from: senderName,
           mine: true,
           type: messageType,
           url,
@@ -618,12 +795,13 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     const minutes = Math.floor(durationSeconds / 60);
     const seconds = String(durationSeconds % 60).padStart(2, '0');
     const now = new Date().toISOString();
+    const senderName = friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You');
 
     updateStore((current) =>
       updateConversation(
         upsertMessage(current, activeConversation, {
           id: `${activeConversation}-${Date.now()}`,
-          from: 'You',
+          from: senderName,
           mine: true,
           type: 'voice',
           duration: `${minutes}:${seconds}`,
@@ -754,7 +932,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-baseline justify-between">
                       <h4 className={`truncate text-sm ${chat.unread ? 'font-semibold text-white' : 'font-medium text-gray-200'}`}>
-                        {chat.name}
+                        {friendlyName(chat.name)}
                       </h4>
                       <span className="ml-2 shrink-0 text-[10px] text-gray-500">{chat.time}</span>
                     </div>
@@ -786,7 +964,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-sm font-semibold text-white">{activeConversationData?.name}</h3>
+                  <h3 className="truncate text-sm font-semibold text-white">{activeConversationLabel}</h3>
                   {activeConversationData?.isGroup && (
                     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-gray-300">
                       Group
@@ -847,9 +1025,15 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
               {activeMessages.map((message) => {
                 const isMine = !!message.mine;
+                const messageAuthor = isMine
+                  ? friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You')
+                  : friendlyName(message.from, activeConversationData?.name, 'Sender');
 
                 return (
                   <div key={message.id} className={`flex max-w-[85%] flex-col ${isMine ? 'self-end items-end' : 'items-start'}`}>
+                    <div className={`mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] ${isMine ? 'text-gray-400 text-right' : 'text-[#FBBF24]'}`}>
+                      {messageAuthor}
+                    </div>
                     <div
                       className={`group relative overflow-hidden rounded-2xl px-4 py-3 text-sm ${
                         isMine
@@ -1020,7 +1204,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           </div>
         </div>
 
-        {callMode && <CallModal type={callMode} name={activeConversationData?.name || 'this chat'} onClose={() => setCallMode(null)} />}
+        {callMode && <CallModal type={callMode} name={activeConversationLabel || 'this chat'} onClose={() => setCallMode(null)} />}
       </motion.div>
     </>
   );

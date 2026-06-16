@@ -43,9 +43,33 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function friendlyName(...candidates: Array<string | null | undefined>) {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+
+    const stripped = value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\d+$/g, '')
+      .trim();
+
+    if (!stripped) {
+      continue;
+    }
+
+    if (stripped.includes(' ')) {
+      return stripped.replace(/\s+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+  }
+
+  return 'Nearby friend';
+}
+
 function normalizeNearbyPerson(person: API.User, index: number): NearbyPerson {
   const fallbackNames = ["Ada", "Tunde", "Zara", "Oge", "Kemi", "Chidi"];
-  const displayName = person.display_name || person.username || fallbackNames[index % fallbackNames.length];
+  const displayName = friendlyName(person.display_name, person.full_name, person.username, fallbackNames[index % fallbackNames.length]);
   const ageRanges = [[25, 28], [32, 35], [19, 24], [45, 48], [29, 31], [22, 26]];
   const genders = ["Female", "Male", "Female", "Male", "Female", "Male"];
   const hobbyLists = [

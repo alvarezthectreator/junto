@@ -221,10 +221,7 @@ function readCurrentUserSnapshot() {
   }
 
   try {
-    const stored = window.localStorage.getItem('currentUser');
-    if (!stored) return null;
-
-    const parsed = JSON.parse(stored);
+    const parsed = API.getStoredCurrentUser();
     if (!parsed || typeof parsed !== 'object') return null;
 
     return {
@@ -264,6 +261,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [editError, setEditError] = useState('');
   const [eventActivities, setEventActivities] = useState<EventActivity[]>([]);
   const [isWaitlisted, setIsWaitlisted] = useState(false);
+  const [hostAvatarImage, setHostAvatarImage] = useState<string>('');
   const [editDraft, setEditDraft] = useState({
     title: '',
     description: '',
@@ -337,8 +335,10 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     ...(eventData ?? eventFromCatalog)
   }), [defaultEvent, eventData, eventFromCatalog]);
   const [event, setEvent] = useState<EventDetailData>(baseEvent);
-  const currentUserId = typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null;
+  const currentUserId = API.getUserId();
   const canEditEvent = Boolean(event.host_id && currentUserId && event.host_id === currentUserId);
+  const currentUserSnapshot = readCurrentUserSnapshot();
+const resolvedHostAvatar = hostAvatarImage || event.host.avatar;
   const eventCoords = event.coords ?? [6.4281, 3.4219];
   const mapUrl = `https://www.google.com/maps?q=${eventCoords[0]},${eventCoords[1]}`;
   
@@ -405,17 +405,36 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   }, [event.id]);
 
   useEffect(() => {
-    setEditDraft({
-      title: event.title,
-      description: event.description,
-      date: event.date,
-      time: event.time,
-      location: event.location,
-      maxSpots: String(event.totalSpots || 0),
-      coverImage: event.coverImage || event.media?.venue?.[0] || '',
-    });
-  }, [event.id]);
+  if (!event.host_id) return;
 
+  if (canEditEvent && currentUserSnapshot?.avatarImage) {
+    setHostAvatarImage(currentUserSnapshot.avatarImage);
+    return;
+  }
+
+  API.getUserProfile(event.host_id)
+    .then((profile) => {
+      const img =
+        profile?.avatar_image ||
+        profile?.avatar_url ||
+        profile?.photo ||
+        '';
+      if (img) setHostAvatarImage(resolveMediaUrl(img) || img);
+    })
+    .catch(() => {});
+}, [event.host_id, canEditEvent]);
+
+useEffect(() => {
+  setEditDraft({
+    title: event.title,
+    description: event.description,
+    date: event.date,
+    time: event.time,
+    location: event.location,
+    maxSpots: String(event.totalSpots || 0),
+    coverImage: event.coverImage || event.media?.venue?.[0] || '',
+  });
+}, [event.id]);
   useEffect(() => {
     setApplicationLoaded(false);
     setGuestList(currentAttendees);
@@ -635,7 +654,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
       event_id: event.id,
       event_title: event.title,
       host_id: event.host_id || '',
-      user_id: currentUser?.id || window.localStorage.getItem('userId') || 'guest',
+      user_id: currentUser?.id || API.getUserId() || 'guest',
       user_name: currentUser?.name || 'Guest',
       user_avatar: currentUser?.avatarImage || currentUser?.avatar || '👤',
       message: applicationText.trim(),
@@ -769,25 +788,53 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
     }
   };
 
-  const openHostProfile = () => {
+const openHostProfile = async () => {
+  const hostId = event.host_id || event.host.id || event.host.name;
+
+  // Set basic info immediately so navigation feels instant
+  setSelectedUser({
+    id: hostId,
+    name: event.host.name,
+    username: event.host.name,
+    display_name: event.host.name,
+    avatar: resolvedHostAvatar,
+avatar_image: resolvedHostAvatar,
+    avatar_image: event.host.avatar,
+    reliabilityScore: event.host.reliabilityScore,
+    isVerified: event.host.isVerified,
+    city: event.location,
+  });
+
+  // Then fetch full profile and update with real data
+  try {
+    const fullProfile = await API.getUserProfile(hostId);
     setSelectedUser({
-      id: event.host_id || event.host.id || event.host.name,
-      name: event.host.name,
-      username: event.host.name,
-      display_name: event.host.name,
-      avatar: event.host.avatar,
-      avatar_image: event.host.avatar,
+      id: hostId,
+      name: fullProfile.display_name || fullProfile.username || fullProfile.name || event.host.name,
+      username: fullProfile.username || event.host.name,
+      display_name: fullProfile.display_name || event.host.name,
+      avatar: fullProfile.avatar_image || fullProfile.avatar_url || event.host.avatar,
+      avatar_image: fullProfile.avatar_image || fullProfile.avatar_url || event.host.avatar,
+      avatarImage: fullProfile.avatar_image || fullProfile.avatar_url || event.host.avatar,
+      profile_photos: fullProfile.profile_photos || [],
+      bio: fullProfile.bio || '',
+      location: fullProfile.location || fullProfile.city || event.location,
       reliabilityScore: event.host.reliabilityScore,
       isVerified: event.host.isVerified,
-      city: event.location,
+      averageRating: event.host.averageRating,
+      interests: fullProfile.interests || [],
+      eventsHosted: event.host.reviews,
     });
+  } catch {
+    // Keep the basic info already set above
+  }
 
-    if (onNavigate) {
-      onNavigate('profile');
-    } else {
-      navigate('/profile');
-    }
-  };
+  if (onNavigate) {
+    onNavigate('profile');
+  } else {
+    navigate('/profile');
+  }
+};
 
   const handleCancelAttendance = () => {
     setIsJoined(false);
@@ -956,7 +1003,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const inactiveTabButton = 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10';
 
   return (
-    <div className="min-h-screen bg-[#0F0F13] text-white pb-24">
+<div className="min-h-screen bg-[#0F0F13] text-white pb-40">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="sticky top-0 z-50 -mx-4 mb-4 border-b border-white/5 bg-[#0F0F13]/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <button
@@ -968,7 +1015,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
           </button>
         </div>
 
-        <div className="flex-1 pb-28 sm:pb-32">
+        <div className="flex-1 pb-44 sm:pb-48">
           <div className="overflow-hidden rounded-3xl border border-white/5 bg-[#141419] shadow-2xl shadow-black/20">
             <div className="relative h-56 sm:h-72 md:h-80">
               <img
@@ -1036,18 +1083,30 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
             <div className="border-b border-white/5 bg-[#111115] px-4 py-4 sm:px-6 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => {
-                        setSelectedUser({
-                          id: event.host.name,
-                          name: event.host.name,
-                          avatar: event.host.avatar,
-                          reliabilityScore: event.host.reliabilityScore,
-                          isVerified: event.host.isVerified,
-                        });
+                     setSelectedUser({
+  id: event.host_id || event.host.name,
+  name: event.host.name,
+  avatar: resolvedHostAvatar,
+  avatarImage: resolvedHostAvatar,
+  photo: resolvedHostAvatar,
+  reliabilityScore: event.host.reliabilityScore,
+  isVerified: event.host.isVerified,
+  averageRating: event.host.averageRating,
+  reviews: event.host.reviews,
+  location: event.location,
+  bio: `${event.host.name} is hosting "${event.title}" in ${event.location}.`,
+  interests: [],
+  eventsHosted: event.host.reviews,
+});
                         navigate('/profile');
                 }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg shadow-lg shadow-[#F59E0B]/20">
-                    {event.host.avatar}
-                  </div>
+     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg shadow-lg shadow-[#F59E0B]/20 overflow-hidden">
+  {resolvedHostAvatar?.startsWith('http') || resolvedHostAvatar?.startsWith('data:') ? (
+    <img src={resolvedHostAvatar} alt={event.host.name} className="h-full w-full object-cover rounded-full" />
+  ) : (
+    <span>{resolvedHostAvatar || event.host.name.charAt(0).toUpperCase()}</span>
+  )}
+</div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{event.host.name}</p>
                     <p className="truncate text-xs text-gray-400">{event.location}</p>
@@ -1303,7 +1362,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                       </p>
                     </motion.div>
 
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="overflow-hidden rounded-2xl border border-white/5 bg-white/5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="overflow-hidden rounded-2xl border border-white/5 bg-white/5 relative z-0">
                       <div className="flex items-center justify-between px-4 pt-4">
                         <div>
                           <h3 className="text-sm font-semibold">Map Preview</h3>
@@ -1316,7 +1375,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                           Open Maps <ExternalLink size={12} />
                         </button>
                       </div>
-                      <div className="mt-3 h-56 overflow-hidden">
+                      <div className="mt-3 h-56 overflow-hidden relative z-0">
                         <LeafletMapContainer
                           center={eventCoords}
                           zoom={14}
@@ -1390,19 +1449,31 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
 
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
                       setSelectedUser({
-                        id: event.host.name,
-                        name: event.host.name,
-                        avatar: event.host.avatar,
-                        reliabilityScore: event.host.reliabilityScore,
-                        isVerified: event.host.isVerified,
-                      });
+  id: event.host_id || event.host.name,
+  name: event.host.name,
+avatar: resolvedHostAvatar,
+  avatarImage: resolvedHostAvatar,
+  photo: resolvedHostAvatar,
+  reliabilityScore: event.host.reliabilityScore,
+  isVerified: event.host.isVerified,
+  averageRating: event.host.averageRating,
+  reviews: event.host.reviews,
+  location: event.location,
+  bio: `${event.host.name} is hosting "${event.title}" in ${event.location}.`,
+  interests: [],
+  eventsHosted: event.host.reviews,
+});
                       navigate('/profile');
                     }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg">
-                            {event.host.avatar}
-                          </div>
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-lg overflow-hidden">
+  {resolvedHostAvatar?.startsWith('http') || resolvedHostAvatar?.startsWith('data:') ? (
+    <img src={resolvedHostAvatar} alt={event.host.name} className="h-full w-full object-cover rounded-full" />
+  ) : (
+    <span>{resolvedHostAvatar || event.host.name.charAt(0).toUpperCase()}</span>
+  )}
+</div>
                           <div>
                             <p className="font-semibold">{event.host.name}</p>
                             <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -1490,19 +1561,31 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="space-y-4">
                     <div className="rounded-2xl border border-white/5 bg-white/5 p-4 cursor-pointer" onClick={() => {
-                      setSelectedUser({
-                        id: event.host.name,
-                        name: event.host.name,
-                        avatar: event.host.avatar,
-                        reliabilityScore: event.host.reliabilityScore,
-                        isVerified: event.host.isVerified,
-                      });
+                     setSelectedUser({
+  id: event.host_id || event.host.name,
+  name: event.host.name,
+ avatar: resolvedHostAvatar,
+  avatarImage: resolvedHostAvatar,
+  photo: resolvedHostAvatar,
+  reliabilityScore: event.host.reliabilityScore,
+  isVerified: event.host.isVerified,
+  averageRating: event.host.averageRating,
+  reviews: event.host.reviews,
+  location: event.location,
+  bio: `${event.host.name} is hosting "${event.title}" in ${event.location}.`,
+  interests: [],
+  eventsHosted: event.host.reviews,
+});
                       navigate('/profile');
                     }} style={{ opacity: 1, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'} onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-2xl">
-                          {event.host.avatar}
-                        </div>
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-2xl overflow-hidden">
+  {resolvedHostAvatar?.startsWith('http') || resolvedHostAvatar?.startsWith('data:') ? (
+    <img src={resolvedHostAvatar} alt={event.host.name} className="h-full w-full object-cover rounded-full" />
+  ) : (
+    <span>{resolvedHostAvatar || event.host.name.charAt(0).toUpperCase()}</span>
+  )}
+</div>
                         <div>
                           <p className="text-base font-semibold">{event.host.name}</p>
                           <p className="text-sm text-gray-400">Trusted community host</p>

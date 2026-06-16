@@ -1197,7 +1197,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
   const handleCreateEvent = async (eventData: any) => {
     try {
       // Get current user from localStorage
-      const userId = localStorage.getItem('userId');
+      const userId = API.getUserId();
       if (!userId) {
         addToast('Please log in to create events', 'error');
         return;
@@ -1263,7 +1263,7 @@ export const MyHost: React.FC<MyHostProps> = ({ isLightMode = false, openCreateM
       };
 
       try {
-        const storedUserRaw = localStorage.getItem('currentUser');
+        const storedUserRaw = sessionStorage.getItem('junto-current-user');
         const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
         const localFeedEvent = {
           ...createdEvent,

@@ -31,7 +31,7 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, getUserProfile, verifySession } from './services/api';
+import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, getStoredCurrentUser, getUserProfile, verifySession } from './services/api';
 import { appConfig } from './config/appConfig';
 import { trackEvent, trackPageView } from './services/analytics';
 import { updateThemeColor } from './services/pwa';
@@ -309,9 +309,9 @@ export function App() {
         return {};
       }
 
-      try {
-        const raw = window.localStorage.getItem('currentUser');
-        return raw ? JSON.parse(raw) : {};
+    try {
+      const raw = window.sessionStorage.getItem('junto-current-user');
+      return raw ? JSON.parse(raw) : {};
       } catch {
         return {};
       }
@@ -337,10 +337,16 @@ export function App() {
     setCurrentUser(userData);
     setSelectedUser(null);
     // Store session token and user data
-    localStorage.setItem('sessionToken', token);
-    localStorage.setItem('junto-session-token', token);
-    localStorage.setItem('currentUser', JSON.stringify(userData));
-    localStorage.setItem('userId', user.id);
+    sessionStorage.setItem('sessionToken', token);
+    sessionStorage.setItem('junto-session-token', token);
+    sessionStorage.setItem('junto-current-user', JSON.stringify(userData));
+    sessionStorage.setItem('junto-user-id', user.id);
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('junto-session-token');
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('junto-current-user');
+    localStorage.removeItem('junto-user-id');
     markSessionActivity();
     setIsAuthenticated(true);
     setHasEntered(true);
@@ -362,7 +368,16 @@ export function App() {
     navigate('/', { replace: true });
     setActiveNav('Discover');
     setShowMenu(false);
+    window.sessionStorage.removeItem('sessionToken');
+    window.sessionStorage.removeItem('junto-session-token');
+    window.sessionStorage.removeItem('junto-current-user');
+    window.sessionStorage.removeItem('junto-user-id');
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('junto-session-token');
+    localStorage.removeItem('junto-current-user');
+    localStorage.removeItem('junto-user-id');
     localStorage.removeItem('junto-current-page');
     localStorage.removeItem('junto-active-nav');
     window.sessionStorage.removeItem(ONBOARDING_FLOW_KEY);
@@ -467,7 +482,7 @@ export function App() {
         };
 
         setCurrentUser(mergedUser);
-        localStorage.setItem('currentUser', JSON.stringify(mergedUser));
+        sessionStorage.setItem('junto-current-user', JSON.stringify(mergedUser));
       } catch (error) {
         console.error('Failed to hydrate profile media after login:', error);
       }
@@ -506,16 +521,18 @@ export function App() {
   // Restore session from localStorage on app mount
   useEffect(() => {
     const sessionToken = getSessionToken();
-    const userData = localStorage.getItem('currentUser');
+    const storedUser = getStoredCurrentUser();
+    const userData = storedUser ? JSON.stringify(storedUser) : null;
     
     const restoreSession = async () => {
-      if (!sessionToken || !userData) {
+      if (!sessionToken) {
         setIsSessionBooting(false);
         return;
       }
 
       try {
-        const user = JSON.parse(userData);
+        const verifiedSession = await verifySession();
+        const user = userData ? JSON.parse(userData) : verifiedSession.user;
         const storedActivity = getStoredSessionActivity();
 
         if (storedActivity && Date.now() - storedActivity >= SESSION_TIMEOUT_MS) {
@@ -523,8 +540,7 @@ export function App() {
           return;
         }
 
-        const sessionResponse = await verifySession();
-        const verifiedUser = sessionResponse.user || user;
+        const verifiedUser = verifiedSession.user || user;
         const mergedUser = {
           ...user,
           ...verifiedUser,
@@ -539,8 +555,12 @@ export function App() {
               : [],
         };
 
-        localStorage.setItem('currentUser', JSON.stringify(mergedUser));
-        localStorage.setItem('userId', mergedUser.id);
+        sessionStorage.setItem('junto-current-user', JSON.stringify(mergedUser));
+        sessionStorage.setItem('junto-user-id', mergedUser.id);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('junto-current-user');
+        localStorage.removeItem('junto-user-id');
         setCurrentUser(mergedUser);
         setIsAuthenticated(true);
         setHasEntered(true);
@@ -574,7 +594,7 @@ export function App() {
   }
 
   const content = (() => {
-    if (currentPage === 'onboarding-interests' && (isAuthenticated || localStorage.getItem('sessionToken'))) {
+    if (currentPage === 'onboarding-interests' && (isAuthenticated || getSessionToken())) {
       return (
         <OnboardingInterests
           currentUser={currentUser}
@@ -584,7 +604,7 @@ export function App() {
       );
     }
 
-    if (currentPage === 'onboarding-location' && (isAuthenticated || localStorage.getItem('sessionToken'))) {
+    if (currentPage === 'onboarding-location' && (isAuthenticated || getSessionToken())) {
       return (
         <OnboardingLocation
           currentUser={currentUser}
@@ -689,6 +709,7 @@ export function App() {
           handleLogout={handleLogout}
           onNavigate={navigateToPage}
           setActiveNav={setActiveNav}
+          onClearSelectedUser={() => setSelectedUser(null)}
         />
 
         <main className="flex-1 ml-0 md:ml-64">

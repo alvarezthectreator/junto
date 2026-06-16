@@ -615,8 +615,7 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
 
   // Get current user ID from localStorage
   const getCurrentUserId = () => {
-    const userStr = localStorage.getItem('userId');
-    return userStr ? userStr.replace(/"/g, '') : null;
+    return API.getUserId();
   };
 
   const openPersonProfile = (person: InterestedPerson) => {

@@ -17,13 +17,17 @@ interface SidebarProps {
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
+  onClearSelectedUser?: () => void;
 }
 
-export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar, onClearSelectedUser }: SidebarProps) {
   const navigate = useNavigate();
 
   const handleNavigate = (page: string, navLabel: string) => {
     if (onNavigate) {
+      if (page === 'profile') {
+        onClearSelectedUser?.();
+      }
       // Discover lives in the main shell, so normalize it back to the main page state.
       onNavigate(page === 'discover' ? 'main' : page);
       if (setActiveNav) {

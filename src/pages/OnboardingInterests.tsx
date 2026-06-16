@@ -87,16 +87,13 @@ export function OnboardingInterests({
     setLoading(true);
     try {
       await API.updateUserProfile(userId, { interests: selected });
-      const storedRaw = localStorage.getItem('currentUser');
+      const storedRaw = sessionStorage.getItem('junto-current-user');
       if (storedRaw) {
         const stored = JSON.parse(storedRaw);
-        localStorage.setItem(
-          'currentUser',
-          JSON.stringify({
-            ...stored,
-            interests: selected,
-          })
-        );
+        sessionStorage.setItem('junto-current-user', JSON.stringify({
+          ...stored,
+          interests: selected,
+        }));
       }
 
       onComplete?.();

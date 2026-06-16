@@ -233,10 +233,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [localEvents, setLocalEvents] = useState<FeedEvent[]>([]);
   const [displayLimit, setDisplayLimit] = useState(12);
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
-  const [selectedCity, setSelectedCity] = useState(selectedLocation || currentUser?.city || 'Lagos');
+  const [selectedCity, setSelectedCity] = useState(selectedLocation || currentUser?.city || 'All cities');
   const [feedNotice, setFeedNotice] = useState('');
   const [applyingEventId, setApplyingEventId] = useState<string | null>(null);
-  
+
   const filters = [
   'All vibes',
   'Tonight',
@@ -249,7 +249,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const showTravelHandoff = getFeatureFlag('discover_travel_handoff', true);
 
   useEffect(() => {
-    const nextCity = selectedLocation || currentUser?.city || 'Lagos';
+    const nextCity = selectedLocation || currentUser?.city || 'All cities';
     setSelectedCity(nextCity);
   }, [selectedLocation, currentUser?.city]);
 
@@ -367,6 +367,17 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     }
   }, [location.state]);
 
+  // Auto-clear filters on every load so all events show immediately
+  useEffect(() => {
+    setSearchTerm('');
+    setActiveFilter('All vibes');
+    setSortBy('recent');
+    setShowSavedOnly(false);
+    setSelectedCity('All cities');
+    setTravelMode(false);
+    setDisplayLimit(12);
+  }, []);
+
   const events = useMemo<FeedEvent[]>(() => {
     const deletedSignatures = readDeletedEventSignatures();
 
@@ -389,8 +400,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     });
 
     return Array.from(deduped.values())
-      .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
-      .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
+      .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)));
+    // NOTE: expiry filter disabled so all events show regardless of date/status
+    // .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
   }, [apiEvents, localEvents, useBackend, currentUser?.id, currentUser?.name, currentUser?.username]);
 
   // Filter events based on active filter and search
@@ -400,8 +412,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       (activeFilter === 'This week' && true) ||
       (activeFilter === 'Trending 🔥' && event.max_guests && event.max_guests >= 7);
 
-    const matchesCity = selectedCity === 'All cities' || travelMode || (event.location_city || '').toLowerCase().includes(selectedCity.toLowerCase());
-    
+    // NOTE: city filter disabled so all events show regardless of selected city
+    const matchesCity = true;
+
     const matchesSearch = searchTerm === '' || 
       event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
