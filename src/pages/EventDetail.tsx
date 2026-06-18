@@ -262,6 +262,9 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [eventActivities, setEventActivities] = useState<EventActivity[]>([]);
   const [isWaitlisted, setIsWaitlisted] = useState(false);
   const [hostAvatarImage, setHostAvatarImage] = useState<string>('');
+  const [realAttendees, setRealAttendees] = useState<EventAttendee[]>([]);
+const [realReviews, setRealReviews] = useState<any[]>([]);
+const [hostPastEvents, setHostPastEvents] = useState<any[]>([]);
   const [editDraft, setEditDraft] = useState({
     title: '',
     description: '',
@@ -348,7 +351,7 @@ const resolvedHostAvatar = hostAvatarImage || event.host.avatar;
   const remainingCapacity = useMemo(() => getRemainingCapacity(event.currentAttendees, event.totalSpots), [event.currentAttendees, event.totalSpots]);
   const currentAttendees = event.attendees ?? [];
   const confirmedAttendees = currentAttendees.filter((attendee) => attendee.status === 'confirmed' || attendee.status === 'maybe');
-  const reviews = event.reviews ?? [];
+ const reviews = realReviews.length > 0 ? realReviews : (event.reviews ?? []);
   const canLeaveEventReview = eventExpired && Boolean(currentUserId) && (isJoined || applicationStatus === 'accepted');
   const applicationStorageKey = `junto-event-application-${event.id}`;
   const billingDetails = getBillingTierDetails(event);
@@ -403,7 +406,36 @@ const resolvedHostAvatar = hostAvatarImage || event.host.avatar;
       window.removeEventListener(localActivityEventName(), loadActivities as EventListener);
     };
   }, [event.id]);
+useEffect(() => {
+  if (!event.id) return;
 
+ 
+
+  // Fetch real reviews
+  API.getEventReviews(event.id)
+    .then((data) => {
+      const mapped = Array.isArray(data?.reviews) ? data.reviews : Array.isArray(data) ? data : [];
+      if (mapped.length > 0) {
+        setRealReviews(mapped.map((r: any) => ({
+          author: r.reviewer_name || r.display_name || r.name || 'Anonymous',
+          rating: Number(r.rating || 5),
+          text: r.comment || r.text || r.body || '',
+          time: r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Recently',
+        })));
+      }
+    })
+    .catch(() => {});
+
+  // Fetch host past events
+  if (event.host_id) {
+    API.getHostEvents(event.host_id)
+      .then((data) => {
+        const mapped = Array.isArray(data?.events) ? data.events : Array.isArray(data) ? data : [];
+        setHostPastEvents(mapped.filter((e: any) => e.status === 'completed' || e.status === 'expired').slice(0, 3));
+      })
+      .catch(() => {});
+  }
+}, [event.id, event.host_id]);
   useEffect(() => {
   if (!event.host_id) return;
 
@@ -437,7 +469,7 @@ useEffect(() => {
 }, [event.id]);
   useEffect(() => {
     setApplicationLoaded(false);
-    setGuestList(currentAttendees);
+setGuestList(realAttendees.length > 0 ? realAttendees : currentAttendees);  
     setIsJoined(false);
     setApplicationStatus('none');
     setApplicationNote('');
@@ -1632,52 +1664,54 @@ avatar: resolvedHostAvatar,
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <h3 className="mb-4 text-sm font-semibold">Past Events</h3>
-                      <div className="space-y-3">
-                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold truncate">Art Lounge Exhibition</p>
-                              <p className="text-xs text-gray-500">Completed 2 weeks ago</p>
-                            </div>
-                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.9</span>
-                          </div>
-                          <div className="space-y-2 mt-2 text-xs text-gray-400">
-                            <p>📊 <span className="text-gray-300">42 attendees</span></p>
-                            <p className="italic mt-1">"{event.host.name} was very organized and attentive. Great experience!" - Amara</p>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold truncate">Sunset Dinner Party</p>
-                              <p className="text-xs text-gray-500">Completed 1 month ago</p>
-                            </div>
-                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.8</span>
-                          </div>
-                          <div className="space-y-2 mt-2 text-xs text-gray-400">
-                            <p>📊 <span className="text-gray-300">28 attendees</span></p>
-                            <p className="italic mt-1">"{event.host.name} made everyone feel welcome. Definitely attending next event!" - Chioma</p>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold truncate">Networking Brunch</p>
-                              <p className="text-xs text-gray-500">Completed 2 months ago</p>
-                            </div>
-                            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.7</span>
-                          </div>
-                          <div className="space-y-2 mt-2 text-xs text-gray-400">
-                            <p>📊 <span className="text-gray-300">35 attendees</span></p>
-                            <p className="italic mt-1">"Excellent host! Very attentive to details." - Tunde</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+  <h3 className="mb-4 text-sm font-semibold">Past Events</h3>
+  <div className="space-y-3">
+    {hostPastEvents.length > 0 ? hostPastEvents.map((pastEvent: any, idx: number) => (
+      <div key={idx} className="rounded-xl border border-white/5 bg-[#101014] p-3">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{pastEvent.title || 'Past Event'}</p>
+            <p className="text-xs text-gray-500">
+              {pastEvent.event_date ? new Date(pastEvent.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Completed'}
+            </p>
+          </div>
+          {pastEvent.average_rating && (
+            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ {Number(pastEvent.average_rating).toFixed(1)}</span>
+          )}
+        </div>
+        <div className="space-y-1 mt-2 text-xs text-gray-400">
+          {pastEvent.attendee_count && <p>📊 <span className="text-gray-300">{pastEvent.attendee_count} attendees</span></p>}
+          {pastEvent.location_city && <p>📍 <span className="text-gray-300">{pastEvent.location_city}</span></p>}
+        </div>
+      </div>
+    )) : (
+      // Fallback to hardcoded if no API data yet
+      <>
+        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate">Art Lounge Exhibition</p>
+              <p className="text-xs text-gray-500">Completed 2 weeks ago</p>
+            </div>
+            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.9</span>
+          </div>
+          <p className="text-xs text-gray-400 italic mt-1">"{event.host.name} was very organized." - Amara</p>
+        </div>
+        <div className="rounded-xl border border-white/5 bg-[#101014] p-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate">Sunset Dinner Party</p>
+              <p className="text-xs text-gray-500">Completed 1 month ago</p>
+            </div>
+            <span className="text-sm text-[#FBBF24] whitespace-nowrap">⭐ 4.8</span>
+          </div>
+          <p className="text-xs text-gray-400 italic mt-1">"{event.host.name} made everyone feel welcome." - Chioma</p>
+        </div>
+      </>
+    )}
+  </div>
+</div>
 
                     {/* Host Ratings & Reviews */}
                     <HostRating 

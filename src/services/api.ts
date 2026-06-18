@@ -1334,3 +1334,25 @@ export async function resendOTP(email: string): Promise<any> {
 export async function getOTPExpiry(email: string): Promise<any> {
   return apiCall(`/auth/otp/expiry?email=${encodeURIComponent(email)}`);
 }
+
+// ── Celebrity API ─────────────────────────────────────────────
+export async function getCelebrities(category?: string) {
+  const url = category ? `${BASE_URL}/api/celebrities?category=${category}` : `${BASE_URL}/api/celebrities`;
+  const res = await fetch(url, { credentials: 'include' });
+  return res.json();
+}
+export async function getCelebrityById(id: string) {
+  const res = await fetch(`${BASE_URL}/api/celebrities/${id}`, { credentials: 'include' });
+  return res.json();
+}
+export async function createCelebrityBooking(celebrityId: string, data: { user_id: string; outing_type: string; duration_minutes: number; booking_date: string; price: number; currency: string; notes?: string }) {
+  const res = await fetch(`${BASE_URL}/api/celebrities/${celebrityId}/bookings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', body: JSON.stringify(data),
+  });
+  return res.json();
+}
+export async function getCelebrityReviews(celebrityId: string) {
+  const res = await fetch(`${BASE_URL}/api/celebrities/${celebrityId}/reviews`, { credentials: 'include' });
+  return res.json();
+}

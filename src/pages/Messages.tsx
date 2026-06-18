@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import { motion } from 'framer-motion';
 import {
   CheckCheck,
@@ -34,6 +35,8 @@ import {
   writeMessageStore,
 } from '../utils/messageStore';
 import * as API from '../services/api';
+import { CallModal } from '../components/CallModal';
+import type { WebRTCSignal } from '../hooks/useWebRTC';
 
 type SchedulePreset = 'now' | '5m' | '1h' | 'tomorrow';
 
@@ -195,57 +198,6 @@ function isCurrentUserConversation(conversation: ConversationRecord, currentUser
     isSameUser(conversation.context, 'Direct message') && isSameUser(conversation.name, currentUser?.email)
   );
 }
-
-function CallModal({
-  type,
-  name,
-  onClose,
-}: {
-  type: 'audio' | 'video';
-  name: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#111115] p-5 shadow-2xl shadow-black/40">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] text-3xl shadow-lg shadow-[#F59E0B]/20">
-            {type === 'video' ? '📹' : '📞'}
-          </div>
-          <h3 className="text-xl font-semibold text-white">{type === 'video' ? 'Video call' : 'Audio call'}</h3>
-          <p className="mt-2 text-sm text-gray-400">Calling {name} in demo mode</p>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-white/5 bg-white/5 p-4">
-          <div className="flex items-center justify-between text-sm text-gray-300">
-            <span>Connection</span>
-            <span className="text-[#FBBF24]">Stable</span>
-          </div>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <StatusDots />
-            <span className="text-xs uppercase tracking-[0.2em] text-gray-500">Connecting</span>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          <button className="rounded-2xl border border-white/10 bg-white/5 py-3 text-sm text-white transition hover:bg-white/10">
-            Mute
-          </button>
-          <button className="rounded-2xl border border-white/10 bg-white/5 py-3 text-sm text-white transition hover:bg-white/10">
-            Camera
-          </button>
-          <button
-            onClick={onClose}
-            className="rounded-2xl bg-red-500 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
-          >
-            End
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }: MessagesProps) {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -257,6 +209,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const [filter, setFilter] = useState<'all' | 'unread' | 'hangout'>('all');
   const [composeText, setComposeText] = useState('');
   const [callMode, setCallMode] = useState<'audio' | 'video' | null>(null);
+  const [incomingSignal, setIncomingSignal] = useState<WebRTCSignal | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
   const [emojiBurst, setEmojiBurst] = useState('');
@@ -340,6 +293,15 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             const otherInitial = otherName.trim().charAt(0).toUpperCase() || 'C';
             const threadResponse = await API.getConversation(String(conversation.id)).catch(() => ({ messages: [] }));
             const backendMessages = Array.isArray((threadResponse as any)?.messages) ? (threadResponse as any).messages : [];
+            for (const msg of backendMessages) {
+  try {
+    const parsed = JSON.parse(msg.content || '{}');
+    if (parsed.__webrtc_signal__ && parsed.type === 'offer' && !callMode) {
+      setCallMode(parsed.mode === 'video' ? 'video' : 'audio');
+      setIncomingSignal(parsed);
+    }
+  } catch { /* not a signal */ }
+}
             const mappedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
               id: String(message.id),
               from: friendlyName(
@@ -412,8 +374,10 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           const unsortedConversations = nextVisibleConversations.length ? nextVisibleConversations : nextConversations;
 
 const sortedConversations = [...unsortedConversations].sort((a, b) => {
-  const aLast = current.threads[a.id]?.at(-1)?.createdAt ?? '';
-  const bLast = current.threads[b.id]?.at(-1)?.createdAt ?? '';
+const aThread = current.threads[a.id] ?? [];
+const bThread = current.threads[b.id] ?? [];
+const aLast = aThread[aThread.length - 1]?.createdAt ?? '';
+const bLast = bThread[bThread.length - 1]?.createdAt ?? '';
   return bLast.localeCompare(aLast);
 });
 
@@ -718,9 +682,9 @@ return () => {
 
     const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
     if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
-      void API.sendMessage(null, targetRecipientId, value, 'text').catch((error) => {
-        console.error('Failed to send backend message:', error);
-      });
+    void API.sendMessage(null, targetRecipientId, value, 'text').catch((error) => {
+  console.error('Failed to send backend message:', error);
+});
     }
 
     setComposeText('');
@@ -1204,7 +1168,19 @@ return () => {
           </div>
         </div>
 
-        {callMode && <CallModal type={callMode} name={activeConversationLabel || 'this chat'} onClose={() => setCallMode(null)} />}
+        {callMode && (
+  <CallModal
+    type={callMode}
+    name={activeConversationLabel || 'this chat'}
+    localUserId={String(currentUser?.id || '')}
+    remoteUserId={String(activeConversationData?.peerUserId || '')}
+    incomingSignal={incomingSignal}
+    onClose={() => {
+      setCallMode(null);
+      setIncomingSignal(null);
+    }}
+  />
+)}
       </motion.div>
     </>
   );

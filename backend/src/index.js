@@ -34,6 +34,8 @@ import checkInsRoutes from './api/routes/checkIns.js';
 import notificationPreferencesRoutes from './api/routes/notificationPreferences.js';
 import fraudDetectionRoutes from './api/routes/fraudDetection.js';
 import followupRoutes from './api/routes/followup.js';
+import celebrityRoutes from './api/routes/celebrities.js';
+import venueRoutes from './api/routes/venues.js';
 import otpRoutes from './api/routes/otp.js';
 import uploadsRoutes from './api/routes/uploads.js';
 
@@ -99,6 +101,8 @@ app.use('/api/check-ins', checkInsRoutes);
 app.use('/api/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/fraud', fraudDetectionRoutes);
 app.use('/api/followups', followupRoutes);
+app.use('/api/celebrities', celebrityRoutes);
+app.use('/api/venues', venueRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/uploads', express.static(uploadsDir));
 

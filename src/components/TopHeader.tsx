@@ -89,7 +89,7 @@ export function TopHeader({ showHamburger, onHamburgerClick, hambugerOpen }: Top
                   </button>
                   <button
                     onClick={() => {
-                      handleNavigate('/discover');
+                      handleNavigate('/celebrities');
                       setShowMenu(false);
                     }}
                     className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"

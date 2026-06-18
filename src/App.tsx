@@ -23,6 +23,8 @@ import { Notifications } from './pages/Notifications';
 import { ComprehensiveAssessment } from './pages/ComprehensiveAssessment';
 import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
+import { Celebrities } from './pages/Celebrities';
+import { Venues } from './pages/Venues';
 import { AdminModerator } from './pages/AdminModerator';
 import { OTPSignup } from './pages/OTPSignup';
 import { OnboardingInterests } from './pages/OnboardingInterests';
@@ -62,6 +64,8 @@ function getPageFromPath(pathname: string) {
   if (cleanPath === '/profile') return 'profile';
   if (cleanPath === '/dashboard') return 'dashboard';
   if (cleanPath === '/myhost') return 'myhost';
+  if (cleanPath === '/venues') return 'venues';
+  if (cleanPath === '/celebrities') return 'celebrities';
   if (cleanPath === '/premium') return 'premium';
   if (cleanPath === '/settings') return 'settings';
   if (cleanPath === '/travel') return 'travel';
@@ -100,6 +104,10 @@ function getPagePath(page: string, eventId?: string | null) {
       return '/dashboard';
     case 'myhost':
       return '/myhost';
+    case 'venues':
+      return '/venues';
+    case 'celebrities':
+      return '/celebrities';
     case 'premium':
       return '/premium';
     case 'settings':
@@ -692,6 +700,8 @@ export function App() {
     }
     if (currentPage === 'dashboard') return <HostDashboard onNavigate={navigateToPage} isLightMode={isLightMode} />;
     if (currentPage === 'myhost') return <ToastProvider><MyHost onNavigate={navigateToPage} isLightMode={isLightMode} openCreateModal={openCreateModal} handleLogout={handleLogout} /></ToastProvider>;
+    if (currentPage === 'venues') return <Venues />;
+    if (currentPage === 'celebrities') return <Celebrities />;
     if (currentPage === 'premium') return <Premium />;
     if (currentPage === 'settings') return <Settings onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
@@ -747,10 +757,28 @@ export function App() {
                   >
                     <button
                       onClick={() => {
-                        navigate('/premium');
+                        navigate('/venues');
                         setShowMenu(false);
                       }}
                       className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      Venues
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/celebrities');
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
+                    >
+                      Celeb
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/premium');
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
                     >
                       Premium
                     </button>
