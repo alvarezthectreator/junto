@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCheck,
   Clock3,
@@ -9,13 +8,18 @@ import {
   Mic,
   Paperclip,
   Phone,
+  PhoneOff,
+  PhoneCall,
   Plus,
   Search,
   Send,
   Smile,
   Trash2,
   Video,
+  VideoOff,
   Bell,
+  X,
+  MicOff,
 } from 'lucide-react';
 import {
   ConversationRecord,
@@ -35,7 +39,6 @@ import {
   writeMessageStore,
 } from '../utils/messageStore';
 import * as API from '../services/api';
-import { CallModal } from '../components/CallModal';
 import type { WebRTCSignal } from '../hooks/useWebRTC';
 
 type SchedulePreset = 'now' | '5m' | '1h' | 'tomorrow';
@@ -53,47 +56,21 @@ const scheduleLabels: Record<SchedulePreset, string> = {
 };
 
 function getScheduleTime(preset: SchedulePreset): string | undefined {
-  if (preset === 'now') {
-    return undefined;
-  }
-
+  if (preset === 'now') return undefined;
   const next = new Date();
-  if (preset === '5m') {
-    next.setMinutes(next.getMinutes() + 5);
-  } else if (preset === '1h') {
-    next.setHours(next.getHours() + 1);
-  } else {
-    next.setDate(next.getDate() + 1);
-  }
-
+  if (preset === '5m') next.setMinutes(next.getMinutes() + 5);
+  else if (preset === '1h') next.setHours(next.getHours() + 1);
+  else next.setDate(next.getDate() + 1);
   return next.toISOString();
 }
 
 function summarizeMessage(message?: MessageRecord) {
-  if (!message) {
-    return '';
-  }
-
-  if (message.status === 'scheduled') {
-    return '⏳ Scheduled message';
-  }
-
-  if (message.type === 'image') {
-    return '📷 Photo';
-  }
-
-  if (message.type === 'video') {
-    return '🎥 Video';
-  }
-
-  if (message.type === 'voice') {
-    return `🎤 Voice note${message.duration ? ` · ${message.duration}` : ''}`;
-  }
-
-  if (message.type === 'system') {
-    return message.text || 'System message';
-  }
-
+  if (!message) return '';
+  if (message.status === 'scheduled') return '⏳ Scheduled message';
+  if (message.type === 'image') return '📷 Photo';
+  if (message.type === 'video') return '🎥 Video';
+  if (message.type === 'voice') return `🎤 Voice note${message.duration ? ` · ${message.duration}` : ''}`;
+  if (message.type === 'system') return message.text || 'System message';
   return message.text || '';
 }
 
@@ -124,63 +101,39 @@ function friendlyName(...candidates: Array<string | null | undefined>) {
   for (const candidate of candidates) {
     const value = String(candidate || '').trim();
     if (!value) continue;
-
-    const stripped = value
-      .replace(/[_-]+/g, ' ')
-      .replace(/\d+$/g, '')
-      .trim();
-
+    const stripped = value.replace(/[_-]+/g, ' ').replace(/\d+$/g, '').trim();
     if (!stripped) continue;
-
     if (stripped.includes(' ')) {
       return stripped.replace(/\s+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
     }
-
     return stripped.charAt(0).toUpperCase() + stripped.slice(1);
   }
-
   return 'Chat';
 }
 
 function resolvePeerId(conversation: ConversationRecord | undefined, targetUser: any, currentUserId?: string) {
-  if (targetUser?.id) {
-    return String(targetUser.id);
-  }
-
-  if (conversation?.peerUserId) {
-    return String(conversation.peerUserId);
-  }
-
+  if (targetUser?.id) return String(targetUser.id);
+  if (conversation?.peerUserId) return String(conversation.peerUserId);
   return currentUserId || '';
 }
 
 function resolveConversationKey(conversation: any, fallback: string) {
   const peerId = String(conversation?.other_user_id || conversation?.peerUserId || '');
-  if (peerId) {
-    return hashToConversationId(peerId);
-  }
-
+  if (peerId) return hashToConversationId(peerId);
   const conversationId = String(conversation?.id || '');
-  if (conversationId) {
-    return hashToConversationId(conversationId);
-  }
-
+  if (conversationId) return hashToConversationId(conversationId);
   return hashToConversationId(fallback);
 }
 
 function mergeMessageThreads(baseMessages: MessageRecord[], incomingMessages: MessageRecord[]): MessageRecord[] {
   const seen = new Set<string>();
   const merged: MessageRecord[] = [];
-
   for (const message of [...baseMessages, ...incomingMessages]) {
     const dedupeKey = `${message.id}|${message.createdAt}|${message.text || ''}|${message.from || ''}`;
-    if (seen.has(dedupeKey)) {
-      continue;
-    }
+    if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     merged.push(message);
   }
-
   return merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
@@ -188,16 +141,196 @@ function isSameUser(valueA?: string | null, valueB?: string | null) {
   return Boolean(valueA && valueB && String(valueA).trim().toLowerCase() === String(valueB).trim().toLowerCase());
 }
 
-function isCurrentUserConversation(conversation: ConversationRecord, currentUser: any) {
-  const currentUserId = String(currentUser?.id || '');
-  const currentUserName = String(currentUser?.name || currentUser?.display_name || currentUser?.username || currentUser?.email || '');
+function formatDateDivider(isoString: string): string {
+  const date = new Date(isoString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
+  if (msgDay.getTime() === today.getTime()) return 'Today';
+  if (msgDay.getTime() === yesterday.getTime()) return 'Yesterday';
+
+  return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function isSameDay(isoA: string, isoB: string): boolean {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
   return (
-    (conversation.peerUserId && currentUserId && String(conversation.peerUserId) === currentUserId) ||
-    isSameUser(conversation.name, currentUserName) ||
-    isSameUser(conversation.context, 'Direct message') && isSameUser(conversation.name, currentUser?.email)
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   );
 }
+
+interface CallModalProps {
+  type: 'audio' | 'video';
+  name: string;
+  isIncoming?: boolean;
+  onAnswer?: () => void;
+  onDecline: () => void;
+  onEnd: () => void;
+  onToggleMute?: () => void;
+  onToggleVideo?: () => void;
+  isMuted?: boolean;
+  isVideoOff?: boolean;
+  callDuration?: string;
+  avatarInitial?: string;
+  avatarColor?: string;
+}
+
+function FullScreenCallModal({
+  type,
+  name,
+  isIncoming = false,
+  onAnswer,
+  onDecline,
+  onEnd,
+  onToggleMute,
+  onToggleVideo,
+  isMuted = false,
+  isVideoOff = false,
+  callDuration,
+  avatarInitial = '?',
+  avatarColor = 'bg-[#F59E0B]',
+}: CallModalProps) {
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-between overflow-hidden"
+        style={{
+          background: 'linear-gradient(160deg, #0c0c14 0%, #1a1025 50%, #0c1a1a 100%)',
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F59E0B]/8 blur-[80px]" />
+          <div className="absolute bottom-1/3 left-1/4 w-48 h-48 rounded-full bg-[#4ECDC4]/6 blur-[60px]" />
+        </div>
+
+        <div className="relative z-10 w-full flex items-center justify-between px-6 pt-12 pb-4">
+          <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5">
+            {type === 'video' ? (
+              <Video size={13} className="text-[#4ECDC4]" />
+            ) : (
+              <Phone size={13} className="text-[#4ECDC4]" />
+            )}
+            <span className="text-xs font-medium text-white/80">
+              {type === 'video' ? 'Video call' : 'Voice call'}
+            </span>
+          </div>
+          {callDuration && (
+            <span className="text-sm font-mono text-white/60">{callDuration}</span>
+          )}
+        </div>
+
+        <div className="relative z-10 flex flex-col items-center gap-6 px-8">
+          {isIncoming && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-40 h-40 rounded-full border border-[#F59E0B]/20 animate-ping" />
+              <div className="absolute w-52 h-52 rounded-full border border-[#F59E0B]/10 animate-ping [animation-delay:300ms]" />
+            </div>
+          )}
+
+          <div className={`relative flex h-28 w-28 items-center justify-center rounded-full ${avatarColor} shadow-2xl shadow-black/50`}>
+            <span className="text-5xl font-serif font-bold text-gray-900">{avatarInitial}</span>
+            {!isIncoming && !callDuration && (
+              <motion.div
+                className="absolute inset-0 rounded-full border-2 border-[#F59E0B]/40"
+                animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+            )}
+          </div>
+
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white tracking-tight">{name}</h2>
+            <p className="mt-1.5 text-sm text-white/50">
+              {isIncoming
+                ? `Incoming ${type} call…`
+                : callDuration
+                ? 'Connected'
+                : 'Calling…'}
+            </p>
+          </div>
+        </div>
+
+        <div className="relative z-10 w-full px-8 pb-16">
+          {isIncoming ? (
+            <div className="flex items-center justify-center gap-16">
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={onDecline}
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/30 transition-transform active:scale-95"
+                >
+                  <PhoneOff size={26} className="text-white" />
+                </button>
+                <span className="text-xs text-white/50">Decline</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={onAnswer}
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30 transition-transform active:scale-95"
+                >
+                  <PhoneCall size={26} className="text-white" />
+                </button>
+                <span className="text-xs text-white/50">Answer</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-6">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={onToggleMute}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
+                      isMuted
+                        ? 'border-white/20 bg-white/20 text-white'
+                        : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                  </button>
+                  <span className="text-[10px] text-white/40">{isMuted ? 'Unmute' : 'Mute'}</span>
+                </div>
+
+                {type === 'video' && (
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button
+                      onClick={onToggleVideo}
+                      className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
+                        isVideoOff
+                          ? 'border-white/20 bg-white/20 text-white'
+                          : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+                    </button>
+                    <span className="text-[10px] text-white/40">{isVideoOff ? 'Show video' : 'Hide video'}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={onEnd}
+                  className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/30 transition-transform active:scale-95"
+                >
+                  <PhoneOff size={26} className="text-white" />
+                </button>
+                <span className="text-xs text-white/50">End call</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }: MessagesProps) {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -208,13 +341,68 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'hangout'>('all');
   const [composeText, setComposeText] = useState('');
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+
   const [callMode, setCallMode] = useState<'audio' | 'video' | null>(null);
+  const [callActive, setCallActive] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
   const [incomingSignal, setIncomingSignal] = useState<WebRTCSignal | null>(null);
+  const callTimerRef = useRef<number | null>(null);
+
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
   const [emojiBurst, setEmojiBurst] = useState('');
   const [schedulePreset, setSchedulePreset] = useState<SchedulePreset>('now');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [store.threads, activeConversation]);
+
+  useEffect(() => {
+    if (callActive) {
+      callTimerRef.current = window.setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (callTimerRef.current) window.clearInterval(callTimerRef.current);
+      setCallDuration(0);
+    }
+    return () => {
+      if (callTimerRef.current) window.clearInterval(callTimerRef.current);
+    };
+  }, [callActive]);
+
+  function formatCallDuration(seconds: number) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function handleStartCall(type: 'audio' | 'video') {
+    setCallMode(type);
+    setCallActive(false);
+    setIsIncomingCall(false);
+    setIsMuted(false);
+    setIsVideoOff(false);
+  }
+
+  function handleAnswerCall() {
+    setCallActive(true);
+    setIsIncomingCall(false);
+  }
+
+  function handleEndCall() {
+    setCallMode(null);
+    setCallActive(false);
+    setIsIncomingCall(false);
+    setIsMuted(false);
+    setIsVideoOff(false);
+  }
 
   useEffect(() => {
     try {
@@ -231,7 +419,6 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
       setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
     } catch {
       setCurrentUser(null);
-
       const hydrated = writeMessageStore(
         purgeExpiredConversations(flushScheduledMessages(readMessageStore(null))),
         null
@@ -243,10 +430,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     if (!currentUserProp && !API.getStoredCurrentUser()) {
       void API.verifySession()
         .then((session) => {
-          if (!session?.user) {
-            return;
-          }
-
+          if (!session?.user) return;
           setCurrentUser(session.user);
           const scopedUserId = String(session.user.id || API.getUserId() || '');
           const hydrated = writeMessageStore(
@@ -256,9 +440,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           setStore(hydrated);
           setActiveConversation(hydrated.activeConversationId ?? hydrated.conversations[0]?.id ?? 1);
         })
-        .catch((error) => {
-          console.error('Failed to restore message session:', error);
-        });
+        .catch((error) => console.error('Failed to restore message session:', error));
     }
 
     try {
@@ -273,18 +455,14 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   }, [currentUserProp]);
 
   useEffect(() => {
-    if (!isReady || !currentUser?.id) {
-      return;
-    }
+    if (!isReady || !currentUser?.id) return;
 
     let cancelled = false;
 
     const syncBackendConversations = async () => {
       try {
         const response = await API.getConversations(currentUser.id);
-        if (cancelled || !Array.isArray(response)) {
-          return;
-        }
+        if (cancelled || !Array.isArray(response)) return;
 
         const backendConversations = await Promise.all(
           response.map(async (conversation: any) => {
@@ -293,15 +471,18 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             const otherInitial = otherName.trim().charAt(0).toUpperCase() || 'C';
             const threadResponse = await API.getConversation(String(conversation.id)).catch(() => ({ messages: [] }));
             const backendMessages = Array.isArray((threadResponse as any)?.messages) ? (threadResponse as any).messages : [];
+
             for (const msg of backendMessages) {
-  try {
-    const parsed = JSON.parse(msg.content || '{}');
-    if (parsed.__webrtc_signal__ && parsed.type === 'offer' && !callMode) {
-      setCallMode(parsed.mode === 'video' ? 'video' : 'audio');
-      setIncomingSignal(parsed);
-    }
-  } catch { /* not a signal */ }
-}
+              try {
+                const parsed = JSON.parse(msg.content || '{}');
+                if (parsed.__webrtc_signal__ && parsed.type === 'offer' && !callMode) {
+                  setCallMode(parsed.mode === 'video' ? 'video' : 'audio');
+                  setIsIncomingCall(true);
+                  setIncomingSignal(parsed);
+                }
+              } catch { /* not a signal */ }
+            }
+
             const mappedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
               id: String(message.id),
               from: friendlyName(
@@ -343,19 +524,13 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           })
         );
 
-        const filteredBackendConversations = backendConversations.filter(({ conversation }) => {
-          return true;
-        });
-
-        if (cancelled || filteredBackendConversations.length === 0) {
-          return;
-        }
+        if (cancelled || backendConversations.length === 0) return;
 
         setStore((current) => {
           const nextConversations = [...current.conversations];
           const nextThreads = { ...current.threads };
 
-          filteredBackendConversations.forEach(({ conversationId, conversation, messages }) => {
+          backendConversations.forEach(({ conversationId, conversation, messages }) => {
             const existingIndex = nextConversations.findIndex((item) => item.id === conversationId);
             if (existingIndex >= 0) {
               nextConversations[existingIndex] = { ...nextConversations[existingIndex], ...conversation };
@@ -369,52 +544,40 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             }
           });
 
-          const nextVisibleConversations = nextConversations;
+          const sortedConversations = [...nextConversations].sort((a, b) => {
+            const aThread = nextThreads[a.id] ?? [];
+            const bThread = nextThreads[b.id] ?? [];
+            const aLast = aThread[aThread.length - 1]?.createdAt ?? '';
+            const bLast = bThread[bThread.length - 1]?.createdAt ?? '';
+            return bLast.localeCompare(aLast);
+          });
 
-          const unsortedConversations = nextVisibleConversations.length ? nextVisibleConversations : nextConversations;
-
-const sortedConversations = [...unsortedConversations].sort((a, b) => {
-const aThread = current.threads[a.id] ?? [];
-const bThread = current.threads[b.id] ?? [];
-const aLast = aThread[aThread.length - 1]?.createdAt ?? '';
-const bLast = bThread[bThread.length - 1]?.createdAt ?? '';
-  return bLast.localeCompare(aLast);
-});
-
-const nextStore = writeMessageStore({
-  ...current,
-  conversations: sortedConversations,
-  threads: nextThreads,
-  activeConversationId: sortedConversations.find((c) => c.id === activeConversation)?.id
-    ?? sortedConversations[0]?.id
-    ?? current.activeConversationId
-    ?? 1,
-}, currentUser?.id);
-
-return nextStore;
+          return writeMessageStore({
+            ...current,
+            conversations: sortedConversations,
+            threads: nextThreads,
+            activeConversationId:
+              sortedConversations.find((c) => c.id === activeConversation)?.id ??
+              sortedConversations[0]?.id ??
+              current.activeConversationId ??
+              1,
+          }, currentUser?.id);
         });
       } catch (error) {
         console.error('Failed to sync backend conversations:', error);
       }
     };
 
-  void syncBackendConversations();
-
-// Poll every 5 seconds for new messages
-const pollInterval = window.setInterval(() => {
-  void syncBackendConversations();
-}, 5000);
-
-return () => {
-  cancelled = true;
-  window.clearInterval(pollInterval);
-};
+    void syncBackendConversations();
+    const pollInterval = window.setInterval(() => void syncBackendConversations(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollInterval);
+    };
   }, [currentUser?.id, isReady]);
 
   useEffect(() => {
-    if (!targetUser) {
-      return;
-    }
+    if (!targetUser) return;
 
     const conversationId = hashToConversationId(String(targetUser.id || targetUser.profile_id || targetUser.name || 'chat'));
     const displayName = friendlyName(targetUser.display_name, targetUser.name, targetUser.username, 'Chat');
@@ -435,87 +598,62 @@ return () => {
         hangout: targetUser.city || 'Direct message',
       };
 
-      const nextStore = {
-        ...current,
-        conversations: existing
-          ? current.conversations.map((conversation) => conversation.id === conversationId ? nextConversation : conversation)
-          : [nextConversation, ...current.conversations],
-        threads: current.threads[conversationId] ? current.threads : { ...current.threads, [conversationId]: current.threads[conversationId] || [] },
-        activeConversationId: conversationId,
-      };
-
-      const normalized = writeMessageStore(
+      return writeMessageStore(
         {
-          ...nextStore,
-          conversations: nextStore.conversations.filter((conversation) =>
-            String(conversation.peerUserId || '') === String(targetUser?.id || targetUser?.profile_id || '') ||
-            isSameUser(conversation.name, displayName)
-          ),
+          ...current,
+          conversations: existing
+            ? current.conversations.map((c) => c.id === conversationId ? nextConversation : c)
+            : [nextConversation, ...current.conversations],
+          threads: current.threads[conversationId]
+            ? current.threads
+            : { ...current.threads, [conversationId]: [] },
+          activeConversationId: conversationId,
         },
         currentUser?.id
       );
-      return normalized;
     });
 
     setActiveConversation(conversationId);
   }, [targetUser, currentUser?.id]);
 
   useEffect(() => {
-    if (!isReady) {
-      return;
-    }
-
-    writeMessageStore({
-      ...store,
-      activeConversationId: activeConversation,
-    }, currentUser?.id);
+    if (!isReady) return;
+    writeMessageStore({ ...store, activeConversationId: activeConversation }, currentUser?.id);
   }, [activeConversation, isReady, store, currentUser?.id]);
 
   useEffect(() => {
-    if (!isReady) {
-      return;
-    }
-
+    if (!isReady) return;
     const interval = window.setInterval(() => {
       setStore((current) => {
         const next = purgeExpiredConversations(flushScheduledMessages(current));
         return next === current ? current : next;
       });
     }, 15000);
-
     return () => window.clearInterval(interval);
   }, [isReady]);
 
   useEffect(() => {
-    if (!isReady) {
-      return;
-    }
-
+    if (!isReady) return;
     const handleStorage = (event: StorageEvent) => {
       const scopedKey = getMessageStoreKey(currentUser?.id);
-      if (event.key && event.key !== scopedKey) {
-        return;
-      }
-
+      if (event.key && event.key !== scopedKey) return;
       setStore(readMessageStore(currentUser?.id));
     };
-
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, [isReady, currentUser?.id]);
 
   useEffect(() => {
-    if (!store.conversations.some((conversation) => conversation.id === activeConversation)) {
+    if (!store.conversations.some((c) => c.id === activeConversation)) {
       setActiveConversation(store.conversations[0]?.id ?? 1);
     }
   }, [activeConversation, store.conversations]);
 
   const activeConversationData: ConversationRecord | undefined = useMemo(() => {
-    return store.conversations.find((conversation) => conversation.id === activeConversation) ?? store.conversations[0];
+    return store.conversations.find((c) => c.id === activeConversation) ?? store.conversations[0];
   }, [activeConversation, store.conversations]);
 
   const activeConversationLabel = friendlyName(activeConversationData?.name, activeConversationData?.context, 'Chat');
-
   const activeMessages = store.threads[activeConversation] ?? [];
 
   const filteredConversations = useMemo(() => {
@@ -525,58 +663,42 @@ return () => {
       const haystack = [conversation.name, conversation.context, conversation.hangout, summarizeMessage(lastMessage)]
         .join(' ')
         .toLowerCase();
-
       const matchesSearch = !search || haystack.includes(search.toLowerCase());
       const matchesFilter =
         filter === 'all' ||
         (filter === 'unread' && conversation.unread) ||
         (filter === 'hangout' && !!conversation.hangout);
-
       return matchesSearch && matchesFilter;
     });
   }, [filter, search, store.conversations, store.threads]);
 
   const activeLastMessage = activeMessages[activeMessages.length - 1];
   const replyHint = activeConversationData?.typing
-    ? `${activeConversationLabel} is typing...`
+    ? `${activeConversationLabel} is typing…`
     : 'Tap to send a reply';
 
   const activeConversationExpired = activeConversationData ? isConversationExpired(activeConversationData) : false;
   const deletionWindowHours = activeConversationData?.deleteAfterHours ?? 24;
-  const deletionDeadlineLabel = useMemo(() => {
-    if (!activeConversationData?.eventEndsAt) {
-      return null;
-    }
 
+  const deletionDeadlineLabel = useMemo(() => {
+    if (!activeConversationData?.eventEndsAt) return null;
     const eventEnd = new Date(activeConversationData.eventEndsAt);
     const deleteAt = new Date(eventEnd.getTime() + deletionWindowHours * 60 * 60 * 1000);
-    return deleteAt.toLocaleString([], {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    return deleteAt.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }, [activeConversationData, deletionWindowHours]);
 
   const updateStore = (updater: (current: MessageStore) => MessageStore) => {
-    setStore((current) => {
-      const next = updater(current);
-      return next;
-    });
+    setStore((current) => updater(current));
   };
 
   const markConversationRead = (conversationId: number) => {
-    updateStore((current) =>
-      updateConversation(current, conversationId, {
-        unread: false,
-        time: 'Just now',
-      })
-    );
+    updateStore((current) => updateConversation(current, conversationId, { unread: false, time: 'Just now' }));
   };
 
   const handleSelectConversation = (conversationId: number) => {
     setActiveConversation(conversationId);
     markConversationRead(conversationId);
+    setMobileShowChat(true);
 
     const conversation = store.conversations.find((item) => item.id === conversationId);
     if (conversation?.backendConversationId) {
@@ -604,9 +726,7 @@ return () => {
             readAt: message.read_at || undefined,
           }));
 
-          if (!normalizedMessages.length) {
-            return;
-          }
+          if (!normalizedMessages.length) return;
 
           setStore((current) => {
             const currentThread = current.threads[conversationId] ?? [];
@@ -614,19 +734,16 @@ return () => {
             return writeMessageStore(
               {
                 ...current,
-                threads: {
-                  ...current.threads,
-                  [conversationId]: nextThread,
-                },
-              conversations: [
-  {
-    ...current.conversations.find((item) => item.id === conversationId)!,
-    context: summarizeMessage(nextThread[nextThread.length - 1]) || '',
-    time: 'Just now',
-    unread: false,
-  },
-  ...current.conversations.filter((item) => item.id !== conversationId),
-],
+                threads: { ...current.threads, [conversationId]: nextThread },
+                conversations: [
+                  {
+                    ...current.conversations.find((item) => item.id === conversationId)!,
+                    context: summarizeMessage(nextThread[nextThread.length - 1]) || '',
+                    time: 'Just now',
+                    unread: false,
+                  },
+                  ...current.conversations.filter((item) => item.id !== conversationId),
+                ],
               },
               currentUser?.id
             );
@@ -644,9 +761,7 @@ return () => {
 
   const handleSend = () => {
     const value = composeText.trim();
-    if (!value || !activeConversationData) {
-      return;
-    }
+    if (!value || !activeConversationData) return;
 
     const scheduledFor = getScheduleTime(schedulePreset);
     const status: MessageStatus = scheduledFor ? 'scheduled' : 'read';
@@ -667,24 +782,24 @@ return () => {
     };
 
     updateStore((current) => {
-  const next = updateConversation(upsertMessage(current, activeConversation, message), activeConversation, {
-    unread: false,
-    time: scheduledFor ? scheduleLabels[schedulePreset] : 'Just now',
-  });
-  return {
-    ...next,
-    conversations: [
-      next.conversations.find((c) => c.id === activeConversation)!,
-      ...next.conversations.filter((c) => c.id !== activeConversation),
-    ],
-  };
-});
+      const next = updateConversation(upsertMessage(current, activeConversation, message), activeConversation, {
+        unread: false,
+        time: scheduledFor ? scheduleLabels[schedulePreset] : 'Just now',
+      });
+      return {
+        ...next,
+        conversations: [
+          next.conversations.find((c) => c.id === activeConversation)!,
+          ...next.conversations.filter((c) => c.id !== activeConversation),
+        ],
+      };
+    });
 
     const targetRecipientId = resolvePeerId(activeConversationData, targetUser, currentUser?.id);
     if (currentUser?.id && targetRecipientId && targetRecipientId !== currentUser.id) {
-    void API.sendMessage(null, targetRecipientId, value, 'text').catch((error) => {
-  console.error('Failed to send backend message:', error);
-});
+      void API.sendMessage(null, targetRecipientId, value, 'text').catch((error) => {
+        console.error('Failed to send backend message:', error);
+      });
     }
 
     setComposeText('');
@@ -695,9 +810,7 @@ return () => {
 
   const handleAttachment = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !activeConversationData) {
-      return;
-    }
+    if (!file || !activeConversationData) return;
 
     const url = URL.createObjectURL(file);
     const isImage = file.type.startsWith('image/');
@@ -724,10 +837,7 @@ return () => {
           readAt: now,
         }),
         activeConversation,
-        {
-          unread: false,
-          time: 'Just now',
-        }
+        { unread: false, time: 'Just now' }
       )
     );
 
@@ -744,9 +854,7 @@ return () => {
   };
 
   const handleSendVoice = () => {
-    if (!activeConversationData) {
-      return;
-    }
+    if (!activeConversationData) return;
 
     if (!isRecording) {
       setIsRecording(true);
@@ -777,10 +885,7 @@ return () => {
           readAt: now,
         }),
         activeConversation,
-        {
-          unread: false,
-          time: 'Just now',
-        }
+        { unread: false, time: 'Just now' }
       )
     );
 
@@ -803,8 +908,48 @@ return () => {
 
   const hasConversation = Boolean(store.conversations.length);
 
+  const messagesWithDividers = useMemo(() => {
+    type DividerItem = { type: 'divider'; label: string; key: string };
+    type MessageItem = { type: 'message'; message: MessageRecord };
+    const items: Array<DividerItem | MessageItem> = [];
+
+    activeMessages.forEach((message, index) => {
+      const prev = activeMessages[index - 1];
+      const needsDivider = !prev || !isSameDay(prev.createdAt, message.createdAt);
+      if (needsDivider) {
+        items.push({
+          type: 'divider',
+          label: formatDateDivider(message.createdAt),
+          key: `divider-${message.createdAt}`,
+        });
+      }
+      items.push({ type: 'message', message });
+    });
+
+    return items;
+  }, [activeMessages]);
+
   return (
     <>
+      {/* Full-screen call modal */}
+      {callMode && (
+        <FullScreenCallModal
+          type={callMode}
+          name={activeConversationLabel}
+          isIncoming={isIncomingCall}
+          callDuration={callActive ? formatCallDuration(callDuration) : undefined}
+          avatarInitial={activeConversationData?.initial || '?'}
+          avatarColor={activeConversationData?.color || 'bg-[#F59E0B]'}
+          isMuted={isMuted}
+          isVideoOff={isVideoOff}
+          onAnswer={handleAnswerCall}
+          onDecline={handleEndCall}
+          onEnd={handleEndCall}
+          onToggleMute={() => setIsMuted((prev) => !prev)}
+          onToggleVideo={() => setIsVideoOff((prev) => !prev)}
+        />
+      )}
+
       <div className="mb-4 flex items-center justify-between gap-4 md:mb-0">
         <div className="flex items-center gap-2">
           <button
@@ -828,9 +973,10 @@ return () => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex h-auto flex-col gap-4 lg:h-[calc(100vh-140px)] lg:flex-row lg:gap-6"
+        className="flex h-auto flex-col gap-4 md:h-[calc(100vh-140px)] md:flex-row md:gap-6"
       >
-        <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#1A1A21] lg:w-[340px]">
+        {/* Conversation list */}
+        <div className={`${mobileShowChat ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#1A1A21] md:w-[340px]`}>
           <div className="border-b border-white/5 p-5">
             <div className="mb-3">
               <div className="relative">
@@ -843,23 +989,18 @@ return () => {
                 />
               </div>
             </div>
-
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {[
-                ['all', 'All'],
-                ['unread', 'Unread'],
-                ['hangout', 'Active hangouts'],
-              ].map(([key, label]) => (
+              {(['all', 'unread', 'hangout'] as const).map((key) => (
                 <button
                   key={key}
-                  onClick={() => setFilter(key as 'all' | 'unread' | 'hangout')}
+                  onClick={() => setFilter(key)}
                   className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     filter === key
                       ? 'bg-[#F59E0B] text-white'
                       : 'border border-white/5 bg-[#0F0F13] text-gray-400 hover:text-white'
                   }`}
                 >
-                  {label}
+                  {key === 'all' ? 'All' : key === 'unread' ? 'Unread' : 'Active hangouts'}
                 </button>
               ))}
             </div>
@@ -880,19 +1021,11 @@ return () => {
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-serif text-gray-900 shadow-sm ${chat.color}`}
-                    >
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-serif text-gray-900 shadow-sm ${chat.color}`}>
                       {chat.initial}
                     </div>
-                    {chat.isGroup && (
-                      <div className="absolute -bottom-1 -right-1 rounded-full border border-[#1A1A21] bg-[#0F0F13] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-gray-300">
-                        grp
-                      </div>
-                    )}
                     {chat.unread && <div className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-[#1A1A21] bg-[#F59E0B]" />}
                   </div>
-
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-baseline justify-between">
                       <h4 className={`truncate text-sm ${chat.unread ? 'font-semibold text-white' : 'font-medium text-gray-200'}`}>
@@ -903,16 +1036,9 @@ return () => {
                     <p className={`mb-1.5 truncate text-xs ${chat.unread ? 'font-medium text-gray-300' : 'text-gray-500'}`}>
                       {preview}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block max-w-full truncate rounded bg-[#0F0F13] px-2 py-0.5 text-[10px] text-gray-400">
-                        {chat.context}
-                      </span>
-                      {chat.isGroup && (
-                        <span className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-gray-400">
-                          {chat.participantCount || 0} people
-                        </span>
-                      )}
-                    </div>
+                    <span className="inline-block max-w-full truncate rounded bg-[#0F0F13] px-2 py-0.5 text-[10px] text-gray-400">
+                      {chat.context}
+                    </span>
                   </div>
                 </button>
               );
@@ -920,20 +1046,27 @@ return () => {
           </div>
         </div>
 
-        <div className="flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#1A1A21]">
+        {/* Chat panel */}
+        <div className={`${mobileShowChat ? 'flex' : 'hidden md:flex'} min-h-[420px] flex-1 flex-col overflow-hidden rounded-3xl border border-white/5 bg-[#1A1A21]`}>
+          {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] p-5">
             <div className="flex min-w-0 items-center gap-3">
+              {/* Back button — mobile only */}
+              <button
+                onClick={() => setMobileShowChat(false)}
+                className="md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="Back to conversations"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
               <div className={`flex h-10 w-10 items-center justify-center rounded-full ${activeConversationData?.color} font-serif text-lg text-gray-900 shadow-sm`}>
                 {activeConversationData?.initial}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="truncate text-sm font-semibold text-white">{activeConversationLabel}</h3>
-                  {activeConversationData?.isGroup && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] text-gray-300">
-                      Group
-                    </span>
-                  )}
                 </div>
                 <p className="truncate text-xs text-gray-400">
                   {activeConversationData?.routeLabel} · {activeConversationData?.hangout}
@@ -942,142 +1075,168 @@ return () => {
                   <p className="mt-0.5 text-[11px] text-gray-500">
                     {activeConversationExpired
                       ? `Messages removed after the event ends + ${deletionWindowHours}h grace period`
-                      : `Messages auto-delete ${deletionWindowHours}h after the event ends${deletionDeadlineLabel ? `, around ${deletionDeadlineLabel}` : ''}`}
+                      : `Messages auto-delete ${deletionWindowHours}h after the event${deletionDeadlineLabel ? `, around ${deletionDeadlineLabel}` : ''}`}
                   </p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCallMode('audio')}
+                onClick={() => handleStartCall('audio')}
                 className="rounded-full border border-white/10 bg-white/5 p-2.5 text-gray-300 transition hover:bg-white/10 hover:text-white"
                 aria-label="Start audio call"
               >
                 <Phone size={17} />
               </button>
               <button
-                onClick={() => setCallMode('video')}
+                onClick={() => handleStartCall('video')}
                 className="rounded-full border border-white/10 bg-white/5 p-2.5 text-gray-300 transition hover:bg-white/10 hover:text-white"
                 aria-label="Start video call"
               >
                 <Video size={17} />
               </button>
-            <button onClick={() => onNavigate('profile')} className="rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10">
-              View profile
-            </button>
-          </div>
+              <button
+                onClick={() => onNavigate('profile')}
+                className="rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10"
+              >
+                View profile
+              </button>
+            </div>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6">
             {!hasConversation && (
               <div className="mb-4 rounded-3xl border border-white/5 bg-white/[0.03] p-6 text-center text-sm text-gray-400">
                 Your inbox is empty. Open Nearby and tap Message on a person to start a real conversation.
               </div>
             )}
-            <div className="mb-4 text-center">
-              <span className="rounded-full bg-[#0F0F13] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
-                Today
-              </span>
-            </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
               {activeMessages.length === 0 && (
                 <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-6 text-center text-sm text-gray-400">
                   This thread has no active messages.
                 </div>
               )}
 
-              {activeMessages.map((message) => {
+              {messagesWithDividers.map((item) => {
+                // Date divider
+                if (item.type === 'divider') {
+                  return (
+                    <div key={item.key} className="flex items-center gap-3 py-4">
+                      <div className="h-px flex-1 bg-white/5" />
+                      <span className="rounded-full bg-[#0F0F13] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                        {item.label}
+                      </span>
+                      <div className="h-px flex-1 bg-white/5" />
+                    </div>
+                  );
+                }
+
+                // Message bubble
+                const { message } = item;
                 const isMine = !!message.mine;
                 const messageAuthor = isMine
                   ? friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You')
                   : friendlyName(message.from, activeConversationData?.name, 'Sender');
 
                 return (
-                  <div key={message.id} className={`flex max-w-[85%] flex-col ${isMine ? 'self-end items-end' : 'items-start'}`}>
-                    <div className={`mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] ${isMine ? 'text-gray-400 text-right' : 'text-[#FBBF24]'}`}>
-                      {messageAuthor}
-                    </div>
-                    <div
-                      className={`group relative overflow-hidden rounded-2xl px-4 py-3 text-sm ${
-                        isMine
-                          ? 'rounded-tr-sm border border-[#F59E0B]/30 bg-[#F59E0B]/15 text-white'
-                          : 'rounded-tl-sm bg-[#0F0F13] text-gray-200'
-                      }`}
-                    >
-                      {message.type === 'text' && <p className="whitespace-pre-wrap leading-6">{message.text}</p>}
+                  <div
+                    key={message.id}
+                    className={`flex w-full mb-3 ${isMine ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`flex flex-col max-w-[85%] ${isMine ? 'items-end' : 'items-start'}`}>
+                      {/* Author name */}
+                      <div className={`mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] ${isMine ? 'text-gray-400 text-right' : 'text-[#FBBF24]'}`}>
+                        {messageAuthor}
+                      </div>
 
-                      {message.type === 'image' && (
-                        <div className="space-y-2">
-                          {message.url && <img src={message.url} alt={message.text || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
-                          {message.text && <p className="text-xs text-gray-300">{message.text}</p>}
-                        </div>
-                      )}
+                      {/* Bubble */}
+                      <div
+                        className={`group relative overflow-hidden rounded-2xl px-4 py-3 text-sm ${
+                          isMine
+                            ? 'rounded-tr-sm border border-[#F59E0B]/30 bg-[#F59E0B]/15 text-white'
+                            : 'rounded-tl-sm bg-[#0F0F13] text-gray-200'
+                        }`}
+                      >
+                        {message.type === 'text' && <p className="whitespace-pre-wrap leading-6">{message.text}</p>}
 
-                      {message.type === 'video' && (
-                        <div className="space-y-2">
-                          {message.url && (
-                            <video controls className="max-w-full rounded-xl">
-                              <source src={message.url} />
-                            </video>
-                          )}
-                          <p className="text-xs text-gray-300">{message.text || 'Video attachment'}</p>
-                        </div>
-                      )}
-
-                      {message.type === 'voice' && (
-                        <div className="flex items-center gap-3">
-                          <button className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white">
-                            <Mic size={16} />
-                          </button>
-                          <div className="min-w-0">
-                            <p className="font-medium text-white">{message.text || 'Voice note'}</p>
-                            <p className="text-[11px] text-gray-300">{message.duration || '0:12'}</p>
+                        {message.type === 'image' && (
+                          <div className="space-y-2">
+                            {message.url && <img src={message.url} alt={message.text || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
+                            {message.text && <p className="text-xs text-gray-300">{message.text}</p>}
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {message.type === 'system' && <p className="text-xs uppercase tracking-[0.18em] text-gray-400">{message.text}</p>}
+                        {message.type === 'video' && (
+                          <div className="space-y-2">
+                            {message.url && (
+                              <video controls className="max-w-full rounded-xl">
+                                <source src={message.url} />
+                              </video>
+                            )}
+                            <p className="text-xs text-gray-300">{message.text || 'Video attachment'}</p>
+                          </div>
+                        )}
 
-                      {isMine && (
-                        <button
-                          onClick={() => handleDeleteMessage(message.id)}
-                          className="absolute right-2 top-2 rounded-full bg-black/30 p-1 text-white/70 opacity-0 transition group-hover:opacity-100 hover:text-white"
-                          aria-label="Delete message"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
+                        {message.type === 'voice' && (
+                          <div className="flex items-center gap-3">
+                            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white">
+                              <Mic size={16} />
+                            </button>
+                            <div className="min-w-0">
+                              <p className="font-medium text-white">{message.text || 'Voice note'}</p>
+                              <p className="text-[11px] text-gray-300">{message.duration || '0:12'}</p>
+                            </div>
+                          </div>
+                        )}
 
-                    <div className={`mt-1 flex items-center gap-2 text-[10px] text-gray-500 ${isMine ? 'justify-end' : ''}`}>
-                      <span>{message.time}</span>
-                      {isMine && (
-                        <span className="inline-flex items-center gap-1 text-gray-400">
-                          {message.status === 'scheduled' ? (
-                            <>
-                              <Clock3 size={11} className="text-gray-400" />
-                              Scheduled
-                            </>
-                          ) : message.status === 'read' ? (
-                            <>
-                              <CheckCheck size={11} className="text-[#F59E0B]" />
-                              Read
-                            </>
-                          ) : (
-                            <>
-                              <CheckCheck size={11} />
-                              Delivered
-                            </>
-                          )}
-                        </span>
-                      )}
+                        {message.type === 'system' && (
+                          <p className="text-xs uppercase tracking-[0.18em] text-gray-400">{message.text}</p>
+                        )}
+
+                        {isMine && (
+                          <button
+                            onClick={() => handleDeleteMessage(message.id)}
+                            className="absolute right-2 top-2 rounded-full bg-black/30 p-1 text-white/70 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                            aria-label="Delete message"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Timestamp + status */}
+                      <div className={`mt-1 flex items-center gap-2 text-[10px] text-gray-500 ${isMine ? 'justify-end' : ''}`}>
+                        <span>{message.time}</span>
+                        {isMine && (
+                          <span className="inline-flex items-center gap-1 text-gray-400">
+                            {message.status === 'scheduled' ? (
+                              <>
+                                <Clock3 size={11} className="text-gray-400" />
+                                Scheduled
+                              </>
+                            ) : message.status === 'read' ? (
+                              <>
+                                <CheckCheck size={11} className="text-[#F59E0B]" />
+                                Read
+                              </>
+                            ) : (
+                              <>
+                                <CheckCheck size={11} />
+                                Delivered
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
 
+            {/* Typing indicator */}
             <div className="mt-5 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F59E0B]/15 text-[#FBBF24]">
@@ -1088,8 +1247,12 @@ return () => {
                 </div>
               </div>
             </div>
+
+            {/* Scroll anchor */}
+            <div ref={messagesEndRef} />
           </div>
 
+          {/* Compose bar */}
           <div className="border-t border-white/5 bg-white/[0.02] p-4">
             {emojiBurst && (
               <div className="mb-3 rounded-full border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-4 py-2 text-xs font-medium text-[#FBBF24]">
@@ -1106,9 +1269,7 @@ return () => {
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none"
                 >
                   {Object.entries(scheduleLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
+                    <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
               </div>
@@ -1151,13 +1312,18 @@ return () => {
                 <button
                   onClick={handleSendVoice}
                   className={`rounded-full p-2 transition-colors ${
-                    isRecording ? 'bg-red-500 text-white hover:bg-red-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    isRecording
+                      ? 'bg-red-500 text-white hover:bg-red-400'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }`}
                   aria-label="Record voice note"
                 >
                   <Mic size={18} />
                 </button>
-                <button onClick={handleSend} className="ml-1 rounded-full bg-[#F59E0B] p-2 text-white transition-opacity hover:opacity-90">
+                <button
+                  onClick={handleSend}
+                  className="ml-1 rounded-full bg-[#F59E0B] p-2 text-white transition-opacity hover:opacity-90"
+                >
                   <Send size={16} className="ml-0.5" />
                 </button>
               </div>
@@ -1167,20 +1333,6 @@ return () => {
             </div>
           </div>
         </div>
-
-        {callMode && (
-  <CallModal
-    type={callMode}
-    name={activeConversationLabel || 'this chat'}
-    localUserId={String(currentUser?.id || '')}
-    remoteUserId={String(activeConversationData?.peerUserId || '')}
-    incomingSignal={incomingSignal}
-    onClose={() => {
-      setCallMode(null);
-      setIncomingSignal(null);
-    }}
-  />
-)}
       </motion.div>
     </>
   );
