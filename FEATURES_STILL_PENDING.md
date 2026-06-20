@@ -18,14 +18,10 @@ This file tracks the gaps that are still open after the current profile, event, 
 - True push delivery provider integration and background job delivery
 ## Remaining items
 
-- Identity verification provider integration
-- Premium billing provider integration and checkout flow
-- Deep account-security tooling: password change, 2FA, device/session management, recovery codes
+- Identity verification provider integration for full KYC-style checks
+- Premium live payment provider checkout, webhooks, and receipts
 
 ## Lower Priority
 
 - Finish deployment hardening, monitoring, and environment secret management
 - Optional OS-level notification badge support where supported by the platform
-
-
-

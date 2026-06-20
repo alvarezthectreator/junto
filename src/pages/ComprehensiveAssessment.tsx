@@ -64,8 +64,8 @@ const FEATURE_CARDS: AssessmentCard[] = [
     title: 'Profile',
     status: 'partial',
     completion: '75%',
-    summary: 'Profile editing, uploads, verification UI, completion scoring, and media handling are in good shape.',
-    done: ['Editable profile form', 'Photo upload/compression', 'Verification UI', 'Completion and trust scoring'],
+    summary: 'Profile editing, uploads, code-based verification, completion scoring, and media handling are in good shape.',
+    done: ['Editable profile form', 'Photo upload/compression', 'Code-based email and phone verification', 'Completion and trust scoring'],
     missing: ['Provider-backed identity verification', 'Stricter server-side moderation'],
   },
   {
@@ -127,10 +127,10 @@ const FEATURE_CARDS: AssessmentCard[] = [
   {
     title: 'Settings / Account',
     status: 'partial',
-    completion: '80%',
-    summary: 'Account exports, referral data, blocked users, notification preferences, and privacy toggles are in place, but deeper security features still need backend work.',
-    done: ['Export data', 'Referral info', 'Blocked users', 'Notification preferences', 'Theme and privacy toggles'],
-    missing: ['Password change endpoint', 'Two-factor auth', 'Device management', 'Recovery codes'],
+    completion: '90%',
+    summary: 'Account exports, referral data, blocked users, notification preferences, password changes, session management, and recovery codes are in place, but deeper auth hardening still needs work.',
+    done: ['Export data', 'Referral info', 'Blocked users', 'Notification preferences', 'Theme and privacy toggles', 'Password change', 'Session management', 'Recovery codes'],
+    missing: ['Two-factor auth'],
   },
   {
     title: 'Safety / Anti-Fraud',

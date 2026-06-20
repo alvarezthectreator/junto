@@ -593,6 +593,8 @@ import React, { useState, useEffect, useRef } from 'react';
     const [verificationCode, setVerificationCode] = useState('');
     const [verificationLoading, setVerificationLoading] = useState(false);
     const [verificationResendLoading, setVerificationResendLoading] = useState(false);
+    const [verificationNotice, setVerificationNotice] = useState('');
+    const [verificationError, setVerificationError] = useState('');
     const [verificationState, setVerificationState] = useState<Record<VerificationChannel, VerificationState>>({
       email: { verified: false, verifiedAt: null, code: null, loading: false },
       phone: { verified: false, verifiedAt: null, code: null, loading: false },
@@ -614,9 +616,6 @@ import React, { useState, useEffect, useRef } from 'react';
     const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
     const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
     const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
-    const [showPhoneVerify, setShowPhoneVerify] = useState(false);
-    const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
-    const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
 
     // ── Report & Rate state ──────────────────────────────────────────────────
     const [showReportModal, setShowReportModal] = useState(false);
@@ -1074,6 +1073,127 @@ import React, { useState, useEffect, useRef } from 'react';
         setProfileValidationError('Could not process that photo. Please try another image.');
       } finally {
         setPhotoEditorBusy(false);
+      }
+    };
+
+    const getVerificationDestination = (channel: VerificationChannel) => {
+      if (channel === 'email') {
+        return String(
+          currentUser?.email ||
+          storedUserSnapshot.email ||
+          storedUserSnapshot.contact_email ||
+          ''
+        ).trim();
+      }
+
+      return String(
+        currentUser?.phone ||
+        currentUser?.phone_number ||
+        storedUserSnapshot.phone ||
+        storedUserSnapshot.phone_number ||
+        ''
+      ).trim();
+    };
+
+    const openVerificationModal = async (channel: VerificationChannel) => {
+      const resolvedUserId = currentUser?.id || API.getUserId();
+      if (!resolvedUserId) {
+        setVerificationError('Please sign in again before starting verification.');
+        return;
+      }
+
+      const destination = getVerificationDestination(channel);
+      if (!destination) {
+        setVerificationError(`Add a ${channel === 'email' ? 'email address' : 'phone number'} to your account first.`);
+        return;
+      }
+
+      setVerificationModal({ channel, destination });
+      setVerificationCode('');
+      setVerificationNotice('');
+      setVerificationError('');
+      setVerificationLoading(true);
+
+      try {
+        await API.sendVerificationCode({
+          userId: resolvedUserId,
+          verificationType: channel,
+          ...(channel === 'email' ? { email: destination } : { phoneNumber: destination }),
+        });
+        setVerificationNotice(`We sent a 6-digit code to ${destination}.`);
+      } catch (error: any) {
+        setVerificationError(error?.message || `Could not send the ${channel} code.`);
+      } finally {
+        setVerificationLoading(false);
+      }
+    };
+
+    const verifyVerificationCode = async () => {
+      const resolvedUserId = currentUser?.id || API.getUserId();
+      if (!resolvedUserId || !verificationModal) {
+        setVerificationError('Verification is not ready right now.');
+        return;
+      }
+
+      const code = verificationCode.trim();
+      if (code.length !== 6) {
+        setVerificationError('Enter the 6-digit verification code.');
+        return;
+      }
+
+      setVerificationLoading(true);
+      setVerificationError('');
+      setVerificationNotice('');
+
+      try {
+        const response = await API.verifyVerificationCode({
+          userId: resolvedUserId,
+          verificationType: verificationModal.channel,
+          code,
+        });
+
+        setVerificationState((current) => ({
+          ...current,
+          [verificationModal.channel]: {
+            verified: true,
+            verifiedAt: response.verified_at || new Date().toISOString(),
+            code: null,
+            loading: false,
+          },
+        }));
+
+        setVerificationNotice(`${verificationModal.channel === 'email' ? 'Email' : 'Phone'} verified successfully.`);
+        setVerificationModal(null);
+        setVerificationCode('');
+        setShowMessage('Verification complete.');
+      } catch (error: any) {
+        setVerificationError(error?.message || 'Verification failed.');
+      } finally {
+        setVerificationLoading(false);
+      }
+    };
+
+    const resendVerificationCode = async () => {
+      const resolvedUserId = currentUser?.id || API.getUserId();
+      if (!resolvedUserId || !verificationModal) {
+        setVerificationError('Verification is not ready right now.');
+        return;
+      }
+
+      setVerificationResendLoading(true);
+      setVerificationError('');
+      setVerificationNotice('');
+
+      try {
+        await API.resendVerificationCode({
+          userId: resolvedUserId,
+          verificationType: verificationModal.channel,
+        });
+        setVerificationNotice('A new verification code has been sent.');
+      } catch (error: any) {
+        setVerificationError(error?.message || 'Could not resend the verification code.');
+      } finally {
+        setVerificationResendLoading(false);
       }
     };
 
@@ -2196,30 +2316,55 @@ import React, { useState, useEffect, useRef } from 'react';
               {/* Verification & Safety */}
               <WidgetCard title="Verification & Safety" subtitle="Build trust with verified credentials" icon={<ShieldCheck size={18} />} isLightMode={isLightMode}>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <motion.div className={`rounded-2xl border p-4 transition-all ${isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`rounded-lg p-2 ${phoneVerified ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                          <Phone size={16} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wider opacity-60">Phone Verification</p>
-                          <p className={`mt-1 text-sm font-semibold ${phoneVerified ? 'text-green-400' : 'text-yellow-300'}`}>
-                            {phoneVerified ? '✓ Verified' : 'Not verified'}
-                          </p>
+                  {[
+                    {
+                      key: 'email',
+                      label: 'Email Verification',
+                      icon: <Mail size={16} />,
+                      verified: Boolean(verificationState.email?.verified),
+                      value: currentUser?.email || storedUserSnapshot.email || storedUserSnapshot.contact_email || 'No email on file',
+                      actionLabel: Boolean(verificationState.email?.verified) ? 'Resend email code' : 'Verify email',
+                      action: () => void openVerificationModal('email'),
+                    },
+                    {
+                      key: 'phone',
+                      label: 'Phone Verification',
+                      icon: <Phone size={16} />,
+                      verified: Boolean(verificationState.phone?.verified),
+                      value: currentUser?.phone || currentUser?.phone_number || storedUserSnapshot.phone || storedUserSnapshot.phone_number || 'No phone on file',
+                      actionLabel: Boolean(verificationState.phone?.verified) ? 'Resend phone code' : 'Verify phone',
+                      action: () => void openVerificationModal('phone'),
+                    },
+                  ].map((item) => (
+                    <motion.div
+                      key={item.key}
+                      className={`rounded-2xl border p-4 transition-all ${
+                        isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`rounded-lg p-2 ${item.verified ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                            {item.icon}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider opacity-60">{item.label}</p>
+                            <p className={`mt-1 text-sm font-semibold ${item.verified ? 'text-green-400' : 'text-yellow-300'}`}>
+                              {item.verified ? '✓ Verified' : 'Not verified'}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {!phoneVerified && (
+                      <p className="mt-3 text-xs leading-5 text-gray-400">{item.value}</p>
                       <motion.button
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowPhoneVerify(true)}
-                        className="mt-3 w-full rounded-lg bg-yellow-500/20 border border-yellow-500/30 px-3 py-2 text-xs font-bold text-yellow-300 hover:bg-yellow-500/30 transition-all"
+                        onClick={item.action}
+                        className="mt-3 w-full rounded-lg border border-yellow-500/30 bg-yellow-500/15 px-3 py-2 text-xs font-bold text-yellow-300 transition-all hover:bg-yellow-500/25"
                       >
-                        Verify Phone
+                        {item.actionLabel}
                       </motion.button>
-                    )}
-                  </motion.div>
+                    </motion.div>
+                  ))}
 
                   <motion.div className={`rounded-2xl border p-4 transition-all ${isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'}`}>
                     <div className="flex items-start justify-between">
@@ -2235,6 +2380,9 @@ import React, { useState, useEffect, useRef } from 'react';
                         </div>
                       </div>
                     </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-400">
+                      Full KYC provider integration is still on the roadmap, but the code-based trust checks are now live.
+                    </p>
                   </motion.div>
                 </div>
               </WidgetCard>
@@ -2615,15 +2763,15 @@ import React, { useState, useEffect, useRef } from 'react';
             )}
           </AnimatePresence>
 
-          {/* Phone Verification Modal */}
+          {/* Verification Modal */}
           <AnimatePresence>
-            {showPhoneVerify && (
+            {verificationModal && (
               <>
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  onClick={() => !phoneVerifyLoading && setShowPhoneVerify(false)}
+                  onClick={() => !(verificationLoading || verificationResendLoading) && setVerificationModal(null)}
                   className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
                 />
                 <motion.div
@@ -2636,24 +2784,32 @@ import React, { useState, useEffect, useRef } from 'react';
                 >
                   <div className="mb-6 flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/20">
-                      <Phone size={20} className="text-yellow-400" />
+                      {verificationModal.channel === 'email' ? (
+                        <Mail size={20} className="text-yellow-400" />
+                      ) : (
+                        <Phone size={20} className="text-yellow-400" />
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold">Verify Your Phone</h3>
+                      <h3 className="text-lg font-bold">
+                        Verify Your {verificationModal.channel === 'email' ? 'Email' : 'Phone'}
+                      </h3>
                       <p className={`text-sm opacity-60 ${isLightMode ? 'text-amber-950' : 'text-gray-400'}`}>
-                        Build trust by verifying your phone number
+                        Build trust by confirming the code we just sent.
                       </p>
                     </div>
                   </div>
 
                   <div className="mb-6 space-y-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Phone Number</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">
+                        {verificationModal.channel === 'email' ? 'Email Address' : 'Phone Number'}
+                      </label>
                       <input
-                        type="tel"
-                        value={currentUser?.phone || ''}
+                        type={verificationModal.channel === 'email' ? 'email' : 'tel'}
+                        value={verificationModal.destination}
                         disabled
-                        placeholder="+234 803 456 7890"
+                        placeholder={verificationModal.channel === 'email' ? 'name@example.com' : '+234 803 456 7890'}
                         className={`w-full rounded-lg border px-4 py-3 text-sm outline-none opacity-60 cursor-not-allowed ${
                           isLightMode ? 'border-amber-900/10 bg-amber-50' : 'border-white/[0.08] bg-white/[0.03]'
                         }`}
@@ -2665,8 +2821,8 @@ import React, { useState, useEffect, useRef } from 'react';
                       <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">Verification Code</label>
                       <input
                         type="text"
-                        value={phoneVerifyOtp}
-                        onChange={(e) => setPhoneVerifyOtp(e.target.value.slice(0, 6))}
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.slice(0, 6))}
                         placeholder="000000"
                         maxLength={6}
                         className={`w-full rounded-lg border px-4 py-3 text-sm text-center tracking-[0.5em] font-mono outline-none transition-all ${
@@ -2675,45 +2831,54 @@ import React, { useState, useEffect, useRef } from 'react';
                             : 'border-white/[0.08] focus:border-yellow-500/50 bg-white/[0.03]'
                         }`}
                       />
-                      <p className="text-[11px] text-gray-500 mt-1">Check your phone for a 6-digit code</p>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Check your {verificationModal.channel === 'email' ? 'inbox' : 'phone'} for a 6-digit code
+                      </p>
                     </div>
+                    {verificationNotice && (
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                        {verificationNotice}
+                      </div>
+                    )}
+                    {verificationError && (
+                      <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                        {verificationError}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3">
                     <motion.button
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => setShowPhoneVerify(false)}
-                      disabled={phoneVerifyLoading}
+                      onClick={() => setVerificationModal(null)}
+                      disabled={verificationLoading || verificationResendLoading}
                       className={`flex-1 rounded-lg border px-4 py-3 text-sm font-semibold transition-all ${
                         isLightMode
                           ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
                           : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
-                      } ${phoneVerifyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      } ${(verificationLoading || verificationResendLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Cancel
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.98 }}
-                      onClick={async () => {
-                        if (phoneVerifyOtp.length === 6) {
-                          setPhoneVerifyLoading(true);
-                          setTimeout(() => {
-                            setVerificationState(prev => ({
-                              ...prev,
-                              phone: { ...prev.phone, verified: true, verifiedAt: new Date().toISOString(), loading: false },
-                            }));
-                            setShowPhoneVerify(false);
-                            setPhoneVerifyOtp('');
-                            setShowMessage('✓ Phone verified successfully');
-                            setTimeout(() => setShowMessage(''), 2000);
-                            setPhoneVerifyLoading(false);
-                          }, 1500);
-                        }
-                      }}
-                      disabled={phoneVerifyLoading || phoneVerifyOtp.length !== 6}
+                      onClick={resendVerificationCode}
+                      disabled={verificationLoading || verificationResendLoading}
+                      className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {verificationResendLoading ? (
+                        <><Loader size={14} className="animate-spin" /><span>Resending...</span></>
+                      ) : (
+                        <><RefreshCcw size={14} /><span>Resend code</span></>
+                      )}
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={verifyVerificationCode}
+                      disabled={verificationLoading || verificationCode.length !== 6}
                       className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      {phoneVerifyLoading ? (
+                      {verificationLoading ? (
                         <><Loader size={14} className="animate-spin" /><span>Verifying...</span></>
                       ) : (
                         <><CheckCircle2 size={14} /><span>Verify</span></>

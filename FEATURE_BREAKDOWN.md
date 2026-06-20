@@ -22,6 +22,7 @@ This is the current source-of-truth summary based on the codebase audit and the 
 
 ### Profiles and Accounts
 - User profile pages and editing
+- Code-based email and phone verification
 - Referral info
 - Account export and account deletion
 - Session handling and browser-stored user state
@@ -56,7 +57,7 @@ This is the current source-of-truth summary based on the codebase audit and the 
 - Venue and celebrity backend routes
 
 ### Premium and Support
-- Premium pricing UI
+- Premium pricing UI and subscription management
 - Billing tier display
 - Financial agreement UI
 - Help / FAQ centre
@@ -71,10 +72,10 @@ This is the current source-of-truth summary based on the codebase audit and the 
 ## Partial
 
 - Authentication is functional, but still not a fully polished production identity stack
-- OTP and verification exist, but provider hardening still needs work
+- OTP and verification exist, with code-based email and phone flows now wired end-to-end
 - Messaging is not fully server-synced with realtime transport everywhere
 - Push notifications are mostly preference/UI level, not full delivery infrastructure
-- Premium billing is still UI-first, not a live payment integration
+- Premium billing is still manual in-app subscription management, not a live payment integration
 - Identity verification is still not wired to a real KYC provider
 - Fraud and moderation automation now handles report escalation, verification review, and no-show enforcement
 - Venue and celebrity booking flows need more end-to-end polish

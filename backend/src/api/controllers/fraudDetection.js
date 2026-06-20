@@ -13,11 +13,11 @@ import {
   updateFraudScore,
   getUserFraudScore,
   getRiskLevel,
-} from '../services/fraudDetectionService.js';
+} from '../../services/fraudDetectionService.js';
 import {
   getFraudEnforcementSummary,
   runFraudEnforcementSweep,
-} from '../services/fraudEnforcementScheduler.js';
+} from '../../services/fraudEnforcementScheduler.js';
 
 export const getUserFraudStatus = async (req, res, db) => {
   try {
