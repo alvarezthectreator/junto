@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import {
+  getDeploymentOpsReport,
   getHighRiskUsers,
   getFraudEnforcementSummary,
   runFraudEnforcement,
+  type DeploymentOpsReport,
 } from '../services/api';
 
 interface HighRiskUser {
@@ -42,7 +44,7 @@ export function AdminModerator({
   setActiveNav = () => {},
   onCloseSidebar = () => {},
 }: AdminModeratorProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'high-risk' | 'flags' | 'activities' | 'logs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'high-risk' | 'flags' | 'activities' | 'logs' | 'ops'>('overview');
   const [highRiskUsers, setHighRiskUsers] = useState<HighRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [enforcementSummary, setEnforcementSummary] = useState({
@@ -54,6 +56,8 @@ export function AdminModerator({
     high_risk_users: 0,
   });
   const [enforcementRunning, setEnforcementRunning] = useState(false);
+  const [deploymentReport, setDeploymentReport] = useState<DeploymentOpsReport | null>(null);
+  const [deploymentLoading, setDeploymentLoading] = useState(true);
   const [stats, setStats] = useState({
     total_flagged: 0,
     high_risk_count: 0,
@@ -69,6 +73,7 @@ export function AdminModerator({
     fetchHighRiskUsers();
     loadStats();
     fetchEnforcementSummary();
+    fetchDeploymentOpsReport();
   }, []);
 
   const fetchHighRiskUsers = async () => {
@@ -101,6 +106,18 @@ export function AdminModerator({
       }
     } catch (error) {
       console.error('Error fetching enforcement summary:', error);
+    }
+  };
+
+  const fetchDeploymentOpsReport = async () => {
+    try {
+      setDeploymentLoading(true);
+      const report = await getDeploymentOpsReport();
+      setDeploymentReport(report);
+    } catch (error) {
+      console.error('Error fetching deployment ops report:', error);
+    } finally {
+      setDeploymentLoading(false);
     }
   };
 
@@ -205,6 +222,7 @@ export function AdminModerator({
                 { id: 'flags', label: 'Account Flags', icon: Flag },
                 { id: 'activities', label: 'Suspicious Activities', icon: Zap },
                 { id: 'logs', label: 'Audit Logs', icon: Eye },
+                { id: 'ops', label: 'Deployment & Secrets', icon: Shield },
               ].map((tab: any) => {
                 const Icon = tab.icon;
                 return (
@@ -383,6 +401,128 @@ export function AdminModerator({
                     <Eye className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     Audit logs coming soon
                   </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'ops' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Deployment readiness and secret coverage</h3>
+                      <p className="mt-1 text-sm text-gray-400">
+                        This report is fetched by the admin dashboard and shows deployment, monitoring, and secret-management coverage without exposing raw secret values.
+                      </p>
+                    </div>
+                    <button
+                      onClick={fetchDeploymentOpsReport}
+                      className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-4 py-2 text-sm font-semibold text-gray-200 border border-gray-700 hover:bg-white/10"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Refresh ops report
+                    </button>
+                  </div>
+
+                  {deploymentLoading ? (
+                    <div className="text-center py-8 text-gray-400">Loading deployment ops report...</div>
+                  ) : deploymentReport ? (
+                    <>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        {[
+                          { label: 'Ready', value: deploymentReport.summary.ok, color: 'from-emerald-500 to-emerald-600' },
+                          { label: 'Warnings', value: deploymentReport.summary.warning, color: 'from-amber-500 to-amber-600' },
+                          { label: 'Missing', value: deploymentReport.summary.missing, color: 'from-rose-500 to-rose-600' },
+                          { label: 'Pending', value: deploymentReport.summary.pending, color: 'from-sky-500 to-sky-600' },
+                        ].map((item) => (
+                          <div key={item.label} className={`rounded-lg border border-gray-700 bg-gradient-to-br ${item.color} bg-opacity-10 p-4`}>
+                            <p className="text-gray-400 text-xs uppercase tracking-[0.18em]">{item.label}</p>
+                            <p className="mt-1 text-3xl font-bold">{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-lg border border-gray-700 bg-slate-800/50 p-4">
+                          <h4 className="mb-3 flex items-center gap-2 font-semibold">
+                            <Shield className="w-4 h-4 text-blue-400" />
+                            Secret and config checks
+                          </h4>
+                          <div className="space-y-3">
+                            {deploymentReport.checks.map((check) => (
+                              <div key={check.key} className="rounded-lg border border-white/5 bg-white/5 p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-medium text-white">{check.label}</p>
+                                    <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{check.category}</p>
+                                  </div>
+                                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                                    check.status === 'ok'
+                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                      : check.status === 'warning'
+                                      ? 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+                                      : check.status === 'pending'
+                                      ? 'border-sky-500/20 bg-sky-500/10 text-sky-300'
+                                      : 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+                                  }`}>
+                                    {check.status}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-300">{check.value}</p>
+                                {check.note && <p className="mt-1 text-xs leading-5 text-gray-500">{check.note}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-gray-700 bg-slate-800/50 p-4">
+                            <h4 className="mb-3 flex items-center gap-2 font-semibold">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                              Rollout posture
+                            </h4>
+                            <div className="space-y-2 text-sm text-gray-300">
+                              <p>Source: {deploymentReport.source}</p>
+                              <p>Environment: {deploymentReport.environment}</p>
+                              <p>Release: {deploymentReport.release.version}</p>
+                              <p>Build SHA: {deploymentReport.release.buildSha}</p>
+                              <p>Channel: {deploymentReport.release.channel}</p>
+                              <p>Rollback target: {deploymentReport.release.rollbackTarget}</p>
+                              <p>Overall: {deploymentReport.summary.overall}</p>
+                              <p>Generated: {new Date(deploymentReport.generated_at).toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-gray-700 bg-slate-800/50 p-4">
+                            <h4 className="mb-3 flex items-center gap-2 font-semibold">
+                              <Zap className="w-4 h-4 text-violet-400" />
+                              Recommendations
+                            </h4>
+                            <ul className="space-y-2 text-sm text-gray-300">
+                              {deploymentReport.recommendations.map((recommendation) => (
+                                <li key={recommendation} className="flex gap-2">
+                                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                                  <span>{recommendation}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div className="rounded-lg border border-gray-700 bg-slate-800/50 p-4">
+                            <h4 className="mb-3 flex items-center gap-2 font-semibold">
+                              <Clock className="w-4 h-4 text-sky-400" />
+                              OS badge support
+                            </h4>
+                            <p className="text-sm text-gray-300">{deploymentReport.badge_support.note}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">No deployment report available.</div>
+                  )}
                 </motion.div>
               )}
             </div>

@@ -331,7 +331,7 @@ export function App() {
       username: user.username || user.display_name || 'User',
       name: user.username || user.display_name || 'User',
       profile_id: user.profile_id,
-      date_of_birth: user.date_of_birth || null,
+      date_of_birth: user.date_of_birth || storedSnapshot.date_of_birth || null,
       gender: user.gender || null,
       occupation: user.occupation || null,
       avatar_image: user.avatar_image || user.avatar_url || storedSnapshot.avatar_image || storedSnapshot.avatar_url || null,
@@ -484,6 +484,7 @@ export function App() {
 
         const mergedUser = {
           ...currentUser,
+          date_of_birth: currentUser.date_of_birth || profile.date_of_birth || null,
           avatar_image: hydratedAvatar,
           avatar_url: hydratedAvatar,
           profile_photos: Array.isArray(profile.profile_photos) ? profile.profile_photos : currentUser.profile_photos || [],
@@ -552,6 +553,7 @@ export function App() {
         const mergedUser = {
           ...user,
           ...verifiedUser,
+          date_of_birth: user.date_of_birth || verifiedUser.date_of_birth || null,
           name: verifiedUser.username || verifiedUser.display_name || user.name || user.username || 'User',
           username: verifiedUser.username || user.username || user.name || 'User',
           avatar_image: verifiedUser.avatar_image || verifiedUser.avatar_url || user.avatar_image || user.avatar_url || null,

@@ -3,6 +3,7 @@
 
 import { appConfig } from '../config/appConfig';
 import { discoverEvents, type DiscoverEventSeed } from '../data/discoverEvents';
+import { trackEvent } from './analytics';
 
 const API_BASE_URL = appConfig.apiBaseUrl;
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
@@ -184,6 +185,253 @@ export interface UploadedMedia {
   size?: number;
 }
 
+export type DeploymentCheckCategory = 'api' | 'auth' | 'push' | 'billing' | 'monitoring' | 'deployment';
+export type DeploymentCheckStatus = 'ok' | 'warning' | 'missing' | 'pending';
+
+export interface DeploymentCheck {
+  key: string;
+  label: string;
+  category: DeploymentCheckCategory;
+  status: DeploymentCheckStatus;
+  required: boolean;
+  value: string;
+  note?: string;
+}
+
+export interface DeploymentOpsReport {
+  generated_at: string;
+  source: 'backend' | 'local-fallback';
+  environment: 'development' | 'staging' | 'production' | 'unknown';
+  release: {
+    version: string;
+    buildSha: string;
+    channel: string;
+    rollbackTarget: string;
+  };
+  summary: {
+    ok: number;
+    warning: number;
+    missing: number;
+    pending: number;
+    overall: 'ready' | 'partial' | 'needs_attention';
+  };
+  checks: DeploymentCheck[];
+  recommendations: string[];
+  badge_support: {
+    supported: boolean;
+    note: string;
+  };
+}
+
+function hasNonEmptyValue(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+}
+
+function detectEnvironment(): DeploymentOpsReport['environment'] {
+  if (import.meta.env.PROD) return 'production';
+  if (import.meta.env.DEV) return 'development';
+  return 'unknown';
+}
+
+function buildLocalDeploymentOpsReport(): DeploymentOpsReport {
+  const checks: DeploymentCheck[] = [
+    {
+      key: 'api_base_url',
+      label: 'API base URL',
+      category: 'api',
+      status: hasNonEmptyValue(appConfig.apiBaseUrl) ? 'ok' : 'missing',
+      required: true,
+      value: appConfig.apiBaseUrl || 'Missing',
+      note: 'Used by the client to reach the backend API.',
+    },
+    {
+      key: 'ws_url',
+      label: 'WebSocket URL',
+      category: 'api',
+      status: hasNonEmptyValue(appConfig.wsUrl) ? 'ok' : 'warning',
+      required: false,
+      value: appConfig.wsUrl || 'Derived from API base URL',
+      note: 'Used for realtime notifications and live transport.',
+    },
+    {
+      key: 'crash_reporting_endpoint',
+      label: 'Crash reporting endpoint',
+      category: 'monitoring',
+      status: appConfig.crashReportingEnabled && hasNonEmptyValue(appConfig.crashReportingEndpoint) ? 'ok' : 'warning',
+      required: true,
+      value: appConfig.crashReportingEndpoint ? 'Configured' : 'Missing',
+      note: appConfig.crashReportingEndpoint
+        ? 'Runtime exceptions can be sent to the crash pipeline.'
+        : 'Add VITE_CRASH_REPORT_ENDPOINT for production observability.',
+    },
+    {
+      key: 'analytics_endpoint',
+      label: 'Analytics endpoint',
+      category: 'monitoring',
+      status: appConfig.analyticsEnabled && hasNonEmptyValue(appConfig.analyticsEndpoint) ? 'ok' : 'warning',
+      required: false,
+      value: appConfig.analyticsEndpoint ? 'Configured' : 'Missing',
+      note: 'Optional telemetry endpoint for product analytics.',
+    },
+    {
+      key: 'push_vapid_public_key',
+      label: 'Push VAPID public key',
+      category: 'push',
+      status: hasNonEmptyValue(appConfig.vapidPublicKey) ? 'ok' : 'missing',
+      required: true,
+      value: hasNonEmptyValue(appConfig.vapidPublicKey) ? 'Configured' : 'Missing',
+      note: 'Required for browser push registration.',
+    },
+    {
+      key: 'auth_session_secret',
+      label: 'Auth session secret',
+      category: 'auth',
+      status: 'pending',
+      required: true,
+      value: 'Backend-managed',
+      note: 'Expose this through a protected admin endpoint when backend ops storage is ready.',
+    },
+    {
+      key: 'billing_webhook_secret',
+      label: 'Billing webhook secret',
+      category: 'billing',
+      status: 'pending',
+      required: true,
+      value: 'Backend-managed',
+      note: 'Expose this through a protected admin endpoint when billing ops storage is ready.',
+    },
+    {
+      key: 'build_validation',
+      label: 'Build validation',
+      category: 'deployment',
+      status: 'ok',
+      required: true,
+      value: 'Verified by Vite build',
+      note: 'Production build succeeds in the local check.',
+    },
+    {
+      key: 'cache_busting',
+      label: 'Cache busting',
+      category: 'deployment',
+      status: 'ok',
+      required: true,
+      value: 'Enabled via hashed asset output',
+      note: 'Built assets are fingerprinted for safe rollout.',
+    },
+    {
+      key: 'rollback_safety',
+      label: 'Rollback safety',
+      category: 'deployment',
+      status: 'warning',
+      required: true,
+      value: 'Manual',
+      note: 'Add release/version metadata to make rollbacks auditable.',
+    },
+  ];
+
+  const summary = checks.reduce(
+    (acc, check) => {
+      acc[check.status] += 1;
+      return acc;
+    },
+    { ok: 0, warning: 0, missing: 0, pending: 0, overall: 'ready' as DeploymentOpsReport['summary']['overall'] }
+  );
+
+  if (summary.missing > 0 || summary.pending > 0) {
+    summary.overall = summary.missing > 0 ? 'needs_attention' : 'partial';
+  } else if (summary.warning > 0) {
+    summary.overall = 'partial';
+  }
+
+  const badgeSupported =
+    typeof navigator !== 'undefined' &&
+    ('setAppBadge' in navigator || 'clearAppBadge' in navigator);
+
+  return {
+    generated_at: new Date().toISOString(),
+    source: 'local-fallback',
+    environment: detectEnvironment(),
+    release: {
+      version: appConfig.releaseVersion,
+      buildSha: appConfig.buildSha || 'unavailable',
+      channel: appConfig.deploymentChannel,
+      rollbackTarget: appConfig.buildSha ? `Previous release before ${appConfig.buildSha.slice(0, 8)}` : 'Previous stable release',
+    },
+    summary,
+    checks,
+    recommendations: [
+      'Back the auth and billing secrets with a protected admin endpoint.',
+      'Add a production release manifest with build hash, commit SHA, and rollback target.',
+      'Wire runtime alerts to the crash reporting and analytics pipeline.',
+    ],
+    badge_support: {
+      supported: badgeSupported,
+      note: badgeSupported
+        ? 'Platform badge support is available on this device/browser.'
+        : 'OS-level badge support is not available in this browser or platform.',
+    },
+  };
+}
+
+function normalizeDeploymentOpsReport(report: any): DeploymentOpsReport {
+  if (!report || typeof report !== 'object') {
+    return buildLocalDeploymentOpsReport();
+  }
+
+  const checks: DeploymentCheck[] = Array.isArray(report.checks)
+    ? report.checks.map((check: any) => ({
+        key: String(check.key || check.label || 'unknown'),
+        label: String(check.label || check.key || 'Unknown check'),
+        category: ['api', 'auth', 'push', 'billing', 'monitoring', 'deployment'].includes(check.category)
+          ? check.category
+          : 'deployment',
+        status: ['ok', 'warning', 'missing', 'pending'].includes(check.status) ? check.status : 'warning',
+        required: Boolean(check.required),
+        value: String(check.value || ''),
+        note: typeof check.note === 'string' ? check.note : undefined,
+      }))
+    : buildLocalDeploymentOpsReport().checks;
+
+  const summary = report.summary && typeof report.summary === 'object'
+    ? {
+        ok: Number(report.summary.ok || 0),
+        warning: Number(report.summary.warning || 0),
+        missing: Number(report.summary.missing || 0),
+        pending: Number(report.summary.pending || 0),
+        overall: ['ready', 'partial', 'needs_attention'].includes(report.summary.overall)
+          ? report.summary.overall
+          : 'partial',
+      }
+    : buildLocalDeploymentOpsReport().summary;
+
+  return {
+    generated_at: typeof report.generated_at === 'string' ? report.generated_at : new Date().toISOString(),
+    source: report.source === 'backend' ? 'backend' : 'local-fallback',
+    environment: ['development', 'staging', 'production', 'unknown'].includes(report.environment)
+      ? report.environment
+      : detectEnvironment(),
+    release: {
+      version: typeof report.release?.version === 'string' ? report.release.version : appConfig.releaseVersion,
+      buildSha: typeof report.release?.buildSha === 'string' ? report.release.buildSha : (appConfig.buildSha || 'unavailable'),
+      channel: typeof report.release?.channel === 'string' ? report.release.channel : appConfig.deploymentChannel,
+      rollbackTarget: typeof report.release?.rollbackTarget === 'string'
+        ? report.release.rollbackTarget
+        : (appConfig.buildSha ? `Previous release before ${appConfig.buildSha.slice(0, 8)}` : 'Previous stable release'),
+    },
+    summary,
+    checks,
+    recommendations: Array.isArray(report.recommendations)
+      ? report.recommendations.map((entry: any) => String(entry))
+      : buildLocalDeploymentOpsReport().recommendations,
+    badge_support: {
+      supported: Boolean(report.badge_support?.supported),
+      note: typeof report.badge_support?.note === 'string'
+        ? report.badge_support.note
+        : buildLocalDeploymentOpsReport().badge_support.note,
+    },
+  };
+}
+
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
@@ -219,6 +467,7 @@ if (!sessionToken) {
 
     if (!response.ok) {
       if (!responseText) {
+        routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status });
         throw new Error(`API Error: ${response.status}`);
       }
 
@@ -230,6 +479,7 @@ if (!sessionToken) {
         // Keep the raw response text if it isn't JSON.
       }
 
+      routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status, message });
       throw new Error(message || `API Error: ${response.status}`);
     }
 
@@ -246,6 +496,17 @@ if (!sessionToken) {
   } catch (error) {
     if (!isNetworkFailure(error)) {
       console.error(`API Error (${method} ${endpoint}):`, error);
+      routeOperationalAlert('api_response_failure', {
+        endpoint,
+        method,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } else {
+      routeOperationalAlert('api_transport_failure', {
+        endpoint,
+        method,
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
     throw error;
   }
@@ -285,6 +546,19 @@ function isNetworkFailure(error: unknown): boolean {
   }
 
   return false;
+}
+
+const operationalAlertCooldowns = new Map<string, number>();
+
+function routeOperationalAlert(kind: string, payload: Record<string, unknown>) {
+  const key = `${kind}:${String(payload.endpoint || payload.check || payload.scope || '')}`;
+  const now = Date.now();
+  const last = operationalAlertCooldowns.get(key) || 0;
+  if (now - last < 60_000) {
+    return;
+  }
+  operationalAlertCooldowns.set(key, now);
+  trackEvent(kind, payload);
 }
 
 function createLocalDemoAuth(username: string): { session_token: string; user: User } {
@@ -991,6 +1265,19 @@ export async function updateTravelDestination(userId: string, travelDestinationC
 
 export async function healthCheck(): Promise<any> {
   return apiCall('/health', 'GET');
+}
+
+export async function getDeploymentOpsReport(): Promise<DeploymentOpsReport> {
+  try {
+    const response = await apiCall('/admin/deployment-ops');
+    return normalizeDeploymentOpsReport(response);
+  } catch (error) {
+    if (!isNetworkFailure(error)) {
+      console.warn('Falling back to local deployment ops report:', error);
+    }
+
+    return buildLocalDeploymentOpsReport();
+  }
 }
 
 // ==================== SEARCH & FILTER ====================

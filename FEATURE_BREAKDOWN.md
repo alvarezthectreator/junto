@@ -68,6 +68,9 @@ This is the current source-of-truth summary based on the codebase audit and the 
 - Schema init and seeding
 - Migration support
 - Shared API connection layer
+- Admin dashboard can fetch deployment readiness, secret coverage, release metadata, and badge support summaries
+- Runtime/API failure alert routing and backend health heartbeat tracking
+- Optional OS-level app badge support on platforms that expose it
 
 ## Partial
 
@@ -80,6 +83,7 @@ This is the current source-of-truth summary based on the codebase audit and the 
 - Fraud and moderation automation now handles report escalation, verification review, and no-show enforcement
 - Venue and celebrity booking flows need more end-to-end polish
 - Squad experiences exist, but they still need a fuller product pass
+- Deployment readiness reporting exists in the admin UI, but backend-only secret rotation and release automation still need protected ops endpoints
 
 ## Still Missing For Production
 
@@ -89,8 +93,8 @@ This is the current source-of-truth summary based on the codebase audit and the 
 - Real-time chat/call transport
 - Identity verification provider integration
 - Stronger identity verification provider integration and moderation ops
-- Monitoring, alerting, and secret management
-- Production-grade deployment hardening
+- Backend-protected secret rotation for auth, billing, and deployment metadata
+- Production-grade deployment hardening and rollback automation
 
 ## What I Kept
 

@@ -44,6 +44,46 @@ export async function requestInstallPrompt(): Promise<boolean> {
   return registerServiceWorker();
 }
 
+export async function setAppBadge(count?: number): Promise<boolean> {
+  if (typeof navigator === 'undefined') return false;
+
+  const badgeNavigator = navigator as Navigator & {
+    setAppBadge?: (contents?: number) => Promise<void> | void;
+  };
+
+  if (typeof badgeNavigator.setAppBadge !== 'function') {
+    return false;
+  }
+
+  try {
+    await badgeNavigator.setAppBadge(typeof count === 'number' ? Math.max(0, Math.floor(count)) : 0);
+    return true;
+  } catch (error) {
+    console.warn('Failed to set app badge:', error);
+    return false;
+  }
+}
+
+export async function clearAppBadge(): Promise<boolean> {
+  if (typeof navigator === 'undefined') return false;
+
+  const badgeNavigator = navigator as Navigator & {
+    clearAppBadge?: () => Promise<void> | void;
+  };
+
+  if (typeof badgeNavigator.clearAppBadge !== 'function') {
+    return false;
+  }
+
+  try {
+    await badgeNavigator.clearAppBadge();
+    return true;
+  } catch (error) {
+    console.warn('Failed to clear app badge:', error);
+    return false;
+  }
+}
+
 export function updateThemeColor(color: string = appConfig.themeColor): void {
   if (typeof document === 'undefined') return;
 

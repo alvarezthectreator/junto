@@ -99,14 +99,14 @@ function isLegacySampleConversation(conversation: ConversationRecord): boolean {
 }
 
 function cloneConversations(conversations: ConversationRecord[] = baseConversations): ConversationRecord[] {
-  return conversations.map((conversation) => ({ ...conversation }));
+  return conversations.map((conversation) => normalizeConversationRecord({ ...conversation }));
 }
 
 function cloneThreads(threads: Record<number, MessageRecord[]> = baseThreads): Record<number, MessageRecord[]> {
   return Object.fromEntries(
     Object.entries(threads).map(([conversationId, messages]) => [
       Number(conversationId),
-      messages.map((message) => ({ ...message })),
+      messages.map((message) => normalizeMessageRecord({ ...message })),
     ])
   );
 }
@@ -128,6 +128,71 @@ function formatClock(now = Date.now()) {
   return new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function normalizeMessageText(text: MessageRecord['text'], type: MessageType): string | undefined {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const candidate = (text as { text?: unknown }).text;
+    if (typeof candidate === 'string') return candidate;
+  }
+  return type === 'system' ? 'System message' : undefined;
+}
+
+function normalizeMessageRecord(message: MessageRecord): MessageRecord {
+  return {
+    ...message,
+    text: normalizeMessageText(message.text, message.type),
+  };
+}
+
+function normalizeConversationText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value && typeof value === 'object') {
+    const candidate = value as { text?: unknown; message?: unknown; content?: unknown; label?: unknown; name?: unknown };
+    if (typeof candidate.text === 'string' || typeof candidate.text === 'number' || typeof candidate.text === 'boolean') {
+      return String(candidate.text);
+    }
+    if (typeof candidate.message === 'string' || typeof candidate.message === 'number' || typeof candidate.message === 'boolean') {
+      return String(candidate.message);
+    }
+    if (typeof candidate.content === 'string' || typeof candidate.content === 'number' || typeof candidate.content === 'boolean') {
+      return String(candidate.content);
+    }
+    if (typeof candidate.label === 'string' || typeof candidate.label === 'number' || typeof candidate.label === 'boolean') {
+      return String(candidate.label);
+    }
+    if (typeof candidate.name === 'string' || typeof candidate.name === 'number' || typeof candidate.name === 'boolean') {
+      return String(candidate.name);
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+function normalizeConversationRecord(conversation: ConversationRecord): ConversationRecord {
+  const name = normalizeConversationText(conversation.name, 'Chat');
+  const context = normalizeConversationText(conversation.context, 'Direct message');
+  const routeLabel = normalizeConversationText(conversation.routeLabel, 'Direct chat');
+  const time = normalizeConversationText(conversation.time, 'Now');
+  const hangout = normalizeConversationText(conversation.hangout, 'Direct message');
+  const initialSource = normalizeConversationText(conversation.initial, name);
+
+  return {
+    ...conversation,
+    name,
+    initial: initialSource.trim().charAt(0).toUpperCase() || 'C',
+    context,
+    routeLabel,
+    time,
+    hangout,
+    color: normalizeConversationText(conversation.color, conversation.color || 'bg-[#F59E0B]'),
+  };
+}
+
 export function readMessageStore(scopeUserId?: string | null): MessageStore {
   if (typeof window === 'undefined') {
     return createDefaultMessageStore();
@@ -145,7 +210,9 @@ export function readMessageStore(scopeUserId?: string | null): MessageStore {
     const parsed = JSON.parse(storeRaw);
     const conversations = Array.isArray(parsed?.conversations) ? parsed.conversations : baseConversations;
     const threads = parsed?.threads && typeof parsed.threads === 'object' ? parsed.threads : baseThreads;
-    const cleanedConversations = conversations.filter((conversation) => !isLegacySampleConversation(conversation));
+    const cleanedConversations = conversations
+      .map((conversation) => normalizeConversationRecord({ ...conversation }))
+      .filter((conversation) => !isLegacySampleConversation(conversation));
     const normalizedStore: MessageStore = {
       conversations: cloneConversations(cleanedConversations),
       threads: cloneThreads(threads),
@@ -189,7 +256,9 @@ export function writeMessageStore(store: MessageStore, scopeUserId?: string | nu
 
 export function normalizeMessageStore(store: MessageStore): MessageStore {
   const conversations = cloneConversations(
-    (store.conversations.length ? store.conversations : baseConversations).filter((conversation) => !isLegacySampleConversation(conversation))
+    (store.conversations.length ? store.conversations : baseConversations)
+      .map((conversation) => normalizeConversationRecord({ ...conversation }))
+      .filter((conversation) => !isLegacySampleConversation(conversation))
   );
   const threads = cloneThreads(store.threads && Object.keys(store.threads).length ? store.threads : baseThreads);
   const knownConversationIds = new Set(conversations.map((conversation) => conversation.id));
@@ -291,7 +360,7 @@ export function upsertMessage(
   const existing = store.threads[conversationId] ?? [];
   const nextThreads = {
     ...store.threads,
-    [conversationId]: [...existing, { ...message }],
+    [conversationId]: [...existing, normalizeMessageRecord({ ...message })],
   };
 
   return {
@@ -331,7 +400,7 @@ export function scheduleMessageDelivery(
   draft: Omit<MessageRecord, 'status' | 'time' | 'createdAt'> & { scheduledFor?: string }
 ): MessageStore {
   const nextMessage: MessageRecord = {
-    ...draft,
+    ...normalizeMessageRecord(draft as MessageRecord),
     status: draft.scheduledFor ? 'scheduled' : 'delivered',
     time: draft.scheduledFor ? 'Scheduled' : formatClock(),
     createdAt: nowIso(),

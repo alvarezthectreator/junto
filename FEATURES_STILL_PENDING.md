@@ -16,6 +16,9 @@ This file tracks the gaps that are still open after the current profile, event, 
 - Settings account utilities, notification preferences, referral info, blocked users, and data export
 - Messaging prototype with attachments, voice notes, local persistence, group chats, scheduled delivery, and call mockups
 - True push delivery provider integration and background job delivery
+- Admin dashboard deployment-readiness fetch for secret coverage, monitoring posture, and badge support
+- Runtime/API failure alert routing plus backend health heartbeat tracking
+- Optional OS-level app badge support where the platform exposes it
 ## Remaining items
 
 - Identity verification provider integration for full KYC-style checks
@@ -23,5 +26,5 @@ This file tracks the gaps that are still open after the current profile, event, 
 
 ## Lower Priority
 
-- Finish deployment hardening, monitoring, and environment secret management
-- Optional OS-level notification badge support where supported by the platform
+- Finish backend-protected secret rotation and release automation for production rollout
+- Document staging-to-production promotion and rollback steps for release operators

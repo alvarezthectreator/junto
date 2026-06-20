@@ -15,6 +15,7 @@ import {
   playNotificationTone,
   showBrowserNotification,
 } from '../services/browserNotifications';
+import { clearAppBadge, setAppBadge } from '../services/pwa';
 import {
   localActivityEventName,
   deleteLocalNotification,
@@ -211,6 +212,15 @@ export function Notifications({
   }, [filteredNotifications]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      void setAppBadge(unreadCount);
+      return;
+    }
+
+    void clearAppBadge();
+  }, [unreadCount]);
 
   useEffect(() => {
     let active = true;

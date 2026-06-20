@@ -68,12 +68,36 @@ function getScheduleTime(preset: SchedulePreset): string | undefined {
 
 function summarizeMessage(message?: MessageRecord) {
   if (!message) return '';
+  const text = coerceMessageText(message.text);
   if (message.status === 'scheduled') return '⏳ Scheduled message';
   if (message.type === 'image') return '📷 Photo';
   if (message.type === 'video') return '🎥 Video';
   if (message.type === 'voice') return `🎤 Voice note${message.duration ? ` · ${message.duration}` : ''}`;
-  if (message.type === 'system') return message.text || 'System message';
-  return message.text || '';
+  if (message.type === 'system') return text || 'System message';
+  return text;
+}
+
+function coerceMessageText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value && typeof value === 'object') {
+    const candidate = value as { text?: unknown; message?: unknown; content?: unknown };
+    if (typeof candidate.text === 'string' || typeof candidate.text === 'number' || typeof candidate.text === 'boolean') {
+      return String(candidate.text);
+    }
+    if (typeof candidate.message === 'string' || typeof candidate.message === 'number' || typeof candidate.message === 'boolean') {
+      return String(candidate.message);
+    }
+    if (typeof candidate.content === 'string' || typeof candidate.content === 'number' || typeof candidate.content === 'boolean') {
+      return String(candidate.content);
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 type ParsedWebRTCSignal = WebRTCSignal & {
@@ -102,23 +126,37 @@ type CallSummary = {
   tone: 'neutral' | 'success' | 'warning' | 'danger';
 };
 
+function getCallSummaryTone(text?: string): CallSummary['tone'] {
+  if (!text) return 'neutral';
+  if (text.includes('missed') || text.includes('declined')) return 'warning';
+  if (text.includes('completed') || text.includes('answered')) return 'success';
+  return 'neutral';
+}
+
+function getCallSummaryIcon(text?: string): CallSummary['icon'] {
+  if (!text) return PhoneCall;
+  if (text.includes('missed') || text.includes('declined')) return PhoneMissed;
+  if (text.includes('Incoming')) return PhoneIncoming;
+  if (text.includes('Outgoing')) return PhoneOutgoing;
+  return PhoneCall;
+}
+
 function summarizeWebRTCSignal(
   signal: ParsedWebRTCSignal,
   currentUserId?: string,
   previousSignals: ParsedWebRTCSignal[] = []
-): CallSummary {
+): string {
   const callLabel = getCallModeLabel(signal.mode);
   const isMine = Boolean(currentUserId && String(signal.from || '') === String(currentUserId));
-  const iconForMode = signal.mode === 'video' ? PhoneCall : PhoneCall;
 
   if (signal.type === 'offer') {
     return isMine
-      ? { icon: PhoneOutgoing, text: `Outgoing ${callLabel}`, tone: 'neutral' }
-      : { icon: PhoneIncoming, text: `Incoming ${callLabel}`, tone: 'neutral' };
+      ? `Outgoing ${callLabel}`
+      : `Incoming ${callLabel}`;
   }
 
   if (signal.type === 'answer') {
-    return { icon: PhoneCall, text: `${signal.mode === 'video' ? 'Video' : 'Voice'} call answered`, tone: 'success' };
+    return `${signal.mode === 'video' ? 'Video' : 'Voice'} call answered`;
   }
 
   if (signal.type === 'hang-up') {
@@ -127,21 +165,21 @@ function summarizeWebRTCSignal(
     const inferredReason = explicitReason || (answeredEarlier ? 'completed' : 'missed');
 
     if (inferredReason === 'completed') {
-      return { icon: PhoneCall, text: `${callLabel} completed`, tone: 'success' };
+      return `${callLabel} completed`;
     }
 
     if (inferredReason === 'declined') {
-      return { icon: PhoneMissed, text: `${callLabel} declined`, tone: 'danger' };
+      return `${callLabel} declined`;
     }
 
-    return { icon: PhoneMissed, text: `${callLabel} missed`, tone: 'warning' };
+    return `${callLabel} missed`;
   }
 
   if (signal.type === 'ice-candidate') {
-    return { icon: PhoneCall, text: callLabel, tone: 'neutral' };
+    return callLabel;
   }
 
-  return { icon: PhoneCall, text: callLabel, tone: 'neutral' };
+  return callLabel;
 }
 
 function StatusDots() {
@@ -199,7 +237,7 @@ function mergeMessageThreads(baseMessages: MessageRecord[], incomingMessages: Me
   const seen = new Set<string>();
   const merged: MessageRecord[] = [];
   for (const message of [...baseMessages, ...incomingMessages]) {
-    const dedupeKey = `${message.id}|${message.createdAt}|${message.text || ''}|${message.from || ''}`;
+    const dedupeKey = `${message.id}|${message.createdAt}|${coerceMessageText(message.text)}|${message.from || ''}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
     merged.push(message);
@@ -1056,28 +1094,10 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                 const messageAuthor = isMine
                   ? friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You')
                   : friendlyName(message.from, activeConversationData?.name, 'Sender');
-                const callSummary = message.type === 'system' ? (() => {
-                  if (/call/i.test(message.text || '')) {
-                    return {
-                      icon: message.text.includes('missed')
-                        ? PhoneMissed
-                        : message.text.includes('declined')
-                          ? PhoneMissed
-                          : message.text.includes('answered') || message.text.includes('completed')
-                            ? PhoneCall
-                            : message.text.includes('Incoming')
-                              ? PhoneIncoming
-                              : PhoneOutgoing,
-                      tone: message.text.includes('missed') || message.text.includes('declined')
-                        ? ('warning' as const)
-                        : message.text.includes('completed') || message.text.includes('answered')
-                          ? ('success' as const)
-                          : ('neutral' as const),
-                    };
-                  }
-                  return null;
-                })() : null;
-                const CallIcon = callSummary?.icon;
+                const messageText = coerceMessageText(message.text);
+                const callTone = message.type === 'system' ? getCallSummaryTone(messageText) : 'neutral';
+                const CallIcon = message.type === 'system' ? getCallSummaryIcon(messageText) : undefined;
+                const isCallSummary = message.type === 'system' && /call/i.test(messageText);
 
                 return (
                   <div
@@ -1102,12 +1122,12 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                             : 'rounded-tl-sm bg-[#0F0F13] text-gray-200'
                         }`}
                       >
-                        {message.type === 'text' && <p className="whitespace-pre-wrap leading-6">{message.text}</p>}
+                        {message.type === 'text' && <p className="whitespace-pre-wrap leading-6">{messageText}</p>}
 
                         {message.type === 'image' && (
                           <div className="space-y-2">
-                            {message.url && <img src={message.url} alt={message.text || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
-                            {message.text && <p className="text-xs text-gray-300">{message.text}</p>}
+                            {message.url && <img src={message.url} alt={messageText || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
+                            {messageText && <p className="text-xs text-gray-300">{messageText}</p>}
                           </div>
                         )}
 
@@ -1118,7 +1138,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                                 <source src={message.url} />
                               </video>
                             )}
-                            <p className="text-xs text-gray-300">{message.text || 'Video attachment'}</p>
+                            <p className="text-xs text-gray-300">{messageText || 'Video attachment'}</p>
                           </div>
                         )}
 
@@ -1128,16 +1148,16 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                               <Mic size={16} />
                             </button>
                             <div className="min-w-0">
-                              <p className="font-medium text-white">{message.text || 'Voice note'}</p>
+                              <p className="font-medium text-white">{messageText || 'Voice note'}</p>
                               <p className="text-[11px] text-gray-300">{message.duration || '0:12'}</p>
                             </div>
                           </div>
                         )}
 
                         {message.type === 'system' && (
-                          <div className={`flex items-center justify-center gap-2 ${callSummary ? 'text-sm font-semibold text-white' : 'text-xs uppercase tracking-[0.18em] text-gray-400'}`}>
-                            {CallIcon && <CallIcon className={`h-4 w-4 ${callSummary?.tone === 'success' ? 'text-emerald-400' : callSummary?.tone === 'warning' ? 'text-amber-400' : callSummary?.tone === 'danger' ? 'text-rose-400' : 'text-gray-300'}`} />}
-                            <span>{message.text}</span>
+                          <div className={`flex items-center justify-center gap-2 ${isCallSummary ? 'text-sm font-semibold text-white' : 'text-xs uppercase tracking-[0.18em] text-gray-400'}`}>
+                            {CallIcon && <CallIcon className={`h-4 w-4 ${callTone === 'success' ? 'text-emerald-400' : callTone === 'warning' ? 'text-amber-400' : callTone === 'danger' ? 'text-rose-400' : 'text-gray-300'}`} />}
+                            <span>{messageText || 'System message'}</span>
                           </div>
                         )}
 
