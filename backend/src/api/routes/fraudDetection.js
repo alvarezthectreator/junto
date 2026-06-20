@@ -14,6 +14,8 @@ import {
   resolveSuspiciousActivity,
   getFraudLogs,
   getHighRiskUsers,
+  getFraudEnforcementSnapshot,
+  runFraudEnforcement,
 } from '../controllers/fraudDetection.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -81,6 +83,22 @@ router.put('/activities/:activityId/resolve', authenticateToken, (req, res) => {
  */
 router.get('/:userId/logs', authenticateToken, (req, res) => {
   getFraudLogs(req, res, global.db);
+});
+
+/**
+ * GET /api/fraud/high-risk-users
+ * Get list of high-risk users for admin dashboard
+ */
+router.get('/summary', authenticateToken, (req, res) => {
+  getFraudEnforcementSnapshot(req, res, global.db);
+});
+
+/**
+ * POST /api/fraud/run-enforcement
+ * Run the fraud enforcement sweep on demand
+ */
+router.post('/run-enforcement', authenticateToken, (req, res) => {
+  runFraudEnforcement(req, res, global.db);
 });
 
 /**

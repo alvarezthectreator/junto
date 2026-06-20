@@ -875,7 +875,17 @@ export async function getMatches(userId: string): Promise<User[]> {
 }
 
 // ==================== SAFETY ====================
-
+export async function applyCancellationPenalty(
+  userId: string,
+  eventId: string,
+  penaltyPercent: number
+): Promise<{ success: boolean; new_reliability_score?: number; message?: string }> {
+  return apiCall('/users/cancellation-penalty', 'POST', {
+    user_id: userId,
+    event_id: eventId,
+    penalty_percent: penaltyPercent,
+  });
+}
 export async function addTrustedContact(
   userId: string,
   contactName: string,
@@ -1293,6 +1303,14 @@ export async function getFraudLogs(userId: string, eventType?: string): Promise<
 
 export async function getHighRiskUsers(threshold: number = 80, limit: number = 20): Promise<any> {
   return apiCall(`/fraud?threshold=${threshold}&limit=${limit}`);
+}
+
+export async function getFraudEnforcementSummary(): Promise<any> {
+  return apiCall('/fraud/summary');
+}
+
+export async function runFraudEnforcement(): Promise<any> {
+  return apiCall('/fraud/run-enforcement', 'POST');
 }
 
 // ==================== FOLLOW-UP MANAGEMENT ====================

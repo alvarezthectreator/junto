@@ -15,6 +15,7 @@ import {
 } from '../utils/localActivity';
 import { getUserLocation, isLocationAvailable } from '../utils/checkInUtils';
 import { formatPhoneForWhatsApp, sendSOSViaWhatsApp } from '../utils/whatsappShare';
+import { RealtimeSocket } from '../services/realtimeSocket';
 import {
   AlertTriangle,
   Copy,
@@ -782,6 +783,7 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
   }, []);
 
   useEffect(() => {
+    let socket: RealtimeSocket | null = null;
     const loadSafetyAudit = () => {
       try {
         setSafetyActions(readSafetyActions());
@@ -794,8 +796,15 @@ export const SafetyCentre: React.FC<SafetyCentreProps> = ({ onNavigate, setActiv
 
     loadSafetyAudit();
     window.addEventListener('junto-local-activity-updated', loadSafetyAudit as EventListener);
+    socket = new RealtimeSocket({
+      onSafetyEvent: () => loadSafetyAudit(),
+      onModerationEvent: () => loadSafetyAudit(),
+      onConnectionOpen: () => console.log('Safety realtime connected'),
+      onError: (error) => console.warn('Safety realtime error:', error),
+    });
     return () => {
       window.removeEventListener('junto-local-activity-updated', loadSafetyAudit as EventListener);
+      socket?.close();
     };
   }, []);
 

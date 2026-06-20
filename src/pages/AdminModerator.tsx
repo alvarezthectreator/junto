@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   Flag,
-  Users,
   BarChart3,
   Shield,
   TrendingUp,
@@ -16,6 +15,8 @@ import {
 import { Sidebar } from '../components/Sidebar';
 import {
   getHighRiskUsers,
+  getFraudEnforcementSummary,
+  runFraudEnforcement,
 } from '../services/api';
 
 interface HighRiskUser {
@@ -28,16 +29,6 @@ interface HighRiskUser {
   identity_score: number;
   flags_count: number;
   last_updated: string;
-}
-
-interface AccountFlag {
-  id: string;
-  flag_type: string;
-  severity: string;
-  description: string;
-  action_taken: string;
-  reviewed: boolean;
-  created_at: string;
 }
 
 interface AdminModeratorProps {
@@ -54,6 +45,15 @@ export function AdminModerator({
   const [activeTab, setActiveTab] = useState<'overview' | 'high-risk' | 'flags' | 'activities' | 'logs'>('overview');
   const [highRiskUsers, setHighRiskUsers] = useState<HighRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enforcementSummary, setEnforcementSummary] = useState({
+    no_shows_last_30_days: 0,
+    report_clusters_last_7_days: 0,
+    verification_reviews_last_14_days: 0,
+    reliability_penalties_last_30_days: 0,
+    account_flags_last_30_days: 0,
+    high_risk_users: 0,
+  });
+  const [enforcementRunning, setEnforcementRunning] = useState(false);
   const [stats, setStats] = useState({
     total_flagged: 0,
     high_risk_count: 0,
@@ -68,6 +68,7 @@ export function AdminModerator({
   useEffect(() => {
     fetchHighRiskUsers();
     loadStats();
+    fetchEnforcementSummary();
   }, []);
 
   const fetchHighRiskUsers = async () => {
@@ -90,6 +91,29 @@ export function AdminModerator({
       pending_reviews: 8,
       resolved_this_week: 3,
     });
+  };
+
+  const fetchEnforcementSummary = async () => {
+    try {
+      const data = await getFraudEnforcementSummary();
+      if (data?.summary) {
+        setEnforcementSummary(data.summary);
+      }
+    } catch (error) {
+      console.error('Error fetching enforcement summary:', error);
+    }
+  };
+
+  const handleRunEnforcement = async () => {
+    try {
+      setEnforcementRunning(true);
+      await runFraudEnforcement();
+      await Promise.all([fetchHighRiskUsers(), fetchEnforcementSummary()]);
+    } catch (error) {
+      console.error('Error running fraud enforcement:', error);
+    } finally {
+      setEnforcementRunning(false);
+    }
   };
 
   const getRiskLevelColor = (level: string) => {
@@ -209,6 +233,23 @@ export function AdminModerator({
                   className="space-y-4"
                 >
                   <h3 className="text-lg font-semibold mb-4">Fraud Detection Dashboard</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={handleRunEnforcement}
+                      disabled={enforcementRunning}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-300 border border-red-500/30 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      <Shield className="w-4 h-4" />
+                      {enforcementRunning ? 'Running sweep...' : 'Run enforcement sweep'}
+                    </button>
+                    <button
+                      onClick={fetchEnforcementSummary}
+                      className="inline-flex items-center gap-2 rounded-lg bg-white/5 px-4 py-2 text-sm font-semibold text-gray-200 border border-gray-700 hover:bg-white/10"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Refresh summary
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-slate-800/50 rounded-lg p-4 border border-gray-700">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
@@ -236,6 +277,33 @@ export function AdminModerator({
                         <div>🟡 <span className="font-semibold">MEDIUM</span>: Risk score 60-79</div>
                         <div>🟢 <span className="font-semibold">LOW</span>: Risk score &lt; 60</div>
                       </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg p-4 border border-gray-700">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-emerald-400" />
+                        Enforcement Summary
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-gray-400 text-xs uppercase tracking-[0.18em]">No-shows</p>
+                          <p className="mt-1 text-lg font-semibold">{enforcementSummary.no_shows_last_30_days}</p>
+                        </div>
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-gray-400 text-xs uppercase tracking-[0.18em]">Report clusters</p>
+                          <p className="mt-1 text-lg font-semibold">{enforcementSummary.report_clusters_last_7_days}</p>
+                        </div>
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-gray-400 text-xs uppercase tracking-[0.18em]">Verification</p>
+                          <p className="mt-1 text-lg font-semibold">{enforcementSummary.verification_reviews_last_14_days}</p>
+                        </div>
+                        <div className="rounded-lg bg-white/5 p-3">
+                          <p className="text-gray-400 text-xs uppercase tracking-[0.18em]">High risk</p>
+                          <p className="mt-1 text-lg font-semibold">{enforcementSummary.high_risk_users}</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-gray-500">
+                        Automated sweeps also track {enforcementSummary.reliability_penalties_last_30_days} reliability penalties and {enforcementSummary.account_flags_last_30_days} account flags in the last 30 days.
+                      </p>
                     </div>
                   </div>
                 </motion.div>

@@ -321,6 +321,65 @@ export async function getReferralInfo(req, res) {
   }
 }
 
+export async function applyCancellationPenalty(req, res) {
+  try {
+    const authUserId = req.user?.id;
+    const { user_id, event_id, penalty_percent, reason } = req.body || {};
+
+    const targetUserId = user_id || authUserId;
+
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!targetUserId || !event_id) {
+      return res.status(400).json({ error: 'user_id and event_id are required' });
+    }
+
+    if (targetUserId !== authUserId) {
+      return res.status(403).json({ error: 'You can only update your own reliability score' });
+    }
+
+    const penalty = Number(penalty_percent);
+    if (!Number.isFinite(penalty) || penalty <= 0) {
+      return res.status(400).json({ error: 'penalty_percent must be a positive number' });
+    }
+
+    const userResult = await query(
+      'SELECT id, reliability_score FROM users WHERE id = $1',
+      [targetUserId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const previousScore = Number(userResult.rows[0].reliability_score ?? 100);
+    const newScore = Math.max(0, Number((previousScore * (1 - penalty / 100)).toFixed(2)));
+
+    await query(
+      'UPDATE users SET reliability_score = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newScore, targetUserId]
+    );
+
+    await query(
+      `INSERT INTO reliability_penalty_log (
+        id, user_id, event_id, penalty_percent, previous_score, new_score, reason, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+      [uuidv4(), targetUserId, event_id, penalty, previousScore, newScore, reason || 'Cancellation penalty']
+    );
+
+    res.json({
+      success: true,
+      new_reliability_score: newScore,
+      previous_reliability_score: previousScore,
+      message: 'Cancellation penalty applied',
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function exportUserData(req, res) {
   try {
     const { userId } = req.params;
@@ -346,6 +405,7 @@ export async function exportUserData(req, res) {
       blockedUsersResult,
       reportsResult,
       subscriptionsResult,
+      penaltyLogResult,
       referralStats,
     ] = await Promise.all([
       query('SELECT * FROM events WHERE host_id = $1 ORDER BY created_at DESC', [userId]),
@@ -373,6 +433,7 @@ export async function exportUserData(req, res) {
         [userId]
       ),
       query('SELECT * FROM subscriptions WHERE user_id = $1', [userId]),
+      query('SELECT * FROM reliability_penalty_log WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
       getReferralStats(userId),
     ]);
 
@@ -389,6 +450,7 @@ export async function exportUserData(req, res) {
       blocked_users: blockedUsersResult.rows,
       reports: reportsResult.rows,
       subscriptions: subscriptionsResult.rows,
+      reliability_penalties: penaltyLogResult.rows,
       referral: referralStats
         ? {
             code: referralStats.user.profile_id,

@@ -1,5 +1,6 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { createNotification } from '../../services/notificationService.js';
 
 async function getOrCreateConversation(userId, otherUserId) {
   const existing = await query(
@@ -93,11 +94,22 @@ export async function applyToEvent(req, res) {
           ? `${user.display_name} joined the waitlist for "${eventData.title}"`
           : `${user.display_name} applied to "${eventData.title}"`;
 
-        await query(
-          `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-          [uuidv4(), eventData.host_id, 'new_application', user_id, 'New Event Application', notificationText]
-        );
+        await createNotification({
+          userId: eventData.host_id,
+          notificationType: 'new_application',
+          title: 'New Event Application',
+          body: notificationText,
+          relatedUserId: user_id,
+          relatedEventId: event_id,
+          payload: {
+            eventId: event_id,
+            userId: user_id,
+            title: 'New Event Application',
+            body: notificationText,
+            url: `/events/${event_id}/applications`,
+          },
+          url: `/events/${event_id}/applications`,
+        });
 
         // Mirror the application note into the messages inbox so the host and applicant
         // see it in the same direct-message thread as regular chat messages.
@@ -226,11 +238,21 @@ export async function updateApplicationStatus(req, res) {
       const event = eventRes.rows[0];
       
       // Notify applicant
-      await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_event_id, title, body, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [uuidv4(), app.user_id, 'event_accepted', app.event_id, 'Application Accepted', `You've been accepted to "${event.title}"!`]
-      );
+      await createNotification({
+        userId: app.user_id,
+        notificationType: 'event_accepted',
+        title: 'Application Accepted',
+        body: `You've been accepted to "${event.title}"!`,
+        relatedEventId: app.event_id,
+        relatedUserId: event.host_id,
+        payload: {
+          eventId: app.event_id,
+          title: 'Application Accepted',
+          body: `You've been accepted to "${event.title}"!`,
+          url: `/events/${app.event_id}`,
+        },
+        url: `/events/${app.event_id}`,
+      });
     }
 
     res.json({ application: app, message: `✅ Application ${status}` });

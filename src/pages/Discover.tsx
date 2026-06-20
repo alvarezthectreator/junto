@@ -400,11 +400,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     });
 
     return Array.from(deduped.values())
-      .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)));
-    // NOTE: expiry filter disabled so all events show regardless of date/status
-    // .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
+   return Array.from(deduped.values())
+      .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
+      .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
   }, [apiEvents, localEvents, useBackend, currentUser?.id, currentUser?.name, currentUser?.username]);
-
   // Filter events based on active filter and search
   let filteredEvents = events.filter((event: any) => {
     const matchesFilter = activeFilter === 'All vibes' || 
@@ -774,30 +773,31 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
               </option>
             ))}
           </select>
-          <button
-            onClick={() => setShowSavedOnly(!showSavedOnly)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-              showSavedOnly
-                ? 'bg-[#F59E0B] text-white'
-                : 'bg-[#1A1A21] border border-white/5 text-gray-400 hover:text-white hover:border-white/10'
-            }`}
-          >
-            ❤️ Saved
-          </button>
+         
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-gray-400">{displayedEvents.length} vibes found</span>
-          <button
-            onClick={() => {
-              trackEvent('discover_create_event_click', { city: selectedCity });
-              onNavigate('myhost');
-            }}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-95"
-          >
-            <Plus size={16} />
-            Create event
-          </button>
-        </div>
+        <div className="flex flex-wrap items-center gap-2">
+  <span className="text-sm text-gray-400">{displayedEvents.length} vibes found</span>
+  <button
+    onClick={() => setShowSavedOnly(!showSavedOnly)}
+    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
+      showSavedOnly
+        ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+        : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+    }`}
+  >
+    {showSavedOnly ? '❤️ Saved' : '🤍 Saved'}
+  </button>
+  <button
+    onClick={() => {
+      trackEvent('discover_create_event_click', { city: selectedCity });
+      onNavigate('myhost');
+    }}
+    className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-95"
+  >
+    <Plus size={14} />
+    Create
+  </button>
+</div>
       </div>
 
       {/* Trending Banner */}
@@ -843,38 +843,52 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             const actualIndex = events.indexOf(event);
             return (
               <div key={index} className="relative group">
-                <EventCard
-                  index={index}
-                  userInitial={event.userInitial}
-                  userName={event.userName}
-                  actionText={event.actionText}
-                  emoji={event.emoji}
-                  description={event.description}
-                  date={event.date}
-                  audience={event.audience}
-                  interestedCount={event.interestedCount}
-                  accentColor={event.accentColor}
-                  audienceColor={event.audienceColor}
-                  coverImage={event.coverImage}
-                  isVerified={event.isVerified}
-                  reliabilityScore={event.reliabilityScore}
-                  averageRating={event.averageRating}
-                  reviewCount={event.reviewCount}
-                  eventId={event.id}
-                  currentUserId={currentUser?.id}
-                  onCardClick={() => openEventDetail(event, actualIndex)}
-                  onInterested={() => handleInterested(event, actualIndex)}
-                  onSaveChange={(saved) => {
-                    setSavedEventIds((current) => {
-                      const next = saved
-                        ? Array.from(new Set([...current, event.id]))
-                        : current.filter((id) => id !== event.id);
-                      localStorage.setItem(savedEventsKey, JSON.stringify(next));
-                      return next;
-                    });
-                  }}
-                />
-              </div>
+  {(() => {
+    const expired = isEventExpired(event.event_date, event.event_time, event.status);
+    return (
+      <>
+        {expired && (
+          <div className="absolute top-3 left-3 z-20 rounded-full bg-black/70 border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-gray-400 backdrop-blur-sm">
+            Ended
+          </div>
+        )}
+        <div className={expired ? 'opacity-50 pointer-events-none' : ''}>
+          <EventCard
+            index={index}
+            userInitial={event.userInitial}
+            userName={event.userName}
+            actionText={event.actionText}
+            emoji={event.emoji}
+            description={event.description}
+            date={event.date}
+            audience={event.audience}
+            interestedCount={event.interestedCount}
+            accentColor={event.accentColor}
+            audienceColor={event.audienceColor}
+            coverImage={event.coverImage}
+            isVerified={event.isVerified}
+            reliabilityScore={event.reliabilityScore}
+            averageRating={event.averageRating}
+            reviewCount={event.reviewCount}
+            eventId={event.id}
+            currentUserId={currentUser?.id}
+            onCardClick={() => openEventDetail(event, actualIndex)}
+            onInterested={() => handleInterested(event, actualIndex)}
+            onSaveChange={(saved) => {
+              setSavedEventIds((current) => {
+                const next = saved
+                  ? Array.from(new Set([...current, event.id]))
+                  : current.filter((id) => id !== event.id);
+                localStorage.setItem(savedEventsKey, JSON.stringify(next));
+                return next;
+              });
+            }}
+          />
+        </div>
+      </>
+    );
+  })()}
+</div>
             );
           })
         ) : (

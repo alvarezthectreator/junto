@@ -95,6 +95,7 @@ function ensureProductionTables() {
     `ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0;`,
     `ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP;`,
     `ALTER TABLE users ADD COLUMN avatar_image TEXT;`,
+    `ALTER TABLE users ADD COLUMN reliability_score NUMERIC DEFAULT 100;`,
     `ALTER TABLE user_profiles ADD COLUMN avatar_image TEXT;`,
     `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
     `ALTER TABLE reports ADD COLUMN evidence_urls TEXT;`,
@@ -187,6 +188,19 @@ function ensureProductionTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
+
+  const createReliabilityPenaltyLogTable = `
+    CREATE TABLE IF NOT EXISTS reliability_penalty_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      penalty_percent NUMERIC NOT NULL,
+      previous_score NUMERIC NOT NULL,
+      new_score NUMERIC NOT NULL,
+      reason TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
   
   db.run(createNotificationsTable, (err) => {
     if (err && !err.message.includes('already exists')) {
@@ -267,6 +281,59 @@ function ensureProductionTables() {
     }
   });
 
+  const createPushSubscriptionsTable = `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subscription_data TEXT NOT NULL,
+      is_active BOOLEAN DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, subscription_data)
+    );
+  `;
+
+  db.run(createPushSubscriptionsTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create push_subscriptions table:', err.message);
+    } else {
+      console.log('✅ Ensured push_subscriptions table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);');
+    }
+  });
+
+  const createNotificationDeliveryQueueTable = `
+    CREATE TABLE IF NOT EXISTS notification_delivery_queue (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      notification_id TEXT REFERENCES notifications(id) ON DELETE CASCADE,
+      title VARCHAR(255) NOT NULL,
+      body TEXT,
+      url TEXT,
+      notification_type VARCHAR(50),
+      payload TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      attempts INTEGER DEFAULT 0,
+      max_attempts INTEGER DEFAULT 5,
+      next_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_error TEXT,
+      sent_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+  db.run(createNotificationDeliveryQueueTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create notification_delivery_queue table:', err.message);
+    } else {
+      console.log('✅ Ensured notification_delivery_queue table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_status ON notification_delivery_queue(status);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_next_attempt ON notification_delivery_queue(next_attempt_at);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_user ON notification_delivery_queue(user_id);');
+    }
+  });
+
   // Create notification preferences table
   const createNotificationPreferencesTable = `
     CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -300,6 +367,23 @@ function ensureProductionTables() {
         console.warn('⚠️  Notification preferences index creation warning:', indexErr.message);
       }
     });
+  });
+
+  db.run(createReliabilityPenaltyLogTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create reliability_penalty_log table:', err.message);
+    } else {
+      console.log('✅ Ensured reliability_penalty_log table exists');
+    }
+
+    db.run(
+      'CREATE INDEX IF NOT EXISTS idx_reliability_penalty_log_user_id ON reliability_penalty_log(user_id);',
+      (indexErr) => {
+        if (indexErr && !indexErr.message.includes('already exists')) {
+          console.warn('⚠️  Reliability penalty index warning:', indexErr.message);
+        }
+      }
+    );
   });
 
   // Add reminder_sent column to event_applications if it doesn't exist

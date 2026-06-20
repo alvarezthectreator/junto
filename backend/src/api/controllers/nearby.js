@@ -1,5 +1,6 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { createNotification } from '../../services/notificationService.js';
 
 function buildNearbyLocationScope(city) {
   const normalized = String(city || '').trim().toLowerCase();
@@ -143,20 +144,35 @@ export async function swipeUser(req, res) {
           const swiperRes = await query('SELECT display_name FROM users WHERE id = ?', [user_id]);
           const swipedRes = await query('SELECT display_name FROM users WHERE id = ?', [swiped_user_id]);
 
-          const notif1Id = uuidv4();
-          const notif2Id = uuidv4();
-          
-          await query(
-            `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at) 
-             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-            [notif1Id, swiped_user_id, 'match', user_id, '❤️ It\'s a Match!', `You matched with ${swiperRes.rows && swiperRes.rows[0] ? swiperRes.rows[0].display_name : 'someone'}!`]
-          );
+          await createNotification({
+            userId: swiped_user_id,
+            notificationType: 'match',
+            title: '❤️ It\'s a Match!',
+            body: `You matched with ${swiperRes.rows && swiperRes.rows[0] ? swiperRes.rows[0].display_name : 'someone'}!`,
+            relatedUserId: user_id,
+            payload: {
+              matchUserId: user_id,
+              title: '❤️ It\'s a Match!',
+              body: `You matched with ${swiperRes.rows && swiperRes.rows[0] ? swiperRes.rows[0].display_name : 'someone'}!`,
+              url: '/matches',
+            },
+            url: '/matches',
+          });
 
-          await query(
-            `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at) 
-             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-            [notif2Id, user_id, 'match', swiped_user_id, '❤️ It\'s a Match!', `You matched with ${swipedRes.rows && swipedRes.rows[0] ? swipedRes.rows[0].display_name : 'someone'}!`]
-          );
+          await createNotification({
+            userId: user_id,
+            notificationType: 'match',
+            title: '❤️ It\'s a Match!',
+            body: `You matched with ${swipedRes.rows && swipedRes.rows[0] ? swipedRes.rows[0].display_name : 'someone'}!`,
+            relatedUserId: swiped_user_id,
+            payload: {
+              matchUserId: swiped_user_id,
+              title: '❤️ It\'s a Match!',
+              body: `You matched with ${swipedRes.rows && swipedRes.rows[0] ? swipedRes.rows[0].display_name : 'someone'}!`,
+              url: '/matches',
+            },
+            url: '/matches',
+          });
 
           return res.json({ match: true, message: '✅ It\'s a match!' });
         }

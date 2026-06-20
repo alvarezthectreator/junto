@@ -1,6 +1,7 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import { broadcastEventUpdate, broadcastEventCreated, broadcastEventDeleted } from '../../websocket.js';
+import { createNotification } from '../../services/notificationService.js';
 
 export async function getEvents(req, res) {
   try {
@@ -114,12 +115,21 @@ export async function createEvent(req, res) {
        event_date, event_time || '18:00', cover_photo_url, Boolean(is_squad_event), tier, tierData.hostFee, tierData.guestFee, max_guests || 15]
     );
 
-    // Create notification for host
-    await query(
-      `INSERT INTO notifications (user_id, notification_type, title, body)
-       VALUES ($1, $2, $3, $4)`,
-      [host_id, 'event_created', 'Event Created', `Your event "${title}" is now live!`]
-    );
+    // Create notification for host and enqueue push delivery when available
+    await createNotification({
+      userId: host_id,
+      notificationType: 'event_created',
+      title: 'Event Created',
+      body: `Your event "${title}" is now live!`,
+      relatedEventId: eventId,
+      payload: {
+        eventId,
+        title,
+        body: `Your event "${title}" is now live!`,
+        url: `/events/${eventId}`,
+      },
+      url: `/events/${eventId}`,
+    });
 
     // Broadcast to all connected clients
     broadcastEventCreated(eventId);

@@ -19,6 +19,7 @@ interface CallModalProps {
   name: string;
   localUserId?: string;
   remoteUserId?: string;
+  conversationId?: string;
   onClose: () => void;
   /** Optional: if you have an incoming signal to handle immediately (callee side) */
   incomingSignal?: WebRTCSignal | null;
@@ -48,16 +49,33 @@ async function sendSignalViaAPI(signal: WebRTCSignal): Promise<void> {
   });
 }
 
+function buildCallSummaryMessage(type: 'audio' | 'video', reason: 'completed' | 'missed' | 'declined') {
+  const modeLabel = type === 'video' ? 'Video call' : 'Voice call';
+
+  if (reason === 'completed') {
+    return `${modeLabel} completed`;
+  }
+
+  if (reason === 'declined') {
+    return `${modeLabel} declined`;
+  }
+
+  return `Missed ${modeLabel.toLowerCase()}`;
+}
+
 export function CallModal({
   type,
   name,
   localUserId,
   remoteUserId,
+  conversationId,
   onClose,
   incomingSignal,
 }: CallModalProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const processedSignalKeysRef = useRef<Set<string>>(new Set());
+  const initialSignalKeyRef = useRef<string | null>(null);
 
   const {
     callState,
@@ -91,18 +109,100 @@ export function CallModal({
     }
   }, [remoteStream]);
 
-  // Auto-start outgoing call or handle incoming offer
+  useEffect(() => {
+    if (callState !== 'ended') {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      onClose();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [callState, onClose]);
+
+  // Auto-start outgoing call or handle the first incoming offer.
   useEffect(() => {
     if (incomingSignal) {
-      void handleIncomingSignal(incomingSignal);
-    } else {
+      const signalKey = JSON.stringify(incomingSignal);
+      if (initialSignalKeyRef.current !== signalKey) {
+        initialSignalKeyRef.current = signalKey;
+        processedSignalKeysRef.current.add(signalKey);
+        void handleIncomingSignal(incomingSignal);
+      }
+      return;
+    }
+
+    if (initialSignalKeyRef.current !== 'outgoing-started') {
+      initialSignalKeyRef.current = 'outgoing-started';
       void startCall();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [incomingSignal, handleIncomingSignal, startCall]);
+
+  // Keep the live call synchronized with new offer/answer/ICE messages in the active conversation.
+  useEffect(() => {
+    if (!conversationId || !localUserId || !remoteUserId) {
+      return;
+    }
+
+    let active = true;
+
+    const syncSignals = async () => {
+      try {
+        const response = await API.getConversation(conversationId);
+        if (!active) return;
+
+        const messages = Array.isArray(response?.messages) ? response.messages : [];
+        for (const message of messages) {
+          let parsed: WebRTCSignal & { __webrtc_signal__?: boolean } | null = null;
+          try {
+            parsed = JSON.parse(message.content || 'null');
+          } catch {
+            parsed = null;
+          }
+
+          if (
+            parsed?.__webrtc_signal__ &&
+            String(parsed.from || '') === String(remoteUserId) &&
+            String(parsed.to || '') === String(localUserId)
+          ) {
+            const signalKey = JSON.stringify(parsed);
+            if (processedSignalKeysRef.current.has(signalKey)) {
+              continue;
+            }
+            processedSignalKeysRef.current.add(signalKey);
+            await handleIncomingSignal(parsed);
+          }
+        }
+      } catch (error) {
+        console.warn('[WebRTC] Failed to sync conversation signals:', error);
+      }
+    };
+
+    void syncSignals();
+    const interval = window.setInterval(() => void syncSignals(), 1200);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [conversationId, localUserId, remoteUserId, handleIncomingSignal]);
 
   const handleHangUp = () => {
-    hangUp();
+    const reason = callState === 'connected' ? 'completed' : 'missed';
+
+    if (conversationId && localUserId && remoteUserId) {
+      void API.sendMessage(
+        conversationId,
+        remoteUserId,
+        buildCallSummaryMessage(type, reason),
+        'system'
+      ).catch((error) => {
+        console.warn('[WebRTC] Failed to log call summary:', error);
+      });
+    }
+
+    hangUp(reason);
     onClose();
   };
 

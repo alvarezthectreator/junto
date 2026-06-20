@@ -5,6 +5,7 @@ import {
   flagSuspiciousActivity,
   logFraudEvent,
 } from '../../services/fraudDetectionService.js';
+import { broadcastSafetyEvent } from '../../websocket.js';
 
 function getEscalationLevel(reportType, description = '') {
   const text = `${reportType || ''} ${description || ''}`.toLowerCase();
@@ -137,6 +138,15 @@ export async function triggerSOS(req, res) {
     console.log(`🚨 SOS ALERT triggered for ${user.full_name} (${user.profile_id})`);
     console.log(`📍 Location: Lat ${location_latitude}, Long ${location_longitude}`);
     console.log(`📞 Notifying ${contacts.length} trusted contacts:`, contacts.map(c => c.contact_phone).join(', '));
+
+    broadcastSafetyEvent({
+      action: 'sos_triggered',
+      user_id: userId,
+      alert_id: alertId,
+      location_latitude: location_latitude || null,
+      location_longitude: location_longitude || null,
+      contacts_notified: contacts.length,
+    });
 
     res.json({
       alert: alert.rows[0],

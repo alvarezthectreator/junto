@@ -5,6 +5,7 @@
  */
 
 import cron from 'node-cron';
+import { createNotification } from './notificationService.js';
 
 let schedulerInstance = null;
 
@@ -88,54 +89,40 @@ const checkAndSendEventReminders = async (db) => {
           // Format event date/time for display
           const eventDateTime = `${row.date} at ${row.time}`;
 
-          // Create notification in database
-          const createNotifSql = `
-            INSERT INTO notifications (
-              id, user_id, notification_type, title, body, 
-              created_at, is_read, event_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-
-          const { v4: uuidv4 } = require('uuid');
-          const notificationId = uuidv4();
-          const notificationTime = new Date().toISOString();
-
           const title = `Reminder: ${row.title}`;
           const body = `Event starts ${eventDateTime} at ${row.location}`;
 
-          db.run(
-            createNotifSql,
-            [
-              notificationId,
-              row.user_id,
-              'event_reminder',
+          createNotification({
+            userId: row.user_id,
+            notificationType: 'event_reminder',
+            title,
+            body,
+            relatedEventId: row.event_id,
+            payload: {
+              eventId: row.event_id,
               title,
               body,
-              notificationTime,
-              0, // is_read = false
-              row.event_id,
-            ],
-            (err) => {
+              url: `/events/${row.event_id}`,
+            },
+            url: `/events/${row.event_id}`,
+          }).catch((err) => {
+            console.error('Error creating reminder notification:', err);
+          }).finally(() => {
+            // Mark reminder as sent
+            const updateSql = `
+              UPDATE event_applications
+              SET reminder_sent = 1
+              WHERE event_id = ? AND user_id = ?
+            `;
+
+            db.run(updateSql, [row.event_id, row.user_id], (err) => {
               if (err) {
-                console.error('Error creating reminder notification:', err);
+                console.error('Error marking reminder as sent:', err);
               }
-
-              // Mark reminder as sent
-              const updateSql = `
-                UPDATE event_applications 
-                SET reminder_sent = 1 
-                WHERE event_id = ? AND user_id = ?
-              `;
-
-              db.run(updateSql, [row.event_id, row.user_id], (err) => {
-                if (err) {
-                  console.error('Error marking reminder as sent:', err);
-                }
-                console.log(`✓ Event reminder sent to ${row.display_name} for ${row.title}`);
-                resolveReminder();
-              });
-            }
-          );
+              console.log(`✓ Event reminder sent to ${row.display_name} for ${row.title}`);
+              resolveReminder();
+            });
+          });
         });
       });
 
@@ -190,36 +177,31 @@ export const sendEventReminder = (db, eventId, userId) => {
         return;
       }
 
-      const { v4: uuidv4 } = require('uuid');
-      const notificationId = uuidv4();
-      const notificationTime = new Date().toISOString();
-
       const title = `Reminder: ${row.title}`;
       const body = `Event starts ${row.date} at ${row.time} at ${row.location}`;
 
-      const createNotifSql = `
-        INSERT INTO notifications (
-          id, user_id, notification_type, title, body, 
-          created_at, is_read, event_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-
-      db.run(
-        createNotifSql,
-        [notificationId, userId, 'event_reminder', title, body, notificationTime, 0, eventId],
-        (err) => {
-          if (err) {
-            console.error('Error creating reminder notification:', err);
-            reject(err);
-            return;
-          }
-
-          resolve({
-            notificationId,
-            message: `Reminder sent to ${row.display_name}`,
-          });
-        }
-      );
+      createNotification({
+        userId,
+        notificationType: 'event_reminder',
+        title,
+        body,
+        relatedEventId: eventId,
+        payload: {
+          eventId,
+          title,
+          body,
+          url: `/events/${eventId}`,
+        },
+        url: `/events/${eventId}`,
+      }).then((notificationId) => {
+        resolve({
+          notificationId,
+          message: `Reminder sent to ${row.display_name}`,
+        });
+      }).catch((err) => {
+        console.error('Error creating reminder notification:', err);
+        reject(err);
+      });
     });
   });
 };

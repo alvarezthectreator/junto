@@ -1,26 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   CheckCheck,
   Clock3,
   Image as ImageIcon,
   Mic,
   Paperclip,
-  Phone,
-  PhoneOff,
   PhoneCall,
+  PhoneIncoming,
+  PhoneMissed,
+  PhoneOutgoing,
+  Phone,
   Plus,
   Search,
   Send,
   Smile,
   Trash2,
   Video,
-  VideoOff,
   Bell,
   X,
-  MicOff,
 } from 'lucide-react';
+import { CallModal } from '../components/CallModal';
 import {
   ConversationRecord,
   MessageRecord,
@@ -40,6 +41,7 @@ import {
 } from '../utils/messageStore';
 import * as API from '../services/api';
 import type { WebRTCSignal } from '../hooks/useWebRTC';
+import { RealtimeSocket } from '../services/realtimeSocket';
 
 type SchedulePreset = 'now' | '5m' | '1h' | 'tomorrow';
 
@@ -72,6 +74,74 @@ function summarizeMessage(message?: MessageRecord) {
   if (message.type === 'voice') return `🎤 Voice note${message.duration ? ` · ${message.duration}` : ''}`;
   if (message.type === 'system') return message.text || 'System message';
   return message.text || '';
+}
+
+type ParsedWebRTCSignal = WebRTCSignal & {
+  __webrtc_signal__?: boolean;
+  reason?: 'missed' | 'completed' | 'declined';
+};
+
+function parseWebRTCSignal(content?: string): ParsedWebRTCSignal | null {
+  if (!content) return null;
+
+  try {
+    const parsed = JSON.parse(content) as ParsedWebRTCSignal;
+    return parsed?.__webrtc_signal__ ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCallModeLabel(mode?: 'audio' | 'video') {
+  return mode === 'video' ? 'video call' : 'voice call';
+}
+
+type CallSummary = {
+  icon: React.ComponentType<{ className?: string }>;
+  text: string;
+  tone: 'neutral' | 'success' | 'warning' | 'danger';
+};
+
+function summarizeWebRTCSignal(
+  signal: ParsedWebRTCSignal,
+  currentUserId?: string,
+  previousSignals: ParsedWebRTCSignal[] = []
+): CallSummary {
+  const callLabel = getCallModeLabel(signal.mode);
+  const isMine = Boolean(currentUserId && String(signal.from || '') === String(currentUserId));
+  const iconForMode = signal.mode === 'video' ? PhoneCall : PhoneCall;
+
+  if (signal.type === 'offer') {
+    return isMine
+      ? { icon: PhoneOutgoing, text: `Outgoing ${callLabel}`, tone: 'neutral' }
+      : { icon: PhoneIncoming, text: `Incoming ${callLabel}`, tone: 'neutral' };
+  }
+
+  if (signal.type === 'answer') {
+    return { icon: PhoneCall, text: `${signal.mode === 'video' ? 'Video' : 'Voice'} call answered`, tone: 'success' };
+  }
+
+  if (signal.type === 'hang-up') {
+    const explicitReason = signal.reason || (signal.payload && typeof signal.payload === 'object' ? signal.payload.reason : undefined);
+    const answeredEarlier = previousSignals.some((entry) => entry.type === 'answer');
+    const inferredReason = explicitReason || (answeredEarlier ? 'completed' : 'missed');
+
+    if (inferredReason === 'completed') {
+      return { icon: PhoneCall, text: `${callLabel} completed`, tone: 'success' };
+    }
+
+    if (inferredReason === 'declined') {
+      return { icon: PhoneMissed, text: `${callLabel} declined`, tone: 'danger' };
+    }
+
+    return { icon: PhoneMissed, text: `${callLabel} missed`, tone: 'warning' };
+  }
+
+  if (signal.type === 'ice-candidate') {
+    return { icon: PhoneCall, text: callLabel, tone: 'neutral' };
+  }
+
+  return { icon: PhoneCall, text: callLabel, tone: 'neutral' };
 }
 
 function StatusDots() {
@@ -164,173 +234,6 @@ function isSameDay(isoA: string, isoB: string): boolean {
   );
 }
 
-interface CallModalProps {
-  type: 'audio' | 'video';
-  name: string;
-  isIncoming?: boolean;
-  onAnswer?: () => void;
-  onDecline: () => void;
-  onEnd: () => void;
-  onToggleMute?: () => void;
-  onToggleVideo?: () => void;
-  isMuted?: boolean;
-  isVideoOff?: boolean;
-  callDuration?: string;
-  avatarInitial?: string;
-  avatarColor?: string;
-}
-
-function FullScreenCallModal({
-  type,
-  name,
-  isIncoming = false,
-  onAnswer,
-  onDecline,
-  onEnd,
-  onToggleMute,
-  onToggleVideo,
-  isMuted = false,
-  isVideoOff = false,
-  callDuration,
-  avatarInitial = '?',
-  avatarColor = 'bg-[#F59E0B]',
-}: CallModalProps) {
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex flex-col items-center justify-between overflow-hidden"
-        style={{
-          background: 'linear-gradient(160deg, #0c0c14 0%, #1a1025 50%, #0c1a1a 100%)',
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F59E0B]/8 blur-[80px]" />
-          <div className="absolute bottom-1/3 left-1/4 w-48 h-48 rounded-full bg-[#4ECDC4]/6 blur-[60px]" />
-        </div>
-
-        <div className="relative z-10 w-full flex items-center justify-between px-6 pt-12 pb-4">
-          <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5">
-            {type === 'video' ? (
-              <Video size={13} className="text-[#4ECDC4]" />
-            ) : (
-              <Phone size={13} className="text-[#4ECDC4]" />
-            )}
-            <span className="text-xs font-medium text-white/80">
-              {type === 'video' ? 'Video call' : 'Voice call'}
-            </span>
-          </div>
-          {callDuration && (
-            <span className="text-sm font-mono text-white/60">{callDuration}</span>
-          )}
-        </div>
-
-        <div className="relative z-10 flex flex-col items-center gap-6 px-8">
-          {isIncoming && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-40 h-40 rounded-full border border-[#F59E0B]/20 animate-ping" />
-              <div className="absolute w-52 h-52 rounded-full border border-[#F59E0B]/10 animate-ping [animation-delay:300ms]" />
-            </div>
-          )}
-
-          <div className={`relative flex h-28 w-28 items-center justify-center rounded-full ${avatarColor} shadow-2xl shadow-black/50`}>
-            <span className="text-5xl font-serif font-bold text-gray-900">{avatarInitial}</span>
-            {!isIncoming && !callDuration && (
-              <motion.div
-                className="absolute inset-0 rounded-full border-2 border-[#F59E0B]/40"
-                animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            )}
-          </div>
-
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white tracking-tight">{name}</h2>
-            <p className="mt-1.5 text-sm text-white/50">
-              {isIncoming
-                ? `Incoming ${type} call…`
-                : callDuration
-                ? 'Connected'
-                : 'Calling…'}
-            </p>
-          </div>
-        </div>
-
-        <div className="relative z-10 w-full px-8 pb-16">
-          {isIncoming ? (
-            <div className="flex items-center justify-center gap-16">
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={onDecline}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/30 transition-transform active:scale-95"
-                >
-                  <PhoneOff size={26} className="text-white" />
-                </button>
-                <span className="text-xs text-white/50">Decline</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={onAnswer}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30 transition-transform active:scale-95"
-                >
-                  <PhoneCall size={26} className="text-white" />
-                </button>
-                <span className="text-xs text-white/50">Answer</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-6">
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col items-center gap-1.5">
-                  <button
-                    onClick={onToggleMute}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
-                      isMuted
-                        ? 'border-white/20 bg-white/20 text-white'
-                        : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                  </button>
-                  <span className="text-[10px] text-white/40">{isMuted ? 'Unmute' : 'Mute'}</span>
-                </div>
-
-                {type === 'video' && (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <button
-                      onClick={onToggleVideo}
-                      className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
-                        isVideoOff
-                          ? 'border-white/20 bg-white/20 text-white'
-                          : 'border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
-                    </button>
-                    <span className="text-[10px] text-white/40">{isVideoOff ? 'Show video' : 'Hide video'}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={onEnd}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/30 transition-transform active:scale-95"
-                >
-                  <PhoneOff size={26} className="text-white" />
-                </button>
-                <span className="text-xs text-white/50">End call</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
 export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }: MessagesProps) {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -344,13 +247,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   const [mobileShowChat, setMobileShowChat] = useState(false);
 
   const [callMode, setCallMode] = useState<'audio' | 'video' | null>(null);
-  const [callActive, setCallActive] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
-  const [isIncomingCall, setIsIncomingCall] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
   const [incomingSignal, setIncomingSignal] = useState<WebRTCSignal | null>(null);
-  const callTimerRef = useRef<number | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
@@ -363,45 +260,14 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [store.threads, activeConversation]);
 
-  useEffect(() => {
-    if (callActive) {
-      callTimerRef.current = window.setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (callTimerRef.current) window.clearInterval(callTimerRef.current);
-      setCallDuration(0);
-    }
-    return () => {
-      if (callTimerRef.current) window.clearInterval(callTimerRef.current);
-    };
-  }, [callActive]);
-
-  function formatCallDuration(seconds: number) {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  }
-
   function handleStartCall(type: 'audio' | 'video') {
     setCallMode(type);
-    setCallActive(false);
-    setIsIncomingCall(false);
-    setIsMuted(false);
-    setIsVideoOff(false);
-  }
-
-  function handleAnswerCall() {
-    setCallActive(true);
-    setIsIncomingCall(false);
+    setIncomingSignal(null);
   }
 
   function handleEndCall() {
     setCallMode(null);
-    setCallActive(false);
-    setIsIncomingCall(false);
-    setIsMuted(false);
-    setIsVideoOff(false);
+    setIncomingSignal(null);
   }
 
   useEffect(() => {
@@ -458,6 +324,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     if (!isReady || !currentUser?.id) return;
 
     let cancelled = false;
+    let socket: RealtimeSocket | null = null;
 
     const syncBackendConversations = async () => {
       try {
@@ -473,35 +340,60 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             const backendMessages = Array.isArray((threadResponse as any)?.messages) ? (threadResponse as any).messages : [];
 
             for (const msg of backendMessages) {
-              try {
-                const parsed = JSON.parse(msg.content || '{}');
-                if (parsed.__webrtc_signal__ && parsed.type === 'offer' && !callMode) {
-                  setCallMode(parsed.mode === 'video' ? 'video' : 'audio');
-                  setIsIncomingCall(true);
-                  setIncomingSignal(parsed);
-                }
-              } catch { /* not a signal */ }
+              const parsed = parseWebRTCSignal(msg.content);
+              if (
+                parsed?.__webrtc_signal__ &&
+                parsed.type === 'offer' &&
+                String(parsed.to || '') === String(currentUser.id) &&
+                String(parsed.from || '') !== String(currentUser.id) &&
+                !callMode
+              ) {
+                setCallMode(parsed.mode === 'video' ? 'video' : 'audio');
+                setIncomingSignal(parsed);
+              }
             }
 
-            const mappedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
-              id: String(message.id),
-              from: friendlyName(
+            const parsedSignals = backendMessages.map((message: any) => parseWebRTCSignal(message.content));
+
+            const mappedMessages: MessageRecord[] = backendMessages.map((message: any, index: number) => {
+              const signal = parsedSignals[index];
+              const previousSignals = parsedSignals.slice(0, index).filter(Boolean) as ParsedWebRTCSignal[];
+              const senderIsCurrent = String(message.sender_id) === String(currentUser.id);
+              const senderName = friendlyName(
                 message.sender_display_name,
                 message.sender_name,
-                String(message.sender_id) === String(currentUser.id)
-                  ? currentUser.display_name || currentUser.username || currentUser.name
-                  : otherName
-              ),
-              mine: String(message.sender_id) === String(currentUser.id),
-              type: (message.message_type || 'text') as MessageRecord['type'],
-              text: message.content || '',
-              url: message.media_url || undefined,
-              time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: message.is_read ? 'read' : 'delivered',
-              createdAt: message.created_at || new Date().toISOString(),
-              deliveredAt: message.created_at || undefined,
-              readAt: message.read_at || undefined,
-            }));
+                senderIsCurrent ? currentUser.display_name || currentUser.username || currentUser.name : otherName
+              );
+
+              if (signal) {
+                return {
+                  id: String(message.id),
+                  from: senderName,
+                  mine: senderIsCurrent,
+                  type: 'system',
+                  text: summarizeWebRTCSignal(signal, String(currentUser.id), previousSignals),
+                  time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  status: message.is_read ? 'read' : 'delivered',
+                  createdAt: message.created_at || new Date().toISOString(),
+                  deliveredAt: message.created_at || undefined,
+                  readAt: message.read_at || undefined,
+                };
+              }
+
+              return {
+                id: String(message.id),
+                from: senderName,
+                mine: senderIsCurrent,
+                type: (message.message_type || 'text') as MessageRecord['type'],
+                text: message.content || '',
+                url: message.media_url || undefined,
+                time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: message.is_read ? 'read' : 'delivered',
+                createdAt: message.created_at || new Date().toISOString(),
+                deliveredAt: message.created_at || undefined,
+                readAt: message.read_at || undefined,
+              };
+            });
 
             return {
               conversationId,
@@ -570,9 +462,16 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
     void syncBackendConversations();
     const pollInterval = window.setInterval(() => void syncBackendConversations(), 5000);
+    socket = new RealtimeSocket({
+      onMessageCreated: () => void syncBackendConversations(),
+      onConversationUpdated: () => void syncBackendConversations(),
+      onConnectionOpen: () => console.log('Messages realtime connected'),
+      onError: (error) => console.warn('Messages realtime error:', error),
+    });
     return () => {
       cancelled = true;
       window.clearInterval(pollInterval);
+      socket?.close();
     };
   }, [currentUser?.id, isReady]);
 
@@ -706,25 +605,49 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
         try {
           const response = await API.getConversation(conversation.backendConversationId);
           const backendMessages = Array.isArray(response?.messages) ? response.messages : [];
-          const normalizedMessages: MessageRecord[] = backendMessages.map((message: any) => ({
-            id: String(message.id),
-            from: friendlyName(
+          const parsedSignals = backendMessages.map((message: any) => parseWebRTCSignal(message.content));
+          const normalizedMessages: MessageRecord[] = backendMessages.map((message: any, index: number) => {
+            const signal = parsedSignals[index];
+            const previousSignals = parsedSignals.slice(0, index).filter(Boolean) as ParsedWebRTCSignal[];
+            const senderIsCurrent = String(message.sender_id) === String(currentUser?.id);
+            const senderName = friendlyName(
               message.sender_display_name,
               message.sender_name,
-              String(message.sender_id) === String(currentUser?.id)
+              senderIsCurrent
                 ? currentUser?.display_name || currentUser?.username || currentUser?.name
                 : conversation.name
-            ),
-            mine: String(message.sender_id) === String(currentUser?.id),
-            type: (message.message_type || 'text') as MessageRecord['type'],
-            text: message.content || '',
-            url: message.media_url || undefined,
-            time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: message.is_read ? 'read' : 'delivered',
-            createdAt: message.created_at || new Date().toISOString(),
-            deliveredAt: message.created_at || undefined,
-            readAt: message.read_at || undefined,
-          }));
+            );
+
+            if (signal) {
+              return {
+                id: String(message.id),
+                from: senderName,
+                mine: senderIsCurrent,
+                type: 'system',
+                text: summarizeWebRTCSignal(signal, String(currentUser?.id), previousSignals),
+                url: undefined,
+                time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: message.is_read ? 'read' : 'delivered',
+                createdAt: message.created_at || new Date().toISOString(),
+                deliveredAt: message.created_at || undefined,
+                readAt: message.read_at || undefined,
+              };
+            }
+
+            return {
+              id: String(message.id),
+              from: senderName,
+              mine: senderIsCurrent,
+              type: (message.message_type || 'text') as MessageRecord['type'],
+              text: message.content || '',
+              url: message.media_url || undefined,
+              time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: message.is_read ? 'read' : 'delivered',
+              createdAt: message.created_at || new Date().toISOString(),
+              deliveredAt: message.created_at || undefined,
+              readAt: message.read_at || undefined,
+            };
+          });
 
           if (!normalizedMessages.length) return;
 
@@ -932,21 +855,15 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
   return (
     <>
       {/* Full-screen call modal */}
-      {callMode && (
-        <FullScreenCallModal
+      {callMode && activeConversationData?.backendConversationId && currentUser?.id && activeConversationData?.peerUserId && (
+        <CallModal
           type={callMode}
           name={activeConversationLabel}
-          isIncoming={isIncomingCall}
-          callDuration={callActive ? formatCallDuration(callDuration) : undefined}
-          avatarInitial={activeConversationData?.initial || '?'}
-          avatarColor={activeConversationData?.color || 'bg-[#F59E0B]'}
-          isMuted={isMuted}
-          isVideoOff={isVideoOff}
-          onAnswer={handleAnswerCall}
-          onDecline={handleEndCall}
-          onEnd={handleEndCall}
-          onToggleMute={() => setIsMuted((prev) => !prev)}
-          onToggleVideo={() => setIsVideoOff((prev) => !prev)}
+          localUserId={String(currentUser.id)}
+          remoteUserId={String(activeConversationData.peerUserId)}
+          conversationId={String(activeConversationData.backendConversationId)}
+          incomingSignal={incomingSignal}
+          onClose={handleEndCall}
         />
       )}
 
@@ -1139,6 +1056,28 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                 const messageAuthor = isMine
                   ? friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You')
                   : friendlyName(message.from, activeConversationData?.name, 'Sender');
+                const callSummary = message.type === 'system' ? (() => {
+                  if (/call/i.test(message.text || '')) {
+                    return {
+                      icon: message.text.includes('missed')
+                        ? PhoneMissed
+                        : message.text.includes('declined')
+                          ? PhoneMissed
+                          : message.text.includes('answered') || message.text.includes('completed')
+                            ? PhoneCall
+                            : message.text.includes('Incoming')
+                              ? PhoneIncoming
+                              : PhoneOutgoing,
+                      tone: message.text.includes('missed') || message.text.includes('declined')
+                        ? ('warning' as const)
+                        : message.text.includes('completed') || message.text.includes('answered')
+                          ? ('success' as const)
+                          : ('neutral' as const),
+                    };
+                  }
+                  return null;
+                })() : null;
+                const CallIcon = callSummary?.icon;
 
                 return (
                   <div
@@ -1147,14 +1086,18 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                   >
                     <div className={`flex flex-col max-w-[85%] ${isMine ? 'items-end' : 'items-start'}`}>
                       {/* Author name */}
-                      <div className={`mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] ${isMine ? 'text-gray-400 text-right' : 'text-[#FBBF24]'}`}>
-                        {messageAuthor}
-                      </div>
+                      {message.type !== 'system' && (
+                        <div className={`mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.18em] ${isMine ? 'text-gray-400 text-right' : 'text-[#FBBF24]'}`}>
+                          {messageAuthor}
+                        </div>
+                      )}
 
                       {/* Bubble */}
                       <div
                         className={`group relative overflow-hidden rounded-2xl px-4 py-3 text-sm ${
-                          isMine
+                          message.type === 'system'
+                            ? 'border border-white/10 bg-white/5 text-center text-gray-200'
+                            : isMine
                             ? 'rounded-tr-sm border border-[#F59E0B]/30 bg-[#F59E0B]/15 text-white'
                             : 'rounded-tl-sm bg-[#0F0F13] text-gray-200'
                         }`}
@@ -1192,7 +1135,10 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                         )}
 
                         {message.type === 'system' && (
-                          <p className="text-xs uppercase tracking-[0.18em] text-gray-400">{message.text}</p>
+                          <div className={`flex items-center justify-center gap-2 ${callSummary ? 'text-sm font-semibold text-white' : 'text-xs uppercase tracking-[0.18em] text-gray-400'}`}>
+                            {CallIcon && <CallIcon className={`h-4 w-4 ${callSummary?.tone === 'success' ? 'text-emerald-400' : callSummary?.tone === 'warning' ? 'text-amber-400' : callSummary?.tone === 'danger' ? 'text-rose-400' : 'text-gray-300'}`} />}
+                            <span>{message.text}</span>
+                          </div>
                         )}
 
                         {isMine && (

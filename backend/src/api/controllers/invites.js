@@ -1,5 +1,6 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { createNotification } from '../../services/notificationService.js';
 
 // Accept a private event invite
 export async function acceptInvite(req, res) {
@@ -43,15 +44,24 @@ export async function acceptInvite(req, res) {
 
     // Send notification to host
     if (event) {
-      const notifId = uuidv4();
       const userRes = await query(`SELECT display_name FROM users WHERE id = ?`, [user_id]);
       const userName = userRes.rows?.[0]?.display_name || 'Someone';
 
-      await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_user_id, related_event_id, title, body, is_read, created_at)
-         VALUES (?, ?, 'invite_accepted', ?, ?, ?, ?, false, datetime('now'))`,
-        [notifId, event.host_id, user_id, application.event_id, '✅ Invite Accepted', `${userName} accepted your invite!`]
-      );
+      await createNotification({
+        userId: event.host_id,
+        notificationType: 'invite_accepted',
+        title: '✅ Invite Accepted',
+        body: `${userName} accepted your invite!`,
+        relatedUserId: user_id,
+        relatedEventId: application.event_id,
+        payload: {
+          eventId: application.event_id,
+          title: '✅ Invite Accepted',
+          body: `${userName} accepted your invite!`,
+          url: `/events/${application.event_id}`,
+        },
+        url: `/events/${application.event_id}`,
+      });
     }
 
     res.json({ message: 'Invite accepted successfully', status: 'accepted' });
@@ -101,15 +111,24 @@ export async function declineInvite(req, res) {
 
     // Send notification to host
     if (event) {
-      const notifId = uuidv4();
       const userRes = await query(`SELECT display_name FROM users WHERE id = ?`, [user_id]);
       const userName = userRes.rows?.[0]?.display_name || 'Someone';
 
-      await query(
-        `INSERT INTO notifications (id, user_id, notification_type, related_user_id, related_event_id, title, body, is_read, created_at)
-         VALUES (?, ?, 'invite_declined', ?, ?, ?, ?, false, datetime('now'))`,
-        [notifId, event.host_id, user_id, application.event_id, '❌ Invite Declined', `${userName} declined your invite.`]
-      );
+      await createNotification({
+        userId: event.host_id,
+        notificationType: 'invite_declined',
+        title: '❌ Invite Declined',
+        body: `${userName} declined your invite.`,
+        relatedUserId: user_id,
+        relatedEventId: application.event_id,
+        payload: {
+          eventId: application.event_id,
+          title: '❌ Invite Declined',
+          body: `${userName} declined your invite.`,
+          url: `/events/${application.event_id}`,
+        },
+        url: `/events/${application.event_id}`,
+      });
     }
 
     res.json({ message: 'Invite declined successfully', status: 'declined' });

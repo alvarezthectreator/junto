@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
 import {
   ArrowLeft, MapPin, Clock, Phone, X, Send,
   Film, Wine, Waves, Trophy, CircleDot, Dumbbell, Sofa, Palette, Building2,
-  Heart, MessageCircle, Share2, Bookmark, MoreHorizontal,
+  Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, ChevronDown,
 } from 'lucide-react';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 const CATEGORIES = ['All', 'Cinema', 'Bar', 'Beach', 'Tennis', 'Snooker', 'Gym', 'Lounge', 'Art Gallery'];
-// or whichever tab Venues lives under
+
 const CATEGORY_ICONS: Record<string, any> = {
   Cinema: Film,
   Bar: Wine,
@@ -22,13 +22,53 @@ const CATEGORY_ICONS: Record<string, any> = {
   'Art Gallery': Palette,
 };
 
-const CITIES = [
-  { name: 'Lagos', emoji: '🌊' },
-  { name: 'Abuja', emoji: '🏛️' },
-  { name: 'Port Harcourt', emoji: '⛽' },
-  { name: 'Ibadan', emoji: '🏘️' },
-  { name: 'Kano', emoji: '🌾' },
-  { name: 'Enugu', emoji: '🏔️' },
+const COUNTRIES = [
+  {
+    name: 'Nigeria',
+    flag: '🇳🇬',
+    cities: [
+      { name: 'Lagos', map: '/maps/lagos.jpg' },
+      { name: 'Abuja', map: '/maps/abuja.jpg' },
+      { name: 'Port Harcourt', map: '/maps/port-harcourt.jpg' },
+      { name: 'Ibadan', map: '/maps/ibadan.jpg' },
+      { name: 'Kano', map: '/maps/kano.jpg' },
+      { name: 'Enugu', map: '/maps/enugu.jpg' },
+    ],
+  },
+  {
+    name: 'Ghana',
+    flag: '🇬🇭',
+    cities: [
+      { name: 'Accra', map: '/maps/accra.jpg' },
+      { name: 'Kumasi', map: '/maps/kumasi.jpg' },
+      { name: 'Takoradi', map: '/maps/takoradi.jpg' },
+    ],
+  },
+  {
+    name: 'South Africa',
+    flag: '🇿🇦',
+    cities: [
+      { name: 'Cape Town', map: '/maps/cape-town.jpg' },
+      { name: 'Johannesburg', map: '/maps/johannesburg.jpg' },
+      { name: 'Durban', map: '/maps/durban.jpg' },
+    ],
+  },
+  {
+    name: 'Kenya',
+    flag: '🇰🇪',
+    cities: [
+      { name: 'Nairobi', map: '/maps/nairobi.jpg' },
+      { name: 'Mombasa', map: '/maps/mombasa.jpg' },
+    ],
+  },
+  {
+    name: 'Egypt',
+    flag: '🇪🇬',
+    cities: [
+      { name: 'Cairo', map: '/maps/cairo.jpg' },
+      { name: 'Alexandria', map: '/maps/alexandria.jpg' },
+    ],
+  },
 ];
 
 interface Venue {
@@ -55,7 +95,9 @@ export function Venues() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activeCity, setActiveCity] = useState('Lagos');
+  const [activeCountry, setActiveCountry] = useState(COUNTRIES[0]);
+  const [activeCity, setActiveCity] = useState(COUNTRIES[0].cities[0].name);
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [companionPhone, setCompanionPhone] = useState('');
@@ -65,10 +107,22 @@ export function Venues() {
   const [eventNote, setEventNote] = useState('');
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchVenues();
   }, [activeCategory, activeCity]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowCountryDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function fetchVenues() {
     setLoading(true);
@@ -85,6 +139,12 @@ export function Venues() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function selectCountry(country: typeof COUNTRIES[0]) {
+    setActiveCountry(country);
+    setActiveCity(country.cities[0].name);
+    setShowCountryDropdown(false);
   }
 
   function getPhotos(venue: Venue): string[] {
@@ -118,10 +178,9 @@ export function Venues() {
   }
 
   return (
-    /* Outer shell — dark bg fills viewport, inner content is centered */
     <div className="min-h-screen bg-[#0F0F13] text-white pb-24">
 
-      {/* ── Header ── centered, max-w-[468px] matches Instagram's feed column */}
+      {/* ── Header ── */}
       <div className="sticky top-0 z-40 bg-[#0F0F13]/95 backdrop-blur-md border-b border-white/5">
         <div className="mx-auto max-w-[468px] px-4 py-3 flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white transition-colors">
@@ -137,12 +196,55 @@ export function Venues() {
         </div>
       </div>
 
-      {/* ── All scrollable content is centred in a 468 px column ── */}
       <div className="mx-auto max-w-[468px]">
 
-        {/* City Story Bubbles */}
-        <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pt-4 pb-3">
-          {CITIES.map(city => {
+        {/* ── Country Selector Button ── */}
+        <div className="px-4 pt-4 pb-2" ref={dropdownRef}>
+          <div className="relative inline-block">
+            <button
+              onClick={() => setShowCountryDropdown(prev => !prev)}
+              className="flex items-center gap-2 bg-white/5 hover:bg-white/8 border border-white/10 rounded-full px-4 py-2 transition-colors"
+            >
+              <span className="text-base leading-none">{activeCountry.flag}</span>
+              <span className="text-sm font-semibold text-white">{activeCountry.name}</span>
+              <ChevronDown
+                size={14}
+                className={`text-gray-400 transition-transform duration-200 ${showCountryDropdown ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Dropdown */}
+            {showCountryDropdown && (
+              <div className="absolute top-full left-0 mt-2 z-50 bg-[#1A1A21] border border-white/10 rounded-2xl overflow-hidden shadow-xl min-w-[180px]">
+                {COUNTRIES.map(country => (
+                  <button
+                    key={country.name}
+                    onClick={() => selectCountry(country)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5 ${
+                      activeCountry.name === country.name
+                        ? 'text-[#F59E0B] font-semibold'
+                        : 'text-gray-300'
+                    }`}
+                  >
+                    <span className="text-base">{country.flag}</span>
+                    <span>{country.name}</span>
+                    {activeCountry.name === country.name && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── City Story Bubbles — scrollable, no visible scrollbar ── */}
+        <div
+          className="flex gap-4 px-4 pt-2 pb-3"
+          style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+          {activeCountry.cities.map(city => {
             const isActive = city.name === activeCity;
             return (
               <button
@@ -157,8 +259,12 @@ export function Venues() {
                       : 'bg-white/10'
                   }`}
                 >
-                  <div className="w-full h-full rounded-full border-2 border-[#0F0F13] bg-[#1A1A21] flex items-center justify-center text-2xl">
-                    {city.emoji}
+                  <div className="w-full h-full rounded-full border-2 border-[#0F0F13] bg-[#1A1A21] flex items-center justify-center overflow-hidden">
+                    <img
+                      src={city.map}
+                      alt={city.name}
+                      className="w-8 h-8 object-contain"
+                    />
                   </div>
                 </div>
                 <span className={`text-[10px] font-medium max-w-[64px] truncate ${isActive ? 'text-[#F59E0B]' : 'text-gray-400'}`}>
@@ -169,8 +275,11 @@ export function Venues() {
           })}
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pb-4">
+        {/* ── Category Filter Pills — scrollable, no visible scrollbar ── */}
+        <div
+          className="flex gap-2 px-4 pb-4"
+          style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           {CATEGORIES.map(cat => (
             <button
               key={cat}
@@ -197,7 +306,6 @@ export function Venues() {
                       <div className="h-2.5 w-20 bg-white/5 rounded animate-pulse" />
                     </div>
                   </div>
-                  {/* Square image skeleton */}
                   <div className="w-full aspect-square bg-white/5 animate-pulse" />
                   <div className="px-4 py-3 space-y-2">
                     <div className="h-3 w-48 bg-white/5 rounded animate-pulse" />
@@ -240,28 +348,22 @@ export function Venues() {
                     <MoreHorizontal size={20} className="text-gray-500" />
                   </div>
 
-                  {/* Post Image — square, full column width */}
+                  {/* Post Image */}
                   <button
                     className="relative w-full aspect-square bg-[#1A1A21] overflow-hidden block"
                     onClick={() => setSelectedVenue(venue)}
                   >
                     {photos[0] ? (
-                      <img
-                        src={photos[0]}
-                        alt={venue.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={photos[0]} alt={venue.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <CategoryIcon size={72} className="text-[#F59E0B]/15" />
                       </div>
                     )}
-                    {/* Category badge */}
                     <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5">
                       <CategoryIcon size={11} className="text-[#F59E0B]" />
                       <span className="text-[11px] font-semibold text-[#F59E0B]">{venue.category}</span>
                     </div>
-                    {/* Price badge */}
                     <div className="absolute top-3 right-3 bg-[#F59E0B] rounded-full px-3 py-1">
                       <span className="text-[11px] font-bold text-black">{venue.price_range}</span>
                     </div>
@@ -323,18 +425,16 @@ export function Venues() {
             })
           )}
         </div>
-      </div>{/* end centered column */}
+      </div>
 
       {/* Sidebar */}
       <Sidebar
         activeNav={activeNav}
         setActiveNav={setActiveNav}
-        onNavigate={(page) => {
-          navigate(`/${page}`);
-        }}
+        onNavigate={(page) => navigate(`/${page}`)}
       />
 
-      {/* ── Venue Detail Sheet ── full-screen overlay, sheet content centred */}
+      {/* ── Venue Detail Sheet ── */}
       {selectedVenue && !showEventModal && (
         <div
           className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center"
@@ -353,10 +453,7 @@ export function Venues() {
                       {React.createElement(getCategoryIcon(selectedVenue.category), { size: 64, className: 'text-[#F59E0B]/30' })}
                     </div>;
               })()}
-              <button
-                onClick={() => setSelectedVenue(null)}
-                className="absolute top-4 right-4 bg-black/50 rounded-full p-2"
-              >
+              <button onClick={() => setSelectedVenue(null)} className="absolute top-4 right-4 bg-black/50 rounded-full p-2">
                 <X size={18} />
               </button>
             </div>
@@ -383,7 +480,7 @@ export function Venues() {
         </div>
       )}
 
-      {/* ── Create Event + WhatsApp Modal ── centred sheet */}
+      {/* ── Create Event + WhatsApp Modal ── */}
       {showEventModal && selectedVenue && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
           <div className="w-full max-w-[468px] bg-[#1A1A21] rounded-t-3xl max-h-[90vh] overflow-y-auto">
@@ -452,7 +549,6 @@ export function Venues() {
                 </div>
               </div>
 
-              {/* WhatsApp Preview */}
               <div className="mt-5 bg-[#25D366]/10 border border-[#25D366]/20 rounded-xl p-4">
                 <p className="text-xs text-gray-400 mb-2 font-medium">WhatsApp Message Preview</p>
                 <p className="text-sm text-gray-300 whitespace-pre-line">

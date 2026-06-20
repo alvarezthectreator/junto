@@ -49,6 +49,7 @@ import {
   generateRecoveryCodes,
   getSecurityActivity,
   recoverAccount,
+  registerForPushNotifications,
   setSessionToken,
   type SecuritySession,
   type SecurityActivityEntry,
@@ -217,6 +218,16 @@ export function Settings({
               }
             })
           );
+
+          if (
+            prefs.push_enabled !== false &&
+            isBrowserNotificationsSupported() &&
+            Notification.permission === 'granted'
+          ) {
+            void registerForPushNotifications(userId).catch((error) => {
+              console.warn('Unable to refresh push subscription:', error);
+            });
+          }
         }
       } catch (error) {
         console.error('Error loading notification preferences:', error);
@@ -346,15 +357,17 @@ export function Settings({
 
     if (id === 'push' && target && !target.enabled) {
       const granted = await requestPushPermission();
+      const registered = granted && userId ? await registerForPushNotifications(userId) : false;
+      const enabled = granted && registered;
       setNotificationSettings((current) =>
-        current.map((setting) => (setting.id === id ? { ...setting, enabled: granted } : setting))
+        current.map((setting) => (setting.id === id ? { ...setting, enabled } : setting))
       );
-      setPushEnabled(granted);
+      setPushEnabled(enabled);
 
       // Save to backend
       if (userId) {
         try {
-          await updateNotificationPreferences(userId, { push_enabled: granted });
+          await updateNotificationPreferences(userId, { push_enabled: enabled });
         } catch (error) {
           console.error('Error updating push preference:', error);
         }

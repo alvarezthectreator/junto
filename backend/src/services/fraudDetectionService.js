@@ -3,6 +3,8 @@
  * Analyzes user behavior and assigns risk scores
  */
 
+import { v4 as uuidv4 } from 'uuid';
+
 const RISK_THRESHOLDS = {
   LOW: 30,
   MEDIUM: 60,
@@ -197,7 +199,6 @@ export const calculateIdentityScore = (db, userId) => {
  */
 export const flagSuspiciousActivity = (db, userId, activityType, description, confidenceScore = 50) => {
   return new Promise((resolve, reject) => {
-    const { v4: uuidv4 } = require('uuid');
     const id = uuidv4();
     const now = new Date().toISOString();
 
@@ -222,7 +223,6 @@ export const flagSuspiciousActivity = (db, userId, activityType, description, co
  */
 export const createAccountFlag = (db, userId, flagType, severity, description) => {
   return new Promise((resolve, reject) => {
-    const { v4: uuidv4 } = require('uuid');
     const id = uuidv4();
     const now = new Date().toISOString();
 
@@ -249,7 +249,6 @@ export const createAccountFlag = (db, userId, flagType, severity, description) =
  */
 export const logFraudEvent = (db, userId, eventType, description, metadata = {}) => {
   return new Promise((resolve, reject) => {
-    const { v4: uuidv4 } = require('uuid');
     const id = uuidv4();
     const now = new Date().toISOString();
 
@@ -293,7 +292,6 @@ export const updateFraudScore = (db, userId, behaviorScore, identityScore, riskS
 
       // If no rows updated, insert instead
       if (this.changes === 0) {
-        const { v4: uuidv4 } = require('uuid');
         const id = uuidv4();
 
         const insertSql = `

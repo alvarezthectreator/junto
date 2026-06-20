@@ -11,6 +11,8 @@ import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 import { initializeFollowupScheduler } from './services/followupScheduler.js';
+import { initializeNotificationDeliveryScheduler } from './services/notificationDeliveryScheduler.js';
+import { initializeFraudEnforcementScheduler } from './services/fraudEnforcementScheduler.js';
 import { initializeEmailTransporter, testEmailConnection } from './services/otpService.js';
 import db from './db/connection.js';
 
@@ -147,6 +149,9 @@ async function startServer() {
     
     // Start event expiry cleanup scheduler
     startExpiryCleanupScheduler();
+
+    // Start notification delivery queue processor
+    initializeNotificationDeliveryScheduler();
     
     // Start event reminder scheduler
     setTimeout(() => {
@@ -154,6 +159,7 @@ async function startServer() {
         if (!err) {
           initializeReminderScheduler(global.db);
           initializeFollowupScheduler(global.db);
+          initializeFraudEnforcementScheduler(global.db);
         }
       });
     }, 2000);

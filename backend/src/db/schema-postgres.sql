@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   date_of_birth DATE,
   intro_video_url VARCHAR(500),
   avatar_image TEXT,
+  reliability_score NUMERIC DEFAULT 100,
   profile_id VARCHAR(20) UNIQUE,
   referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -169,6 +170,43 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Push subscriptions
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_data TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, subscription_data)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+-- Notification delivery queue
+CREATE TABLE IF NOT EXISTS notification_delivery_queue (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_id TEXT REFERENCES notifications(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  body TEXT,
+  url TEXT,
+  notification_type VARCHAR(50),
+  payload TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  attempts INT DEFAULT 0,
+  max_attempts INT DEFAULT 5,
+  next_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_error TEXT,
+  sent_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_status ON notification_delivery_queue(status);
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_next_attempt ON notification_delivery_queue(next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_user ON notification_delivery_queue(user_id);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
 CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
@@ -201,3 +239,18 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+
+-- Cancellation penalty log
+CREATE TABLE IF NOT EXISTS reliability_penalty_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  penalty_percent NUMERIC NOT NULL,
+  previous_score NUMERIC NOT NULL,
+  new_score NUMERIC NOT NULL,
+  reason TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reliability_penalty_log_user_id
+  ON reliability_penalty_log(user_id);

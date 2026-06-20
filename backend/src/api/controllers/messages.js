@@ -1,5 +1,7 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { broadcastConversationUpdated, broadcastMessageCreated } from '../../websocket.js';
+import { createNotification } from '../../services/notificationService.js';
 
 async function getConversationById(conversationId) {
   const result = await query(
@@ -80,14 +82,38 @@ export async function sendMessage(req, res) {
 
     // Create notification
     const senderRes = await query('SELECT display_name, username FROM users WHERE id = $1', [senderId]);
-    if (senderRes.rows.length > 0) {
-      const notificationId = uuidv4();
+    if (senderRes.rows.length > 0 && message_type !== 'system') {
       const senderDisplayName = senderRes.rows[0].display_name || senderRes.rows[0].username || 'Someone';
-      await query(
-         `INSERT INTO notifications (id, user_id, notification_type, related_user_id, title, body, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, datetime('now'))`,
-        [notificationId, resolvedReceiverId, 'new_message', senderId, `Message from ${senderDisplayName}`, content.substring(0, 50)]
-      );
+      await createNotification({
+        userId: resolvedReceiverId,
+        notificationType: 'new_message',
+        title: `Message from ${senderDisplayName}`,
+        body: content.substring(0, 50),
+        relatedUserId: senderId,
+        payload: {
+          conversationId: conversation_id,
+          senderId,
+          title: `Message from ${senderDisplayName}`,
+          body: content.substring(0, 50),
+          url: `/messages/${conversation_id}`,
+        },
+        url: `/messages/${conversation_id}`,
+      });
+
+      const payload = {
+        conversation_id,
+        message: {
+          ...result.rows[0],
+          sender_display_name: senderDisplayName,
+        },
+      };
+
+      broadcastMessageCreated(payload);
+      broadcastConversationUpdated({
+        conversation_id,
+        last_message_id: messageId,
+        updated_at: new Date().toISOString(),
+      });
 
       res.status(201).json({
         message: {
@@ -203,6 +229,13 @@ export async function markAsRead(req, res) {
       [conversationId, viewerId]
     );
 
+    broadcastConversationUpdated({
+      conversation_id: conversationId,
+      read_by: viewerId,
+      read_count: result.rows.length,
+      updated_at: new Date().toISOString(),
+    });
+
     res.json({ updated_messages: result.rows.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -256,6 +289,12 @@ export async function deleteMessage(req, res) {
         messageRow.conversation_id,
       ]
     );
+
+    broadcastConversationUpdated({
+      conversation_id: messageRow.conversation_id,
+      last_message_id: latestMessage.rows[0]?.id || null,
+      updated_at: new Date().toISOString(),
+    });
 
     res.json({ success: true, message: '✅ Message deleted' });
   } catch (error) {

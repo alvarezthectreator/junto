@@ -5,6 +5,10 @@ import {
   flagSuspiciousActivity,
   logFraudEvent,
 } from '../../services/fraudDetectionService.js';
+import {
+  broadcastModerationEvent,
+  broadcastSafetyEvent,
+} from '../../websocket.js';
 
 function getEscalationLevel(reportType, description = '') {
   const text = `${reportType || ''} ${description || ''}`.toLowerCase();
@@ -75,6 +79,22 @@ export async function reportUser(req, res) {
       });
     }
 
+    broadcastSafetyEvent({
+      action: 'report_submitted',
+      report_id: reportId,
+      reporter_id,
+      reported_user_id,
+      report_type,
+      escalation_level: escalationLevel,
+    });
+
+    broadcastModerationEvent({
+      action: 'report_queued',
+      report_id: reportId,
+      reported_user_id,
+      escalation_level: escalationLevel,
+    });
+
     res.json({
       report_id: reportId,
       status: 'pending',
@@ -118,6 +138,13 @@ export async function blockUser(req, res) {
       [blockId, blocker_id, blocked_user_id, reason || null]
     );
 
+    broadcastSafetyEvent({
+      action: 'user_blocked',
+      blocker_id,
+      blocked_user_id,
+      reason: reason || null,
+    });
+
     res.json({ block_id: blockId, message: 'User blocked successfully' });
   } catch (error) {
     console.error('Block error:', error);
@@ -138,6 +165,12 @@ export async function unblockUser(req, res) {
       `DELETE FROM blocked_users WHERE blocker_id = ? AND blocked_user_id = ?`,
       [blocker_id, blocked_user_id]
     );
+
+    broadcastSafetyEvent({
+      action: 'user_unblocked',
+      blocker_id,
+      blocked_user_id,
+    });
 
     res.json({ message: 'User unblocked successfully' });
   } catch (error) {

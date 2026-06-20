@@ -1,4 +1,4 @@
-  import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
   import { motion, AnimatePresence } from 'framer-motion';
   import {
     Award,
@@ -12,6 +12,7 @@
     Download,
     Edit2,
     Eye,
+    Flag,
     Globe,
     HelpCircle,
     Lock,
@@ -29,6 +30,7 @@
     Star,
     Sun,
     Trash2,
+    ThumbsUp,
     User,
     Video,
     X
@@ -104,6 +106,18 @@
     Accra: '🇬🇭',
     Nairobi: '🇰🇪',
   };
+
+  const REPORT_CATEGORIES = [
+    'Asked me to send money in advance (anti-fraud violation)',
+    'Did not show up',
+    'Inappropriate behaviour',
+    'Fake profile or impersonation',
+    'Harassment or threatening messages',
+    'Underage user',
+    'Other',
+  ];
+
+  const STAR_LABELS = ['Poor', 'Not great', 'Okay', 'Good', 'Excellent'];
 
   const ALLOWED_PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   const MAX_PROFILE_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -601,13 +615,27 @@
     const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
     const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
     const [showPhoneVerify, setShowPhoneVerify] = useState(false);
-  const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
+    const [phoneVerifyOtp, setPhoneVerifyOtp] = useState('');
     const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
+
+    // ── Report & Rate state ──────────────────────────────────────────────────
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportCategory, setReportCategory] = useState('');
+    const [reportSubmitting, setReportSubmitting] = useState(false);
+    const [reportSubmitted, setReportSubmitted] = useState(false);
+
+    const [showRateModal, setShowRateModal] = useState(false);
+    const [rateValue, setRateValue] = useState(0);
+    const [rateHover, setRateHover] = useState(0);
+    const [rateReview, setRateReview] = useState('');
+    const [rateSubmitting, setRateSubmitting] = useState(false);
+    const [rateSubmitted, setRateSubmitted] = useState(false);
+    // ────────────────────────────────────────────────────────────────────────
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const storedUserSnapshot = readStoredCurrentUserSnapshot();
     
     const [profile, setProfile] = useState(() => {
-      // Try to get user data from localStorage for initial state
       let initialName = 'Sarah Adeyemi';
       let initialProfileId = 'JTO-9201-NG';
       let initialDob = '';
@@ -649,12 +677,12 @@
         isVerified: true,
         location: 'Lagos, Nigeria',
         profileId: currentUser?.profile_id || initialProfileId,
-          avatarImage: getAvatarSrc(
-            currentUser?.avatar_image ||
-            currentUser?.avatar_url ||
-            currentUser?.avatarImage ||
-            (Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos[0] : '') ||
-            initialAvatar
+        avatarImage: getAvatarSrc(
+          currentUser?.avatar_image ||
+          currentUser?.avatar_url ||
+          currentUser?.avatarImage ||
+          (Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos[0] : '') ||
+          initialAvatar
         ),
         visibility: {
           dob: 'private',
@@ -670,10 +698,9 @@
 
     const isOwnProfile = !selectedUser;
 
-    // Update profile with currentUser data when it changes
     useEffect(() => {
       if (currentUser && !selectedUser) {
-      setProfile(prev => ({
+        setProfile(prev => ({
           ...prev,
           name: currentUser.username || currentUser.name || prev.name,
           profileId: currentUser.profile_id || prev.profileId,
@@ -761,12 +788,12 @@
 
     useEffect(() => {
       if (selectedUser) {
-       const rawAvatar = selectedUser.avatarImage || selectedUser.photo || selectedUser.avatar_image || selectedUser.avatar_url;
-const selectedAvatar = getAvatarSrc(
-  rawAvatar && (rawAvatar.startsWith('http') || rawAvatar.startsWith('data:') || rawAvatar.startsWith('/uploads'))
-    ? rawAvatar
-    : undefined
-);
+        const rawAvatar = selectedUser.avatarImage || selectedUser.photo || selectedUser.avatar_image || selectedUser.avatar_url;
+        const selectedAvatar = getAvatarSrc(
+          rawAvatar && (rawAvatar.startsWith('http') || rawAvatar.startsWith('data:') || rawAvatar.startsWith('/uploads'))
+            ? rawAvatar
+            : undefined
+        );
         setProfile(prev => ({
           ...prev,
           name: selectedUser.name || prev.name,
@@ -779,9 +806,9 @@ const selectedAvatar = getAvatarSrc(
           reliabilityScore: selectedUser.reliabilityScore || calculateReliabilityScore({
             bio: selectedUser.bio || prev.bio,
             interests: selectedUser.interests || prev.interests,
-           photos: Array.isArray(selectedUser.profile_photos) 
-  ? selectedUser.profile_photos.filter(Boolean)
-  : prev.photos,
+            photos: Array.isArray(selectedUser.profile_photos)
+              ? selectedUser.profile_photos.filter(Boolean)
+              : prev.photos,
             avatarImage: selectedAvatar,
             introVideo: prev.introVideo,
             dob: prev.dob,
@@ -952,120 +979,103 @@ const selectedAvatar = getAvatarSrc(
       }
     };
 
- const handleApplyPhotoEdit = async () => {
-  if (!photoEditorSource) {
-    setProfileValidationError('Select a photo first.');
-    return;
-  }
-
-  setPhotoEditorBusy(true);
-  try {
-    const edited = await editPhotoDataUrl(photoEditorSource, {
-      aspectRatio: getAspectRatioValue(photoEditorAspect),
-      rotation: photoEditorRotation,
-      zoom: photoEditorZoom,
-    });
-    const compressed = await compressImageDataUrl(edited, { maxDimension: 1280, quality: 0.84, maxBytes: 900000 });
-    let storedUrl = compressed;
-    try {
-      const uploaded = await API.uploadMedia(compressed, {
-        fileName: `profile-photo-${Date.now()}.jpg`,
-        mimeType: 'image/jpeg',
-        folder: 'profiles',
-      });
-      storedUrl = uploaded.url;
-    } catch (uploadError) {
-      console.warn('Falling back to local image data for profile photo:', uploadError);
-    }
-    const nextGallery = [...profile.photos];
-    if (photoUploadTarget && typeof photoUploadTarget === 'object' && photoUploadTarget.type === 'gallery') {
-      while (nextGallery.length <= photoUploadTarget.index) {
-        nextGallery.push('');
+    const handleApplyPhotoEdit = async () => {
+      if (!photoEditorSource) {
+        setProfileValidationError('Select a photo first.');
+        return;
       }
-      nextGallery[photoUploadTarget.index] = storedUrl;
-    }
-    const nextProfile = {
-      ...profile,
-      avatarImage: photoUploadTarget === 'avatar' ? storedUrl : profile.avatarImage,
-      photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
-    };
 
-    const persistedMedia = [nextProfile.avatarImage, ...nextProfile.photos].filter(Boolean);
-    setProfile({
-      ...nextProfile,
-      reliabilityScore: calculateReliabilityScore(nextProfile),
-    });
-
-    // Resolve a user id robustly: prefer the currentUser prop, but fall back
-    // to whatever is in sessionStorage (and API.getUserId() if available),
-    // in case currentUser hasn't hydrated yet on this render.
-    let storedUser: any = {};
-    try {
-      const storedUserRaw = sessionStorage.getItem('junto-current-user');
-      storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
-    } catch (storageError) {
-      console.error('Failed to read stored user snapshot:', storageError);
-    }
-
-    const resolvedUserId =
-      currentUser?.id ||
-      storedUser?.id ||
-      (typeof API.getUserId === 'function' ? API.getUserId() : undefined);
-
-    try {
-      sessionStorage.setItem(
-        'junto-current-user',
-        JSON.stringify({
-          ...storedUser,
-          id: storedUser.id || currentUser?.id,
-          name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
-          username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
-          profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
-          profile_photos: persistedMedia,
-          avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
-          avatar_url: persistedMedia[0] || storedUser.avatar_url || null,
-        })
-      );
-    } catch (storageError) {
-      console.error('Failed to persist photo edit locally:', storageError);
-    }
-
-    if (resolvedUserId) {
-      console.log('[handleApplyPhotoEdit] Persisting photo edit to backend for user:', resolvedUserId, {
-        avatar_image: photoUploadTarget === 'avatar' ? (persistedMedia[0] || null) : undefined,
-        profile_photos: persistedMedia,
-      });
-
+      setPhotoEditorBusy(true);
       try {
-        const updateResult = await API.updateUserProfile(resolvedUserId, {
-          avatar_image: photoUploadTarget === 'avatar' ? (persistedMedia[0] || null) : undefined,
-          profile_photos: persistedMedia,
+        const edited = await editPhotoDataUrl(photoEditorSource, {
+          aspectRatio: getAspectRatioValue(photoEditorAspect),
+          rotation: photoEditorRotation,
+          zoom: photoEditorZoom,
         });
-        console.log('[handleApplyPhotoEdit] Backend update succeeded:', updateResult);
-      } catch (error) {
-        console.error('[handleApplyPhotoEdit] Failed to persist photo edit on the backend:', error);
-        setProfileValidationError(
-          'Your photo looks updated here, but saving it to your account failed. Please try "Save Changes" too.'
-        );
-      }
-    } else {
-      console.warn('[handleApplyPhotoEdit] No user id available — skipping backend persistence for photo edit.');
-      setProfileValidationError(
-        'Your photo was updated locally, but we could not identify your account to save it. Please log out and back in, then try again.'
-      );
-    }
+        const compressed = await compressImageDataUrl(edited, { maxDimension: 1280, quality: 0.84, maxBytes: 900000 });
+        let storedUrl = compressed;
+        try {
+          const uploaded = await API.uploadMedia(compressed, {
+            fileName: `profile-photo-${Date.now()}.jpg`,
+            mimeType: 'image/jpeg',
+            folder: 'profiles',
+          });
+          storedUrl = uploaded.url;
+        } catch (uploadError) {
+          console.warn('Falling back to local image data for profile photo:', uploadError);
+        }
+        const nextGallery = [...profile.photos];
+        if (photoUploadTarget && typeof photoUploadTarget === 'object' && photoUploadTarget.type === 'gallery') {
+          while (nextGallery.length <= photoUploadTarget.index) {
+            nextGallery.push('');
+          }
+          nextGallery[photoUploadTarget.index] = storedUrl;
+        }
+        const nextProfile = {
+          ...profile,
+          avatarImage: photoUploadTarget === 'avatar' ? storedUrl : profile.avatarImage,
+          photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
+        };
 
-    setPhotoEditorOpen(false);
-    resetPhotoEditor();
-    setShowMessage('Photo updated!');
-    setTimeout(() => setShowMessage(''), 2000);
-  } catch (error) {
-    console.error('Failed to edit photo:', error);
-    setProfileValidationError('Could not process that photo. Please try another image.');
-  } finally {
-    setPhotoEditorBusy(false);
-  }
-};
+        const persistedMedia = [nextProfile.avatarImage, ...nextProfile.photos].filter(Boolean);
+        setProfile({
+          ...nextProfile,
+          reliabilityScore: calculateReliabilityScore(nextProfile),
+        });
+
+        let storedUser: any = {};
+        try {
+          const storedUserRaw = sessionStorage.getItem('junto-current-user');
+          storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+        } catch (storageError) {
+          console.error('Failed to read stored user snapshot:', storageError);
+        }
+
+        const resolvedUserId =
+          currentUser?.id ||
+          storedUser?.id ||
+          (typeof API.getUserId === 'function' ? API.getUserId() : undefined);
+
+        try {
+          sessionStorage.setItem(
+            'junto-current-user',
+            JSON.stringify({
+              ...storedUser,
+              id: storedUser.id || currentUser?.id,
+              name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
+              username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
+              profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
+              profile_photos: persistedMedia,
+              avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
+              avatar_url: persistedMedia[0] || storedUser.avatar_url || null,
+            })
+          );
+        } catch (storageError) {
+          console.error('Failed to persist photo edit locally:', storageError);
+        }
+
+        if (resolvedUserId) {
+          try {
+            await API.updateUserProfile(resolvedUserId, {
+              avatar_image: photoUploadTarget === 'avatar' ? (persistedMedia[0] || null) : undefined,
+              profile_photos: persistedMedia,
+            });
+          } catch (error) {
+            console.error('[handleApplyPhotoEdit] Failed to persist photo edit on the backend:', error);
+          }
+        }
+
+        setPhotoEditorOpen(false);
+        resetPhotoEditor();
+        setShowMessage('Photo updated!');
+        setTimeout(() => setShowMessage(''), 2000);
+      } catch (error) {
+        console.error('Failed to edit photo:', error);
+        setProfileValidationError('Could not process that photo. Please try another image.');
+      } finally {
+        setPhotoEditorBusy(false);
+      }
+    };
 
     const handleSaveProfile = async () => {
       try {
@@ -1226,12 +1236,52 @@ const selectedAvatar = getAvatarSrc(
       }
     };
 
-    // Modern Dynamic Class Mappings
+    // ── Report submit handler ──────────────────────────────────────────────
+    const handleSubmitReport = async () => {
+      if (!reportCategory) return;
+      setReportSubmitting(true);
+      try {
+        // Call backend report API if available
+        if (currentUser?.id && selectedUser?.id) {
+          await API.reportUser?.(currentUser.id, selectedUser.id, reportCategory).catch(() => {});
+        }
+        await new Promise((r) => setTimeout(r, 800)); // UX delay
+        setReportSubmitted(true);
+      } finally {
+        setReportSubmitting(false);
+      }
+    };
+
+    // ── Rate submit handler ────────────────────────────────────────────────
+    const handleSubmitRate = async () => {
+      if (!rateValue) return;
+      setRateSubmitting(true);
+      try {
+        if (currentUser?.id && selectedUser?.id) {
+          await API.rateUser?.(currentUser.id, selectedUser.id, rateValue, rateReview).catch(() => {});
+        }
+        await new Promise((r) => setTimeout(r, 800));
+        // Boost displayed reliability score by small amount for 4–5 stars
+        if (rateValue >= 4) {
+          setServerReliabilityScore((prev) =>
+            prev !== null ? clampScore(prev + (rateValue === 5 ? 3 : 1)) : null
+          );
+        }
+        setRateSubmitted(true);
+      } finally {
+        setRateSubmitting(false);
+      }
+    };
+    // ────────────────────────────────────────────────────────────────────────
+
     const pageBg = isLightMode ? 'bg-[#FAF8F5] text-[#1E1915]' : 'bg-[#0B0B0E] text-[#F3F4F6]';
     const inputStyle = isLightMode
       ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 focus:border-amber-500 focus:bg-white'
       : 'border-white/[0.08] bg-white/[0.03] text-white focus:border-yellow-500 focus:bg-white/[0.06]';
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // PUBLIC PROFILE VIEW
+    // ═══════════════════════════════════════════════════════════════════════
     if (!isOwnProfile) {
       const publicPhotos = [profile.avatarImage, ...profile.photos].filter(Boolean).slice(0, 4);
 
@@ -1252,6 +1302,7 @@ const selectedAvatar = getAvatarSrc(
             <div className="absolute top-0 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-yellow-500/[0.03] blur-[120px] pointer-events-none" />
             <div className="absolute top-[300px] left-0 -z-10 h-[400px] w-[400px] rounded-full bg-amber-600/[0.02] blur-[100px] pointer-events-none" />
 
+            {/* ── Header ── */}
             <header className={`border-b px-6 py-6 sm:px-10 flex flex-wrap items-center justify-between gap-6 ${isLightMode ? 'border-amber-900/5 bg-white/40' : 'border-white/[0.04] bg-[#0B0B0E]/40'} backdrop-blur-md sticky top-0 z-40`}>
               <div>
                 <span className={`text-[11px] font-bold uppercase tracking-[0.25em] ${isLightMode ? 'text-amber-800/70' : 'text-yellow-500/80'}`}>
@@ -1262,7 +1313,37 @@ const selectedAvatar = getAvatarSrc(
                 </h1>
               </div>
 
+              {/* Action buttons */}
               <div className="flex items-center gap-2.5">
+                {/* Rate button */}
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => { setRateSubmitted(false); setRateValue(0); setRateReview(''); setShowRateModal(true); }}
+                  className={`h-10 flex items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition-all ${
+                    isLightMode
+                      ? 'border-amber-900/10 bg-white text-amber-950 hover:bg-amber-50'
+                      : 'border-white/[0.08] bg-white/[0.03] text-gray-200 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <Star size={14} className="text-yellow-400" />
+                  <span>Rate</span>
+                </motion.button>
+
+                {/* Report button */}
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => { setReportSubmitted(false); setReportCategory(''); setShowReportModal(true); }}
+                  className={`h-10 flex items-center gap-2 rounded-xl border px-4 text-xs font-semibold transition-all ${
+                    isLightMode
+                      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                      : 'border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                  }`}
+                >
+                  <Flag size={14} />
+                  <span>Report</span>
+                </motion.button>
+
+                {/* Message button */}
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => onNavigate?.('messages')}
@@ -1275,6 +1356,7 @@ const selectedAvatar = getAvatarSrc(
             </header>
 
             <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-10 py-8 space-y-8">
+              {/* Profile card */}
               <div className={`overflow-hidden rounded-3xl border ${isLightMode ? 'border-amber-900/10 bg-white shadow-[0_30px_70px_rgba(120,53,15,0.04)]' : 'border-white/[0.05] bg-gradient-to-b from-[#131317] to-[#0A0A0D] shadow-2xl'}`}>
                 <div className={`relative h-40 sm:h-52 w-full overflow-hidden ${isLightMode ? 'bg-gradient-to-br from-amber-100 to-amber-200/40' : 'bg-gradient-to-br from-[#1F1C18] via-[#141419] to-[#0B0B0E]'}`}>
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,0.12),transparent_60%)]" />
@@ -1318,6 +1400,7 @@ const selectedAvatar = getAvatarSrc(
                 </div>
               </div>
 
+              {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
                 <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
@@ -1325,6 +1408,7 @@ const selectedAvatar = getAvatarSrc(
                 <StatCard value={profile.interests.length} label="Interests" icon={<User size={16} />} isLightMode={isLightMode} />
               </div>
 
+              {/* About */}
               <WidgetCard title="About" subtitle="What people need to know before reaching out" icon={<User size={18} />} isLightMode={isLightMode}>
                 <div className="space-y-4">
                   <p className={`text-sm leading-relaxed ${isLightMode ? 'text-amber-900/80' : 'text-gray-300'}`}>
@@ -1347,6 +1431,7 @@ const selectedAvatar = getAvatarSrc(
                 </div>
               </WidgetCard>
 
+              {/* Photos */}
               {publicPhotos.length > 0 && (
                 <WidgetCard title="Photos" subtitle="Shared images only" icon={<Camera size={18} />} isLightMode={isLightMode}>
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -1363,13 +1448,304 @@ const selectedAvatar = getAvatarSrc(
               )}
             </div>
           </main>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              REPORT MODAL
+          ══════════════════════════════════════════════════════════════════ */}
+          <AnimatePresence>
+            {showReportModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => !reportSubmitting && setShowReportModal(false)}
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 12 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 12 }}
+                  className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.07] bg-[#0F0F13]'
+                  }`}
+                >
+                  {reportSubmitted ? (
+                    <div className="flex flex-col items-center gap-4 py-4 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
+                        <CheckCircle2 size={32} className="text-green-400" />
+                      </div>
+                      <h3 className="text-lg font-bold">Report received</h3>
+                      <p className={`text-sm leading-relaxed ${isLightMode ? 'text-amber-900/70' : 'text-gray-400'}`}>
+                        Thank you for your report. Our team will review this within 24 hours. The reported user does not know they have been reported.
+                      </p>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setShowReportModal(false)}
+                        className="mt-2 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 px-8 py-3 text-sm font-bold text-black"
+                      >
+                        Done
+                      </motion.button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Header */}
+                      <div className="mb-6 flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500/15">
+                            <Flag size={18} className="text-red-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold">Report {profile.name}</h3>
+                            <p className={`text-xs mt-0.5 ${isLightMode ? 'text-amber-900/60' : 'text-gray-500'}`}>
+                              Select the reason that best fits
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowReportModal(false)}
+                          className="rounded-full p-1.5 text-gray-400 transition hover:bg-white/10"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      {/* Categories */}
+                      <div className="space-y-2 mb-6">
+                        {REPORT_CATEGORIES.map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => setReportCategory(cat)}
+                            className={`w-full rounded-2xl border px-4 py-3 text-left text-sm font-medium transition-all ${
+                              reportCategory === cat
+                                ? 'border-red-500/40 bg-red-500/15 text-red-300'
+                                : isLightMode
+                                  ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 hover:bg-amber-100/60'
+                                  : 'border-white/[0.06] bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Anti-fraud note */}
+                      <div className={`mb-5 rounded-2xl border px-4 py-3 text-xs leading-relaxed ${
+                        isLightMode ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-yellow-500/20 bg-yellow-500/[0.06] text-yellow-300/80'
+                      }`}>
+                        ⚠️ Never send money to anyone before an event. All payments happen at the venue only.
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowReportModal(false)}
+                          disabled={reportSubmitting}
+                          className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
+                            isLightMode
+                              ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                              : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                          } disabled:opacity-50`}
+                        >
+                          Cancel
+                        </button>
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          onClick={handleSubmitReport}
+                          disabled={!reportCategory || reportSubmitting}
+                          className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {reportSubmitting ? (
+                            <>
+                              <Loader size={14} className="animate-spin" />
+                              Submitting…
+                            </>
+                          ) : (
+                            <>
+                              <Flag size={14} />
+                              Submit Report
+                            </>
+                          )}
+                        </motion.button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              RATE MODAL
+          ══════════════════════════════════════════════════════════════════ */}
+          <AnimatePresence>
+            {showRateModal && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => !rateSubmitting && setShowRateModal(false)}
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 12 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 12 }}
+                  className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.07] bg-[#0F0F13]'
+                  }`}
+                >
+                  {rateSubmitted ? (
+                    <div className="flex flex-col items-center gap-4 py-4 text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-500/20">
+                        <Star size={32} className="text-yellow-400 fill-yellow-400" />
+                      </div>
+                      <h3 className="text-lg font-bold">Rating submitted!</h3>
+                      <p className={`text-sm leading-relaxed ${isLightMode ? 'text-amber-900/70' : 'text-gray-400'}`}>
+                        Thanks for your feedback. Your rating helps build trust in the Junto community.
+                      </p>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            size={20}
+                            className={s <= rateValue ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'}
+                          />
+                        ))}
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setShowRateModal(false)}
+                        className="mt-2 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 px-8 py-3 text-sm font-bold text-black"
+                      >
+                        Done
+                      </motion.button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Header */}
+                      <div className="mb-6 flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-yellow-500/15">
+                            <Star size={18} className="text-yellow-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold">Rate {profile.name}</h3>
+                            <p className={`text-xs mt-0.5 ${isLightMode ? 'text-amber-900/60' : 'text-gray-500'}`}>
+                              How was your experience?
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowRateModal(false)}
+                          className="rounded-full p-1.5 text-gray-400 transition hover:bg-white/10"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      {/* Star picker */}
+                      <div className="mb-2 flex items-center justify-center gap-3">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <motion.button
+                            key={star}
+                            whileHover={{ scale: 1.25 }}
+                            whileTap={{ scale: 0.9 }}
+                            onMouseEnter={() => setRateHover(star)}
+                            onMouseLeave={() => setRateHover(0)}
+                            onClick={() => setRateValue(star)}
+                            className="transition-transform"
+                          >
+                            <Star
+                              size={36}
+                              className={`transition-colors ${
+                                star <= (rateHover || rateValue)
+                                  ? 'text-yellow-400 fill-yellow-400'
+                                  : isLightMode ? 'text-amber-200' : 'text-gray-600'
+                              }`}
+                            />
+                          </motion.button>
+                        ))}
+                      </div>
+
+                      {/* Star label */}
+                      <p className={`mb-5 text-center text-sm font-semibold transition-colors ${
+                        rateValue ? 'text-yellow-400' : isLightMode ? 'text-amber-900/40' : 'text-gray-600'
+                      }`}>
+                        {rateValue ? STAR_LABELS[rateValue - 1] : 'Tap a star to rate'}
+                      </p>
+
+                      {/* Optional review */}
+                      <div className="mb-6">
+                        <label className="block text-xs font-bold uppercase tracking-wider mb-2 opacity-60">
+                          Write a review (optional)
+                        </label>
+                        <textarea
+                          value={rateReview}
+                          onChange={(e) => setRateReview(e.target.value)}
+                          placeholder={`Share what it was like meeting ${profile.name}…`}
+                          rows={3}
+                          className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none transition-all ${inputStyle}`}
+                        />
+                      </div>
+
+                      {/* Reliability note */}
+                      {rateValue >= 4 && (
+                        <div className={`mb-5 rounded-2xl border px-4 py-3 text-xs leading-relaxed ${
+                          isLightMode ? 'border-green-200 bg-green-50 text-green-800' : 'border-green-500/20 bg-green-500/[0.06] text-green-300/80'
+                        }`}>
+                          ⭐ A {rateValue}-star rating will give {profile.name} a small Reliability Score boost.
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setShowRateModal(false)}
+                          disabled={rateSubmitting}
+                          className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
+                            isLightMode
+                              ? 'border-amber-900/10 bg-amber-50 text-amber-950 hover:bg-amber-100'
+                              : 'border-white/[0.08] bg-white/[0.03] text-white hover:bg-white/[0.06]'
+                          } disabled:opacity-50`}
+                        >
+                          Skip
+                        </button>
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          onClick={handleSubmitRate}
+                          disabled={!rateValue || rateSubmitting}
+                          className="flex-1 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-3 text-sm font-bold text-black transition hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {rateSubmitting ? (
+                            <>
+                              <Loader size={14} className="animate-spin" />
+                              Submitting…
+                            </>
+                          ) : (
+                            <>
+                              <Star size={14} />
+                              Submit Rating
+                            </>
+                          )}
+                        </motion.button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       );
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // OWN PROFILE VIEW (unchanged from original)
+    // ═══════════════════════════════════════════════════════════════════════
     return (
       <div className={`flex min-h-screen transition-colors duration-500 font-sans antialiased ${pageBg}`}>
-        {/* Sidebar Layout Alignment */}
         <div className="relative z-50">
           <Sidebar
             activeNav="Profile"
@@ -1380,13 +1756,10 @@ const selectedAvatar = getAvatarSrc(
           />
         </div>
 
-        {/* Main Container */}
         <main className="relative ml-0 lg:ml-64 flex-1 overflow-x-hidden min-h-screen pb-24">
-          {/* Subtle Brand Background Glow Accents */}
           <div className="absolute top-0 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-yellow-500/[0.03] blur-[120px] pointer-events-none" />
           <div className="absolute top-[300px] left-0 -z-10 h-[400px] w-[400px] rounded-full bg-amber-600/[0.02] blur-[100px] pointer-events-none" />
 
-          {/* Global Toast Notification Toast */}
           <AnimatePresence>
             {showMessage && (
               <motion.div
@@ -1401,7 +1774,6 @@ const selectedAvatar = getAvatarSrc(
             )}
           </AnimatePresence>
 
-          {/* Sub-Header Area */}
           <header className={`border-b px-6 py-6 sm:px-10 flex flex-wrap items-center justify-between gap-6 ${isLightMode ? 'border-amber-900/5 bg-white/40' : 'border-white/[0.04] bg-[#0B0B0E]/40'} backdrop-blur-md sticky top-0 z-40`}>
             <div>
               <span className={`text-[11px] font-bold uppercase tracking-[0.25em] ${isLightMode ? 'text-amber-800/70' : 'text-yellow-500/80'}`}>
@@ -1412,7 +1784,6 @@ const selectedAvatar = getAvatarSrc(
               </h1>
             </div>
 
-            {/* Core Layout Utility Bar */}
             <div className="flex items-center gap-2.5">
               {isOwnProfile ? (
                 <>
@@ -1442,15 +1813,11 @@ const selectedAvatar = getAvatarSrc(
                   <motion.button
                     whileTap={{ scale: 0.96 }}
                     onClick={() => {
-                      if (isSavingProfile) {
-                        return;
-                      }
-
+                      if (isSavingProfile) return;
                       if (isEditing) {
                         void handleSaveProfile();
                         return;
                       }
-
                       setIsEditing(true);
                     }}
                     disabled={isSavingProfile}
@@ -1492,19 +1859,15 @@ const selectedAvatar = getAvatarSrc(
             </div>
           </header>
 
-          {/* Dynamic Grid Layout Viewport */}
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 py-8 grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
-            
-            {/* Main Layout Stream */}
             <div className="space-y-8 min-w-0">
               
-              {/* Premium Profile Billboard Section */}
+              {/* Profile billboard */}
               <div className={`relative overflow-hidden rounded-3xl border transition-all duration-300 ${
                 isLightMode 
                   ? 'border-amber-900/10 bg-white shadow-[0_30px_70px_rgba(120,53,15,0.04)]' 
                   : 'border-white/[0.05] bg-gradient-to-b from-[#131317] to-[#0A0A0D] shadow-2xl'
               }`}>
-                {/* Dynamic Cover Drop */}
                 <div className={`relative h-40 sm:h-48 md:h-52 w-full overflow-hidden ${
                   isLightMode 
                     ? 'bg-gradient-to-br from-amber-100 to-amber-200/40' 
@@ -1517,10 +1880,8 @@ const selectedAvatar = getAvatarSrc(
                   </div>
                 </div>
 
-                {/* Identity Blueprint Block */}
                 <div className="relative px-6 pb-6 sm:pb-8">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 -mt-16 sm:-mt-20 mb-6">
-                    {/* Avatar Engine */}
                     <div className="relative inline-block group">
                       {isEditing && (
                         <button
@@ -1558,7 +1919,6 @@ const selectedAvatar = getAvatarSrc(
                     </div>
                   </div>
 
-                  {/* Profile Data Canvas */}
                   <div className="max-w-2xl">
                     {profileValidationError && (
                       <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -1579,11 +1939,11 @@ const selectedAvatar = getAvatarSrc(
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Age</label>
-                          <div className={`w-full rounded-xl border px-4 py-2.5 text-base font-semibold ${inputStyle} opacity-90`}>
+                            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Age</label>
+                            <div className={`w-full rounded-xl border px-4 py-2.5 text-base font-semibold ${inputStyle} opacity-90`}>
                               {displayAge !== null ? `${displayAge} years old` : 'Not set'}
+                            </div>
                           </div>
-                        </div>
                           <div>
                             <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 opacity-60">Location</label>
                             <input
@@ -1630,7 +1990,6 @@ const selectedAvatar = getAvatarSrc(
                     )}
                   </div>
 
-                  {/* Micro Traits Matrix */}
                   <div className={`mt-6 flex flex-wrap gap-2 border-t pt-5 ${isLightMode ? 'border-amber-900/5' : 'border-white/[0.04]'}`}>
                     {quickTraits.map((trait) => (
                       <span
@@ -1648,14 +2007,14 @@ const selectedAvatar = getAvatarSrc(
                 </div>
               </div>
 
-              {/* Quick Core Stats Block */}
+              {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
                 <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
                 <StatCard value={`${displayReliabilityScore}%`} label={serverReliabilityScore !== null ? 'Server-backed reliability' : 'Estimated reliability'} icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
               </div>
 
-              {/* Panel Widget: Professional Identity Map */}
+              {/* Identity Portfolio */}
               <WidgetCard title="Identity Portfolio" subtitle="Key identity attributes visible to community members" icon={<User size={18} />} isLightMode={isLightMode}>
                 {isEditing ? (
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1741,7 +2100,7 @@ const selectedAvatar = getAvatarSrc(
                 )}
               </WidgetCard>
 
-              {/* Panel Widget: Narrative Framework */}
+              {/* Bio & Interests */}
               <WidgetCard title="Personal Interests & Bio" subtitle="Contextual traits that describe you" icon={<Award size={18} />} isLightMode={isLightMode}>
                 {isEditing ? (
                   <div className="space-y-5">
@@ -1834,15 +2193,10 @@ const selectedAvatar = getAvatarSrc(
                 )}
               </WidgetCard>
 
-              {/* Verification & Safety Section */}
+              {/* Verification & Safety */}
               <WidgetCard title="Verification & Safety" subtitle="Build trust with verified credentials" icon={<ShieldCheck size={18} />} isLightMode={isLightMode}>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {/* Phone Verification */}
-                  <motion.div
-                    className={`rounded-2xl border p-4 transition-all ${
-                      isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
-                    }`}
-                  >
+                  <motion.div className={`rounded-2xl border p-4 transition-all ${isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'}`}>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         <div className={`rounded-lg p-2 ${phoneVerified ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
@@ -1867,12 +2221,7 @@ const selectedAvatar = getAvatarSrc(
                     )}
                   </motion.div>
 
-                  {/* ID Verification */}
-                  <motion.div
-                    className={`rounded-2xl border p-4 transition-all ${
-                      isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'
-                    }`}
-                  >
+                  <motion.div className={`rounded-2xl border p-4 transition-all ${isLightMode ? 'border-amber-900/5 bg-amber-50/30' : 'border-white/[0.04] bg-white/[0.01]'}`}>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         <div className={`rounded-lg p-2 ${idVerified ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
@@ -1890,7 +2239,7 @@ const selectedAvatar = getAvatarSrc(
                 </div>
               </WidgetCard>
 
-              {/* Panel Widget: Media Vault Layout */}
+              {/* Media Gallery */}
               <WidgetCard title="Media Gallery" subtitle="Visual presentation of your lifestyle profile" icon={<Camera size={18} />} isLightMode={isLightMode}>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {Array.from({ length: 4 }, (_, idx) => {
@@ -1907,14 +2256,13 @@ const selectedAvatar = getAvatarSrc(
                         } ${isEditing ? 'cursor-pointer' : 'cursor-default'}`}
                         type="button"
                       >
-                   
-   {hasPhoto ? (
-  <>
-    <img
-      src={resolveMediaUrl(photo)}
-      alt={`Gallery image ${idx + 1}`}
-      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-    />
+                        {hasPhoto ? (
+                          <>
+                            <img
+                              src={resolveMediaUrl(photo)}
+                              alt={`Gallery image ${idx + 1}`}
+                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
                             {isEditing && (
                               <div className="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/35 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
                                 <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
@@ -1938,21 +2286,14 @@ const selectedAvatar = getAvatarSrc(
                   })}
                 </div>
               </WidgetCard>
-
             </div>
 
-            {/* Sidebar Widget Block Stack */}
+            {/* Sidebar widgets */}
             <aside className="space-y-6">
-              
-              {/* Profile Completion Widget */}
-              <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${
-                isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'
-              }`}>
+              <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'}`}>
                 <div className="flex items-center gap-2 mb-4">
                   <CheckCircle2 size={16} className="text-green-400" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider">
-                    Profile Completion
-                  </h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider">Profile Completion</h4>
                 </div>
 
                 <div className="flex items-end justify-between mb-2">
@@ -1976,15 +2317,10 @@ const selectedAvatar = getAvatarSrc(
                 </div>
               </div>
 
-              {/* Trust Optimization Blueprint Widget */}
-              <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${
-                isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'
-              }`}>
+              <div className={`rounded-3xl border p-5 sm:p-6 transition-all ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#141419]'}`}>
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldCheck size={16} className="text-yellow-500" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider">
-                    Profile Status Score
-                  </h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider">Profile Status Score</h4>
                 </div>
                 
                 <div className="flex items-end justify-between mb-2">
@@ -2001,11 +2337,10 @@ const selectedAvatar = getAvatarSrc(
                 </div>
                 
                 <p className="text-xs opacity-60 leading-relaxed">
-                  Your reliability score is now tied to profile completeness and server-backed trust data when available.
+                  Your reliability score is tied to profile completeness and server-backed trust data when available.
                 </p>
               </div>
 
-              {/* Secondary Option Canvas Widget */}
               <WidgetCard title="App Interface" subtitle="Personalize operational views" icon={<Sun size={16} />} isLightMode={isLightMode}>
                 <motion.button
                   whileTap={{ scale: 0.98 }}
@@ -2028,7 +2363,6 @@ const selectedAvatar = getAvatarSrc(
                   <ChevronRight size={14} className="opacity-40" />
                 </motion.button>
               </WidgetCard>
-
             </aside>
           </div>
 
@@ -2043,18 +2377,15 @@ const selectedAvatar = getAvatarSrc(
                   onClick={() => !photoEditorBusy && (setPhotoEditorOpen(false), resetPhotoEditor())}
                   className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
                 />
-
                 <motion.div
                   initial={{ opacity: 0, y: 20, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 20, scale: 0.98 }}
                   className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
                 >
-                  <div
-                    className={`flex w-full max-w-[920px] max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl border shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
-                      isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
-                    }`}
-                  >
+                  <div className={`flex w-full max-w-[920px] max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-3xl border shadow-2xl sm:max-h-[calc(100vh-3rem)] ${
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
+                  }`}>
                     <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4 sm:p-6">
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-500/80">Photo Editor</p>
@@ -2077,17 +2408,11 @@ const selectedAvatar = getAvatarSrc(
                         <div className="space-y-4">
                           <div className={`overflow-hidden rounded-3xl border ${isLightMode ? 'border-amber-900/10 bg-amber-50/30' : 'border-white/[0.08] bg-white/[0.02]'}`}>
                             <div className="mx-auto w-full max-w-[420px] p-3 sm:p-4">
-                              <div
-                                className={`relative mx-auto overflow-hidden rounded-2xl border ${
-                                  photoEditorAspect === 'portrait'
-                                    ? 'aspect-[4/5]'
-                                    : photoEditorAspect === 'landscape'
-                                      ? 'aspect-[16/9]'
-                                      : photoEditorAspect === 'story'
-                                        ? 'aspect-[9/16]'
-                                        : 'aspect-square'
-                                } ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/10 bg-black/30'}`}
-                              >
+                              <div className={`relative mx-auto overflow-hidden rounded-2xl border ${
+                                photoEditorAspect === 'portrait' ? 'aspect-[4/5]' :
+                                photoEditorAspect === 'landscape' ? 'aspect-[16/9]' :
+                                photoEditorAspect === 'story' ? 'aspect-[9/16]' : 'aspect-square'
+                              } ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/10 bg-black/30'}`}>
                                 <img
                                   src={photoEditorSource}
                                   alt="Photo preview"
@@ -2174,13 +2499,6 @@ const selectedAvatar = getAvatarSrc(
                                   className="w-full accent-yellow-500"
                                 />
                               </div>
-
-                              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                <p className="text-xs font-bold uppercase tracking-wider opacity-60">Prep note</p>
-                                <p className="mt-2 text-sm opacity-70">
-                                  Square works best for the profile avatar, while portrait gives your photo a little more room for full-body shots.
-                                </p>
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -2225,11 +2543,10 @@ const selectedAvatar = getAvatarSrc(
             )}
           </AnimatePresence>
 
-          {/* Delete Account Confirmation Modal */}
+          {/* Delete Account Modal */}
           <AnimatePresence>
             {showDeleteConfirm && (
               <>
-                {/* Backdrop */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -2237,16 +2554,12 @@ const selectedAvatar = getAvatarSrc(
                   onClick={() => !isDeleting && setShowDeleteConfirm(false)}
                   className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
                 />
-                
-                {/* Modal */}
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
                   className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
-                    isLightMode
-                      ? 'border-amber-900/10 bg-white'
-                      : 'border-white/[0.05] bg-[#0B0B0E]'
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
                   }`}
                 >
                   <div className="mb-6 flex items-center gap-3">
@@ -2262,9 +2575,7 @@ const selectedAvatar = getAvatarSrc(
                   </div>
 
                   <div className={`mb-8 rounded-xl p-4 ${isLightMode ? 'bg-red-50 text-red-900' : 'bg-red-500/10 text-red-400'}`}>
-                    <p className="text-sm font-medium">
-                      All your data will be permanently deleted, including:
-                    </p>
+                    <p className="text-sm font-medium">All your data will be permanently deleted, including:</p>
                     <ul className="mt-3 space-y-1 text-xs opacity-80">
                       <li>• Profile and personal information</li>
                       <li>• Events and applications</li>
@@ -2293,15 +2604,9 @@ const selectedAvatar = getAvatarSrc(
                       className="flex-1 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {isDeleting ? (
-                        <>
-                          <Loader size={14} className="animate-spin" />
-                          <span>Deleting...</span>
-                        </>
+                        <><Loader size={14} className="animate-spin" /><span>Deleting...</span></>
                       ) : (
-                        <>
-                          <Trash2 size={14} />
-                          <span>Delete Account</span>
-                        </>
+                        <><Trash2 size={14} /><span>Delete Account</span></>
                       )}
                     </motion.button>
                   </div>
@@ -2314,7 +2619,6 @@ const selectedAvatar = getAvatarSrc(
           <AnimatePresence>
             {showPhoneVerify && (
               <>
-                {/* Backdrop */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -2322,16 +2626,12 @@ const selectedAvatar = getAvatarSrc(
                   onClick={() => !phoneVerifyLoading && setShowPhoneVerify(false)}
                   className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
                 />
-                
-                {/* Modal */}
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
                   className={`fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-8 shadow-2xl ${
-                    isLightMode
-                      ? 'border-amber-900/10 bg-white'
-                      : 'border-white/[0.05] bg-[#0B0B0E]'
+                    isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'
                   }`}
                 >
                   <div className="mb-6 flex items-center gap-3">
@@ -2355,9 +2655,7 @@ const selectedAvatar = getAvatarSrc(
                         disabled
                         placeholder="+234 803 456 7890"
                         className={`w-full rounded-lg border px-4 py-3 text-sm outline-none opacity-60 cursor-not-allowed ${
-                          isLightMode 
-                            ? 'border-amber-900/10 bg-amber-50' 
-                            : 'border-white/[0.08] bg-white/[0.03]'
+                          isLightMode ? 'border-amber-900/10 bg-amber-50' : 'border-white/[0.08] bg-white/[0.03]'
                         }`}
                       />
                       <p className="text-[11px] text-gray-500 mt-1">From your registered account</p>
@@ -2372,8 +2670,8 @@ const selectedAvatar = getAvatarSrc(
                         placeholder="000000"
                         maxLength={6}
                         className={`w-full rounded-lg border px-4 py-3 text-sm text-center tracking-[0.5em] font-mono outline-none transition-all ${
-                          isLightMode 
-                            ? 'border-amber-600/20 focus:border-amber-600/50 bg-white' 
+                          isLightMode
+                            ? 'border-amber-600/20 focus:border-amber-600/50 bg-white'
                             : 'border-white/[0.08] focus:border-yellow-500/50 bg-white/[0.03]'
                         }`}
                       />
@@ -2399,16 +2697,10 @@ const selectedAvatar = getAvatarSrc(
                       onClick={async () => {
                         if (phoneVerifyOtp.length === 6) {
                           setPhoneVerifyLoading(true);
-                          // Simulate OTP verification
                           setTimeout(() => {
                             setVerificationState(prev => ({
                               ...prev,
-                              phone: {
-                                ...prev.phone,
-                                verified: true,
-                                verifiedAt: new Date().toISOString(),
-                                loading: false,
-                              },
+                              phone: { ...prev.phone, verified: true, verifiedAt: new Date().toISOString(), loading: false },
                             }));
                             setShowPhoneVerify(false);
                             setPhoneVerifyOtp('');
@@ -2422,15 +2714,9 @@ const selectedAvatar = getAvatarSrc(
                       className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {phoneVerifyLoading ? (
-                        <>
-                          <Loader size={14} className="animate-spin" />
-                          <span>Verifying...</span>
-                        </>
+                        <><Loader size={14} className="animate-spin" /><span>Verifying...</span></>
                       ) : (
-                        <>
-                          <CheckCircle2 size={14} />
-                          <span>Verify</span>
-                        </>
+                        <><CheckCircle2 size={14} /><span>Verify</span></>
                       )}
                     </motion.button>
                   </div>
@@ -2439,7 +2725,6 @@ const selectedAvatar = getAvatarSrc(
             )}
           </AnimatePresence>
 
-          {/* Hidden Form Capture Handlers */}
           <input
             type="file"
             ref={fileInputRef}

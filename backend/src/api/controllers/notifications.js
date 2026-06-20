@@ -1,5 +1,6 @@
 import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
+import { createNotification } from '../../services/notificationService.js';
 
 export async function getNotifications(req, res) {
   try {
@@ -72,7 +73,10 @@ export async function subscribeToPush(req, res) {
 
     await query(
       `INSERT INTO push_subscriptions (id, user_id, subscription_data, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, true, datetime('now'), datetime('now'))`,
+       VALUES (?, ?, ?, true, datetime('now'), datetime('now'))
+       ON CONFLICT(user_id, subscription_data) DO UPDATE SET
+         is_active = true,
+         updated_at = datetime('now')`,
       [subId, user_id, subscriptionData]
     );
 
@@ -133,34 +137,14 @@ export async function getPushSubscriptions(req, res) {
 // Send push notification to user (internal endpoint)
 export async function sendPushNotification(user_id, title, body) {
   try {
-    // Get user's active subscriptions
-    const subsResult = await query(
-      `SELECT subscription_data FROM push_subscriptions WHERE user_id = ? AND is_active = true`,
-      [user_id]
-    );
-
-    if (!subsResult.rows || subsResult.rows.length === 0) {
-      // Create in-app notification as fallback
-      const notifId = uuidv4();
-      await query(
-        `INSERT INTO notifications (id, user_id, title, body, is_read, created_at)
-         VALUES (?, ?, ?, ?, false, datetime('now'))`,
-        [notifId, user_id, title, body]
-      );
-      return notifId;
-    }
-
-    // Create in-app notification
-    const notifId = uuidv4();
-    await query(
-      `INSERT INTO notifications (id, user_id, title, body, is_read, created_at)
-       VALUES (?, ?, ?, ?, false, datetime('now'))`,
-      [notifId, user_id, title, body]
-    );
-
-    // In production, use web-push library to send to each subscription
-    // For now, we just track the notification
-    return notifId;
+    return await createNotification({
+      userId: user_id,
+      notificationType: 'system',
+      title,
+      body,
+      payload: { title, body, url: '/notifications' },
+      url: '/notifications',
+    });
   } catch (error) {
     console.error('Push notification error:', error);
     throw error;

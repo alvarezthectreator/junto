@@ -135,10 +135,10 @@ const FEATURE_CARDS: AssessmentCard[] = [
   {
     title: 'Safety / Anti-Fraud',
     status: 'partial',
-    completion: '78%',
-    summary: 'Safety now has local persistence, SOS automation, check-ins, report/block handling, and a computed reliability score.',
-    done: ['Trusted contacts UI', 'Report and block UI', 'SOS / check-in surfaces', 'Profile risk signals', 'Local audit persistence', 'Location sharing', 'Emergency dialing', 'No-show detection', 'Wellbeing follow-up', 'Reliability score'],
-    missing: ['Provider-backed verification', 'Backend sync for safety events', 'Fraud workflow hardening'],
+    completion: '86%',
+    summary: 'Safety now has local persistence, SOS automation, check-ins, report/block handling, automated fraud enforcement, and a computed reliability score.',
+    done: ['Trusted contacts UI', 'Report and block UI', 'SOS / check-in surfaces', 'Profile risk signals', 'Local audit persistence', 'Location sharing', 'Emergency dialing', 'No-show detection', 'Wellbeing follow-up', 'Reliability score', 'Fraud enforcement automation'],
+    missing: ['Provider-backed verification', 'Backend sync for safety events'],
   },
 ];
 
@@ -173,7 +173,7 @@ export function ComprehensiveAssessment({ onNavigate = () => {} }: Comprehensive
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
                 This page reflects the current local codebase, not the old static checklist. It is meant to show what is actually implemented today and what still needs backend or product work.
               </p>
-              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">Last updated: June 9, 2026</p>
+              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">Last updated: June 20, 2026</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">

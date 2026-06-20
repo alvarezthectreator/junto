@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink, Edit3 } from 'lucide-react';
+import { Heart, MapPin, Share2, MessageCircle, Check, AlertCircle, ArrowLeft, ExternalLink, Edit3, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
@@ -12,6 +12,7 @@ import * as API from '../services/api';
 import { isEventExpired, getRemainingCapacity, isEventAtCapacity } from '../utils/eventUtils';
 import { compressImageDataUrl } from '../utils/imageCompression';
 import { getAvatarImageFromProfilePhotos, resolveMediaUrl } from '../utils/avatar';
+import { HostRatingComponent } from '../components/HostRating'; // adjust path if it's not at this location
 import {
   appendEventActivity,
   appendLocalNotification,
@@ -261,6 +262,19 @@ export const EventDetail: React.FC<EventDetailProps> = ({ eventId, eventData, on
   const [editError, setEditError] = useState('');
   const [eventActivities, setEventActivities] = useState<EventActivity[]>([]);
   const [isWaitlisted, setIsWaitlisted] = useState(false);
+  const [showFinancialModal, setShowFinancialModal] = useState(false);
+const [financialAgreed, setFinancialAgreed] = useState(false);
+const [wellbeingCheckSent, setWellbeingCheckSent] = useState(false);
+const [showWellbeingModal, setShowWellbeingModal] = useState(false);
+const [wellbeingAnswer, setWellbeingAnswer] = useState<'safe' | 'unsafe' | 'okay' | null>(null);
+const [wellbeingSubmitted, setWellbeingSubmitted] = useState(false);
+const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
+const [gpsCheckedIn, setGpsCheckedIn] = useState(false);
+const [gpsChecking, setGpsChecking] = useState(false);
+const [gpsError, setGpsError] = useState('');
+const [gpsDistance, setGpsDistance] = useState<number | null>(null);
   const [hostAvatarImage, setHostAvatarImage] = useState<string>('');
   const [realAttendees, setRealAttendees] = useState<EventAttendee[]>([]);
 const [realReviews, setRealReviews] = useState<any[]>([]);
@@ -356,6 +370,46 @@ const resolvedHostAvatar = hostAvatarImage || event.host.avatar;
   const applicationStorageKey = `junto-event-application-${event.id}`;
   const billingDetails = getBillingTierDetails(event);
   const isSquadEvent = Boolean((event as any).is_squad_event || (event as any).squad_event);
+
+  // ---- Cancellation window helpers ----
+  function getEventDateTime(dateStr: string, timeStr: string): Date | null {
+    if (!dateStr) return null;
+    const [year, month, day] = (dateStr.includes('T') ? dateStr.split('T')[0] : dateStr)
+      .split('-')
+      .map(Number);
+    if (!year || !month || !day) return null;
+
+    let hours = 18;
+    let minutes = 0;
+    const timeMatch = String(timeStr || '18:00').match(/(\d+):(\d+)\s*(AM|PM)?/i);
+    if (timeMatch) {
+      hours = parseInt(timeMatch[1], 10);
+      minutes = parseInt(timeMatch[2], 10);
+      if (timeMatch[3]?.toUpperCase() === 'PM' && hours < 12) hours += 12;
+      if (timeMatch[3]?.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    }
+
+    return new Date(year, month - 1, day, hours, minutes);
+  }
+
+  function getCancellationConsequence(dateStr: string, timeStr: string) {
+    const eventDateTime = getEventDateTime(dateStr, timeStr);
+    if (!eventDateTime) {
+      return { hoursUntilEvent: Infinity, isPenalized: false, penaltyPercent: 0 };
+    }
+
+    const hoursUntilEvent = (eventDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+    const isPenalized = hoursUntilEvent < 6;
+    const penaltyPercent = isPenalized ? 5 : 0;
+
+    return { hoursUntilEvent, isPenalized, penaltyPercent };
+  }
+
+  const cancellationConsequence = useMemo(
+    () => getCancellationConsequence(event.date, event.time),
+    [event.date, event.time]
+  );
+
   const applicationTimeline = useMemo(() => {
     const submittedAt = applicationUpdatedAt ? new Date(applicationUpdatedAt).toLocaleString() : 'Just now';
     const responseText =
@@ -671,13 +725,11 @@ setGuestList(realAttendees.length > 0 ? realAttendees : currentAttendees);
     }
   };
 
-  const handleJoin = () => {
-    if (isJoined || applicationStatus === 'pending' || eventExpired || atCapacity) {
-      return;
-    }
-
-    setShowApplicationModal(true);
-  };
+const handleJoin = () => {
+  if (isJoined || applicationStatus === 'pending' || eventExpired || atCapacity) return;
+  setFinancialAgreed(false);
+  setShowFinancialModal(true);
+};
 
   const handleSubmitApplication = () => {
     const currentUser = readCurrentUserSnapshot();
@@ -797,11 +849,11 @@ setGuestList(realAttendees.length > 0 ? realAttendees : currentAttendees);
   };
 
   const openHostChat = () => {
-    const hostTarget = {
-      id: String(event.host_id || event.host.id || event.host.name),
-      name: event.host.name,
-      display_name: event.host.name,
-      profile_id: String(event.host_id || event.host.id || event.host.name),
+ const hostTarget = {
+  id: String(event.host_id || event.host.name),
+  name: event.host.name,
+  display_name: event.host.name,
+  profile_id: String(event.host_id || event.host.name),
       avatarImage: event.host.avatar,
       avatar_image: event.host.avatar,
       city: event.location,
@@ -821,17 +873,15 @@ setGuestList(realAttendees.length > 0 ? realAttendees : currentAttendees);
   };
 
 const openHostProfile = async () => {
-  const hostId = event.host_id || event.host.id || event.host.name;
-
+  const hostId = event.host_id || event.host.name;
   // Set basic info immediately so navigation feels instant
   setSelectedUser({
     id: hostId,
     name: event.host.name,
     username: event.host.name,
     display_name: event.host.name,
-    avatar: resolvedHostAvatar,
-avatar_image: resolvedHostAvatar,
-    avatar_image: event.host.avatar,
+  avatar: resolvedHostAvatar,
+    avatar_image: resolvedHostAvatar,
     reliabilityScore: event.host.reliabilityScore,
     isVerified: event.host.isVerified,
     city: event.location,
@@ -868,19 +918,68 @@ avatar_image: resolvedHostAvatar,
   }
 };
 
-  const handleCancelAttendance = () => {
+  const handleCancelAttendance = async () => {
+    const wasAccepted = applicationStatus === 'accepted';
+    const { isPenalized, penaltyPercent } = cancellationConsequence;
+
+    setCancelSubmitting(true);
+
+    if (wasAccepted && isPenalized && currentUserId) {
+      try {
+        const result = await API.applyCancellationPenalty(currentUserId, event.id, penaltyPercent);
+        if (result?.success) {
+          appendEventActivity({
+            id: `activity-${Date.now()}`,
+            eventId: event.id,
+            title: 'Late cancellation',
+            detail: `Reliability score reduced by ${penaltyPercent}% for cancelling within the 6-hour window.`,
+            type: 'cancellation',
+            createdAt: new Date().toISOString(),
+            actorName: currentUserSnapshot?.name || 'Guest',
+          });
+        }
+      } catch (error) {
+        console.error('Failed to apply cancellation penalty:', error);
+      }
+    }
+
     setIsJoined(false);
     setApplicationStatus('none');
     setApplicationNote('');
     setApplicationUpdatedAt('');
     setApplicationText('');
     setShowApplicationModal(false);
+    setShowCancelConfirmModal(false);
     setGuestList((current) => current.filter((attendee) => attendee.id !== 'you'));
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(applicationStorageKey);
     }
-    setShareState('Application cancelled');
+
+    appendEventActivity({
+      id: `activity-${Date.now() + 1}`,
+      eventId: event.id,
+      title: wasAccepted ? 'Attendance cancelled' : 'Application withdrawn',
+      detail: wasAccepted
+        ? `${currentUserSnapshot?.name || 'A guest'} cancelled their attendance.`
+        : `${currentUserSnapshot?.name || 'A guest'} withdrew their application.`,
+      type: 'cancellation',
+      createdAt: new Date().toISOString(),
+      actorName: currentUserSnapshot?.name || 'Guest',
+    });
+
+    setCancelSubmitting(false);
+    setShareState(wasAccepted ? 'Attendance cancelled' : 'Application cancelled');
     window.setTimeout(() => setShareState(''), 2200);
+  };
+
+  // Gate function: shows the confirm modal only when the user has been accepted.
+  // Pending applications cancel immediately with no modal and no penalty.
+  const handleRequestCancel = () => {
+    if (applicationStatus !== 'accepted') {
+      handleCancelAttendance();
+      return;
+    }
+    setShowCancelConfirmModal(true);
   };
 
   const handleAddToCalendar = () => {
@@ -1029,11 +1128,72 @@ avatar_image: resolvedHostAvatar,
     pending: { bg: 'bg-[#F59E0B]/10', border: 'border-[#F59E0B]/30', text: 'text-[#FBBF24]', label: 'Pending' },
     declined: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', label: 'Declined' },
   };
+// Wellbeing check — fires 1hr after event ends for accepted attendees
+useEffect(() => {
+  if (applicationStatus !== 'accepted' || wellbeingCheckSent) return;
+  const eventDateStr = event.date || (event as any).event_date;
+  if (!eventDateStr) return;
+  const [year, month, day] = (eventDateStr.includes('T') ? eventDateStr.split('T')[0] : eventDateStr).split('-').map(Number);
+  let hours = 18, minutes = 0;
+  const timeMatch = String(event.time || '18:00').match(/(\d+):(\d+)\s*(AM|PM)?/i);
+  if (timeMatch) {
+    hours = parseInt(timeMatch[1]);
+    minutes = parseInt(timeMatch[2]);
+    if (timeMatch[3]?.toUpperCase() === 'PM' && hours < 12) hours += 12;
+    if (timeMatch[3]?.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  }
+  const eventEnd = new Date(year, month - 1, day, hours, minutes);
+  const checkAt = new Date(eventEnd.getTime() + 3 * 60 * 60 * 1000); // 2hr event + 1hr delay
+  const msUntilCheck = checkAt.getTime() - Date.now();
+  const alreadyAnswered = localStorage.getItem(`junto-wellbeing-${event.id}`);
+  if (alreadyAnswered) return;
+  if (msUntilCheck <= 0) {
+    setShowWellbeingModal(true);
+    setWellbeingCheckSent(true);
+    return;
+  }
+  const timer = window.setTimeout(() => {
+    if (!localStorage.getItem(`junto-wellbeing-${event.id}`)) {
+      setShowWellbeingModal(true);
+      setWellbeingCheckSent(true);
+    }
+  }, Math.min(msUntilCheck, 2147483647));
+  return () => window.clearTimeout(timer);
+}, [applicationStatus, event.id, event.date, event.time, wellbeingCheckSent]);
 
-  const activeTabButton =
-    'bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white shadow-lg shadow-[#F59E0B]/20';
+const activeTabButton = 'bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white shadow-lg shadow-[#F59E0B]/20';
   const inactiveTabButton = 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10';
 
+ 
+
+  const handleGPSCheckIn = () => {
+    if (!navigator.geolocation) { setGpsError('GPS not supported on this device.'); return; }
+    setGpsChecking(true);
+    setGpsError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const [eLat, eLng] = eventCoords;
+        const R = 6371;
+        const dLat = ((eLat - latitude) * Math.PI) / 180;
+        const dLng = ((eLng - longitude) * Math.PI) / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(latitude*Math.PI/180)*Math.cos(eLat*Math.PI/180)*Math.sin(dLng/2)**2;
+        const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distM = Math.round(distKm * 1000);
+        setGpsDistance(distM);
+        setGpsChecking(false);
+        if (distKm <= 0.5) {
+          setGpsCheckedIn(true);
+          localStorage.setItem(`junto-checkin-${event.id}`, new Date().toISOString());
+          appendEventActivity({ id: `checkin-${Date.now()}`, eventId: event.id, title: 'GPS Check-in confirmed', detail: `Checked in ${distM}m from venue.`, type: 'checkin', createdAt: new Date().toISOString(), actorName: currentUserSnapshot?.name || 'Guest' });
+        } else {
+          setGpsError(`You're ${distM}m away. Must be within 500m to check in.`);
+        }
+      },
+      () => { setGpsChecking(false); setGpsError('Could not get location. Enable GPS and try again.'); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
   return (
 <div className="min-h-screen bg-[#0F0F13] text-white pb-40">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -1260,7 +1420,7 @@ avatar_image: resolvedHostAvatar,
                     {applicationStatus === 'pending' && (
                       <>
                         <button
-                          onClick={handleCancelAttendance}
+                          onClick={handleRequestCancel}
                           className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                         >
                           Withdraw application
@@ -1437,6 +1597,30 @@ avatar_image: resolvedHostAvatar,
                         ))}
                       </div>
                     </motion.div>
+                    {applicationStatus === 'accepted' && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+                        className={`rounded-2xl border p-4 ${gpsCheckedIn ? 'border-green-500/30 bg-green-500/10' : 'border-[#F59E0B]/20 bg-[#F59E0B]/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-white">GPS Check-In</h3>
+                            <p className="text-xs text-gray-400 mt-0.5">Confirm you're at the venue (within 500m)</p>
+                          </div>
+                          {gpsCheckedIn && <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-1 text-[10px] font-bold text-green-400">✓ Checked in</span>}
+                        </div>
+                        {gpsCheckedIn ? (
+                          <p className="text-sm text-green-300">You're verified at the venue{gpsDistance !== null ? ` (${gpsDistance}m away)` : ''}.</p>
+                        ) : (
+                          <>
+                            <button onClick={handleGPSCheckIn} disabled={gpsChecking}
+                              className="w-full rounded-full bg-[#F59E0B] py-2.5 text-sm font-bold text-black hover:bg-[#F59E0B]/90 transition disabled:opacity-60 flex items-center justify-center gap-2">
+                              {gpsChecking ? <><span className="h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />Getting location...</> : <><MapPin size={15} />Check in with GPS</>}
+                            </button>
+                            {gpsError && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2"><p className="text-xs text-red-300">{gpsError}</p></div>}
+                            {gpsDistance !== null && !gpsCheckedIn && <p className="text-xs text-gray-400 mt-2 text-center">You're {gpsDistance}m away — need to be within 500m</p>}
+                          </>
+                        )}
+                      </motion.div>
+                    )}
                   </div>
 
                   <div className="space-y-4">
@@ -1472,10 +1656,17 @@ avatar_image: resolvedHostAvatar,
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
                       <h3 className="mb-2 text-sm font-semibold text-blue-400">Cancellation Policy</h3>
                       <p className="text-sm text-gray-300">
-                        {event.cancellation_policy === 'strict' && '❌ No refunds allowed. Cancellations accepted until 48 hours before the event.'}
-                        {event.cancellation_policy === 'moderate' && '⚠️ 50% refund available. Cancellations accepted until 24 hours before the event.'}
-                        {event.cancellation_policy === 'flexible' && '✅ Full refund available. Cancellations accepted until 12 hours before the event.'}
-                        {!event.cancellation_policy && '📋 Host has set a cancellation policy. Check details before applying.'}
+                        {cancellationConsequence.isPenalized ? (
+                          <>
+                            ⚠️ This event starts in {Math.max(0, Math.round(cancellationConsequence.hoursUntilEvent))}h. Cancelling an accepted spot now
+                            will reduce your reliability score by {cancellationConsequence.penaltyPercent}%.
+                          </>
+                        ) : (
+                          <>
+                            ✅ You can cancel free of charge up until 6 hours before the event. Inside that window, cancelling an
+                            accepted spot reduces your reliability score by 5%.
+                          </>
+                        )}
                       </p>
                     </motion.div>
 
@@ -1713,15 +1904,16 @@ avatar: resolvedHostAvatar,
   </div>
 </div>
 
+                   
                     {/* Host Ratings & Reviews */}
-                    <HostRating 
-                      hostId={event.host_id || event.host.id}
-                      eventId={event.id}
-                      userId={currentUser?.id}
-                      onRatingSubmitted={() => {
-                        // Refresh event data or ratings display
-                      }}
-                    />
+<HostRatingComponent
+  hostId={event.host_id || ''}
+  eventId={event.id}
+  userId={currentUserId || ''}
+  onRatingSubmitted={() => {
+    // optional: refresh host past events / reviews here
+  }}
+/>
                   </div>
 
                   <div className="space-y-4">
@@ -1827,7 +2019,234 @@ avatar: resolvedHostAvatar,
           </div>
         </div>
       </div>
+      {showCancelConfirmModal && (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !cancelSubmitting) {
+              setShowCancelConfirmModal(false);
+            }
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111115] p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#F59E0B]/70">Confirm cancellation</p>
+                <h3 className="text-lg font-bold text-white mt-1">{event.title}</h3>
+              </div>
+              <button
+                onClick={() => !cancelSubmitting && setShowCancelConfirmModal(false)}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition"
+              >
+                <X size={14} className="text-gray-400" />
+              </button>
+            </div>
 
+            {cancellationConsequence.isPenalized ? (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-red-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-300">
+                      Event starts in {Math.max(0, Math.round(cancellationConsequence.hoursUntilEvent))}h
+                    </p>
+                    <p className="mt-1 text-sm text-red-200">
+                      You're cancelling inside the 6-hour window. Your reliability score will drop by{' '}
+                      {cancellationConsequence.penaltyPercent}%.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 mb-5">
+                <div className="flex items-start gap-2">
+                  <Check size={18} className="mt-0.5 flex-shrink-0 text-green-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-300">No penalty</p>
+                    <p className="mt-1 text-sm text-green-200">
+                      You're outside the 6-hour cancellation window, so your reliability score won't be affected.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirmModal(false)}
+                disabled={cancelSubmitting}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition disabled:opacity-60"
+              >
+                Go back
+              </button>
+              <button
+                onClick={handleCancelAttendance}
+                disabled={cancelSubmitting}
+                className={`flex-1 rounded-2xl py-3 text-sm font-bold transition ${
+                  cancellationConsequence.isPenalized
+                    ? 'bg-red-500 text-white hover:bg-red-500/90'
+                    : 'bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white hover:opacity-90'
+                } disabled:opacity-60`}
+              >
+                {cancelSubmitting
+                  ? 'Cancelling...'
+                  : cancellationConsequence.isPenalized
+                    ? `Cancel (-${cancellationConsequence.penaltyPercent}% score)`
+                    : 'Confirm cancellation'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {showWellbeingModal && (
+  <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#111115] p-6 shadow-2xl">
+      {wellbeingSubmitted ? (
+        <div className="text-center py-4">
+          <div className="w-14 h-14 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
+            <Check size={24} className="text-green-400" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">Thanks for checking in</h3>
+          <p className="text-sm text-gray-400 mb-5">
+            {wellbeingAnswer === 'unsafe' ? 'We\'ve flagged this. If you\'re in danger, call emergency services immediately.' : 'Glad you had a good time!'}
+          </p>
+          <button onClick={() => setShowWellbeingModal(false)}
+            className="w-full rounded-full bg-[#F59E0B] py-2.5 text-sm font-bold text-black hover:bg-[#F59E0B]/90 transition">Close</button>
+        </div>
+      ) : (
+        <>
+          <div className="text-center mb-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#F59E0B]/70 mb-1">Wellbeing Check</p>
+            <h3 className="text-lg font-bold text-white">How did it go?</h3>
+            <p className="text-sm text-gray-400 mt-1">You attended <span className="text-white font-medium">{event.title}</span>.</p>
+          </div>
+          <div className="space-y-3 mb-5">
+            {[
+              { key: 'safe', emoji: '✅', label: 'Safe and had a great time', color: 'border-green-500/30 bg-green-500/10 text-green-300' },
+              { key: 'okay', emoji: '😐', label: 'It was okay, nothing to report', color: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300' },
+              { key: 'unsafe', emoji: '🚨', label: 'I felt unsafe or something went wrong', color: 'border-red-500/30 bg-red-500/10 text-red-300' },
+            ].map(({ key, emoji, label, color }) => (
+              <button key={key} onClick={() => setWellbeingAnswer(key as any)}
+                className={`w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all ${wellbeingAnswer === key ? color : 'border-white/5 bg-white/[0.03] text-gray-300 hover:border-white/10'}`}>
+                <span className="text-xl">{emoji}</span>
+                <span className="text-sm font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              if (!wellbeingAnswer) return;
+              localStorage.setItem(`junto-wellbeing-${event.id}`, wellbeingAnswer);
+              if (wellbeingAnswer === 'unsafe' && event.host_id && currentUserId) {
+                API.sendMessage(null, event.host_id, `🚨 Wellbeing alert: A guest reported feeling unsafe after "${event.title}".`, 'text').catch(() => {});
+              }
+              setWellbeingSubmitted(true);
+            }}
+            disabled={!wellbeingAnswer}
+            className={`w-full rounded-full py-3 text-sm font-bold transition ${wellbeingAnswer ? 'bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white hover:opacity-90' : 'bg-white/5 text-gray-500 cursor-not-allowed'}`}>
+            Submit response
+          </button>
+          <p className="text-center text-xs text-gray-600 mt-3">If you're in danger, call 112 immediately.</p>
+        </>
+      )}
+    </motion.div>
+  </div>
+)}
+{showFinancialModal && (
+  <div
+    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+    onClick={(e) => { if (e.target === e.currentTarget) setShowFinancialModal(false); }}
+  >
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111115] p-6 shadow-2xl"
+    >
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#F59E0B]/70">Before you join</p>
+          <h3 className="text-lg font-bold text-white mt-1">Financial Agreement</h3>
+        </div>
+        <button
+          onClick={() => setShowFinancialModal(false)}
+          className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition"
+        >
+          <X size={14} className="text-gray-400" />
+        </button>
+      </div>
+
+      {/* Billing tier summary */}
+      <div className={`rounded-2xl border p-4 mb-4 ${billingDetails.badgeClass}`}>
+        <p className="text-sm font-semibold text-white mb-1">{billingDetails.title}</p>
+        <p className="text-xs text-gray-300">{billingDetails.note}</p>
+      </div>
+
+      {/* Terms list */}
+      <div className="space-y-3 mb-5">
+        {[
+          'All payments happen at the venue only. Never send money before the event.',
+          'Junto is not responsible for financial disputes between hosts and guests.',
+          'Cancellations may affect your reliability score.',
+          `You understand the billing arrangement: ${billingDetails.subtitle}`,
+        ].map((term, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="w-5 h-5 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-[#F59E0B] text-[10px] font-bold">{i + 1}</span>
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed">{term}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Checkbox */}
+      <label className="flex items-start gap-3 cursor-pointer mb-5 group">
+        <div
+          onClick={() => setFinancialAgreed(prev => !prev)}
+          className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 border-2 flex items-center justify-center transition-all ${
+            financialAgreed
+              ? 'bg-[#F59E0B] border-[#F59E0B]'
+              : 'border-white/20 bg-white/5 group-hover:border-[#F59E0B]/50'
+          }`}
+        >
+          {financialAgreed && <Check size={12} className="text-black" />}
+        </div>
+        <span className="text-sm text-gray-200 leading-relaxed">
+          I have read and agree to the financial terms for this event. I understand no money should be sent before the event.
+        </span>
+      </label>
+
+      {/* Buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={() => setShowFinancialModal(false)}
+          className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            if (!financialAgreed) return;
+            setShowFinancialModal(false);
+            setShowApplicationModal(true);
+          }}
+          disabled={!financialAgreed}
+          className={`flex-1 rounded-2xl py-3 text-sm font-bold transition ${
+            financialAgreed
+              ? 'bg-gradient-to-r from-[#F59E0B] to-[#FB923C] text-white hover:opacity-90'
+              : 'bg-white/5 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Continue →
+        </button>
+      </div>
+    </motion.div>
+  </div>
+)}
       {showEditModal && (
         <div
           className="fixed inset-0 z-[75] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
@@ -2084,7 +2503,7 @@ avatar: resolvedHostAvatar,
               <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#F59E0B]/25 py-3 font-bold text-[#FBBF24]">
                 <Check size={18} /> Application sent
               </button>
-              <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={handleRequestCancel} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Cancel Application
               </button>
               <button onClick={openHostChat} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
@@ -2102,7 +2521,7 @@ avatar: resolvedHostAvatar,
               <button className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500/20 py-3 font-bold text-green-300">
                 <Check size={18} /> You&apos;re in
               </button>
-              <button onClick={handleCancelAttendance} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
+              <button onClick={handleRequestCancel} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">
                 Withdraw
               </button>
               <button onClick={openHostChat} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 font-semibold text-white transition hover:bg-white/10">

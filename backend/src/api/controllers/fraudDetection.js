@@ -14,6 +14,10 @@ import {
   getUserFraudScore,
   getRiskLevel,
 } from '../services/fraudDetectionService.js';
+import {
+  getFraudEnforcementSummary,
+  runFraudEnforcementSweep,
+} from '../services/fraudEnforcementScheduler.js';
 
 export const getUserFraudStatus = async (req, res, db) => {
   try {
@@ -354,5 +358,29 @@ export const getHighRiskUsers = async (req, res, db) => {
   } catch (error) {
     console.error('Error in getHighRiskUsers:', error);
     res.status(500).json({ error: 'Failed to fetch high risk users' });
+  }
+};
+
+export const getFraudEnforcementSnapshot = async (req, res, db) => {
+  try {
+    const summary = await getFraudEnforcementSummary(db);
+    res.json({ summary });
+  } catch (error) {
+    console.error('Error in getFraudEnforcementSnapshot:', error);
+    res.status(500).json({ error: 'Failed to fetch enforcement summary' });
+  }
+};
+
+export const runFraudEnforcement = async (req, res, db) => {
+  try {
+    const summary = await runFraudEnforcementSweep(db);
+    res.json({
+      success: true,
+      summary,
+      message: 'Fraud enforcement sweep completed',
+    });
+  } catch (error) {
+    console.error('Error in runFraudEnforcement:', error);
+    res.status(500).json({ error: 'Failed to run fraud enforcement sweep' });
   }
 };

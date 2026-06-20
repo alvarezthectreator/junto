@@ -7,6 +7,7 @@
 
 import cron from 'node-cron';
 import { v4 as uuidv4 } from 'uuid';
+import { createNotification } from './notificationService.js';
 
 let schedulerInstance = null;
 
@@ -79,83 +80,75 @@ const checkAndSendFollowups = async (db) => {
       // Send follow-ups for each attendee
       const followupPromises = rows.map(row => {
         return new Promise((resolveFollowup) => {
-          const followupId = uuidv4();
-          const notificationTime = new Date().toISOString();
-
           // Create follow-up notification with options
           const title = `Follow-up: Share your experience at ${row.title}`;
           const body = `${row.host_name} would love to hear from you! Rate the event, share photos, or send feedback.`;
           const followupType = 'event_followup'; // options: 'feedback_request', 'rating_request', 'photo_request'
 
-          const createNotifSql = `
-            INSERT INTO notifications (
-              id, user_id, notification_type, title, body, 
-              created_at, is_read, event_id, related_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-
-          db.run(
-            createNotifSql,
-            [
-              followupId,
-              row.user_id,
-              followupType,
+          createNotification({
+            userId: row.user_id,
+            notificationType: followupType,
+            title,
+            body,
+            relatedUserId: row.host_id,
+            relatedEventId: row.event_id,
+            payload: {
+              eventId: row.event_id,
+              hostId: row.host_id,
               title,
               body,
-              notificationTime,
-              0, // is_read = false
-              row.event_id,
-              row.host_id, // host is related user
-            ],
-            (err) => {
-              if (err) {
-                console.error('Error creating follow-up notification:', err);
-              }
+              url: `/events/${row.event_id}`,
+            },
+            url: `/events/${row.event_id}`,
+          }).then((followupId) => {
+            // Create follow-up record in new table
+            const createFollowupRecordSql = `
+              INSERT INTO event_followups (
+                id, event_id, user_id, host_id,
+                status, notification_id,
+                created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            `;
 
-              // Create follow-up record in new table
-              const createFollowupRecordSql = `
-                INSERT INTO event_followups (
-                  id, event_id, user_id, host_id, 
-                  status, notification_id,
-                  created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-              `;
+            const notificationTime = new Date().toISOString();
 
-              db.run(
-                createFollowupRecordSql,
-                [
-                  uuidv4(),
-                  row.event_id,
-                  row.user_id,
-                  row.host_id,
-                  'pending',
-                  followupId,
-                  notificationTime,
-                ],
-                (err) => {
-                  if (err) {
-                    // Table might not exist yet, just update the flag
-                    console.log(`Follow-up record creation skipped (table may not exist)`);
-                  }
-
-                  // Mark follow-up as sent
-                  const updateSql = `
-                    UPDATE event_applications 
-                    SET followup_sent = 1 
-                    WHERE event_id = ? AND user_id = ?
-                  `;
-
-                  db.run(updateSql, [row.event_id, row.user_id], (err) => {
-                    if (err) {
-                      console.error('Error marking follow-up as sent:', err);
-                    }
-                    console.log(`✓ Follow-up sent to ${row.display_name} for event "${row.title}"`);
-                    resolveFollowup();
-                  });
+            db.run(
+              createFollowupRecordSql,
+              [
+                uuidv4(),
+                row.event_id,
+                row.user_id,
+                row.host_id,
+                'pending',
+                followupId,
+                notificationTime,
+              ],
+              (err) => {
+                if (err) {
+                  // Table might not exist yet, just update the flag
+                  console.log(`Follow-up record creation skipped (table may not exist)`);
                 }
-              );
-            }
-          );
+
+                // Mark follow-up as sent
+                const updateSql = `
+                  UPDATE event_applications
+                  SET followup_sent = 1
+                  WHERE event_id = ? AND user_id = ?
+                `;
+
+                db.run(updateSql, [row.event_id, row.user_id], (err) => {
+                  if (err) {
+                    console.error('Error marking follow-up as sent:', err);
+                  }
+                  console.log(`✓ Follow-up sent to ${row.display_name} for event "${row.title}"`);
+                  resolveFollowup();
+                });
+              }
+            );
+          }).catch((err) => {
+            console.error('Error creating follow-up notification:', err);
+            resolveFollowup();
+          });
         });
       });
 

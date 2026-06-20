@@ -133,9 +133,26 @@ export const filterNotificationsByPreferences = async (db, userId, notifications
  * Check if a notification should be delivered via push
  */
 export const shouldDeliverPush = (db, userId) => {
-  return new Promise((resolve, reject) => {
-    const sql = 'SELECT push_enabled FROM notification_preferences WHERE user_id = ?';
-    
+  const sql = 'SELECT push_enabled FROM notification_preferences WHERE user_id = ?';
+
+  if (typeof db === 'function') {
+    return db(sql, [userId])
+      .then((result) => {
+        const row = result?.rows?.[0];
+        return row ? Boolean(row.push_enabled) : true;
+      })
+      .catch((err) => {
+        console.error('Error checking push delivery:', err);
+        return true;
+      });
+  }
+
+  return new Promise((resolve) => {
+    if (!db || typeof db.get !== 'function') {
+      resolve(true);
+      return;
+    }
+
     db.get(sql, [userId], (err, row) => {
       if (err) {
         console.error('Error checking push delivery:', err);

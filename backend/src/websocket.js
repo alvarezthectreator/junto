@@ -1,4 +1,4 @@
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 
 let wss = null;
 const clients = new Set();
@@ -24,13 +24,13 @@ export function initWebSocket(server) {
   return wss;
 }
 
-export function broadcastEventUpdate(eventId) {
+function broadcast(type, payload) {
   if (!wss) return;
 
   const message = JSON.stringify({
-    type: 'event_updated',
-    eventId: eventId,
-    timestamp: new Date().toISOString()
+    type,
+    payload,
+    timestamp: new Date().toISOString(),
   });
 
   clients.forEach((client) => {
@@ -38,42 +38,35 @@ export function broadcastEventUpdate(eventId) {
       client.send(message);
     }
   });
+}
 
+export function broadcastEventUpdate(eventId) {
+  broadcast('event_updated', { eventId });
   console.log(`📢 Broadcast: event_updated ${eventId} to ${clients.size} clients`);
 }
 
 export function broadcastEventCreated(eventId) {
-  if (!wss) return;
-
-  const message = JSON.stringify({
-    type: 'event_created',
-    eventId: eventId,
-    timestamp: new Date().toISOString()
-  });
-
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-
+  broadcast('event_created', { eventId });
   console.log(`📢 Broadcast: event_created ${eventId} to ${clients.size} clients`);
 }
 
 export function broadcastEventDeleted(eventId) {
-  if (!wss) return;
-
-  const message = JSON.stringify({
-    type: 'event_deleted',
-    eventId: eventId,
-    timestamp: new Date().toISOString()
-  });
-
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-
+  broadcast('event_deleted', { eventId });
   console.log(`📢 Broadcast: event_deleted ${eventId} to ${clients.size} clients`);
+}
+
+export function broadcastMessageCreated(message) {
+  broadcast('message_created', message);
+}
+
+export function broadcastConversationUpdated(conversation) {
+  broadcast('conversation_updated', conversation);
+}
+
+export function broadcastSafetyEvent(event) {
+  broadcast('safety_event', event);
+}
+
+export function broadcastModerationEvent(event) {
+  broadcast('moderation_event', event);
 }

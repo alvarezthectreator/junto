@@ -15,6 +15,7 @@ export interface WebRTCSignal {
   payload: any;
   from?: string;
   to?: string;
+  mode?: 'audio' | 'video';
 }
 
 export interface UseWebRTCOptions {
@@ -44,7 +45,7 @@ export interface UseWebRTCReturn {
   handleIncomingSignal: (signal: WebRTCSignal) => Promise<void>;
   toggleMute: () => void;
   toggleCamera: () => void;
-  hangUp: () => void;
+  hangUp: (reason?: 'missed' | 'completed' | 'declined') => void;
   error: string | null;
 }
 
@@ -174,6 +175,7 @@ export function useWebRTC({
         payload: offer,
         from: localUserId,
         to: remoteUserId,
+        mode,
       });
     } catch {
       // error already set inside getMedia
@@ -268,23 +270,29 @@ export function useWebRTC({
     setIsCameraOff((prev) => !prev);
   }, []);
 
- const hangUp = useCallback(() => {
-  try {
-    const result = sendSignal({
-      type: 'hang-up',
-      payload: null,
-      from: localUserId,
-      to: remoteUserId,
-    });
-    if (result instanceof Promise) {
-      result.catch(() => {});
+  const hangUp = useCallback((reason?: 'missed' | 'completed' | 'declined') => {
+    const resolvedReason = reason || (callState === 'connected' ? 'completed' : 'missed');
+
+    try {
+      const result = sendSignal({
+        type: 'hang-up',
+        payload: {
+          reason: resolvedReason,
+          mode,
+        },
+        from: localUserId,
+        to: remoteUserId,
+      });
+      if (result instanceof Promise) {
+        result.catch(() => {});
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-  setCallState('ended');
-  cleanup();
-}, [sendSignal, localUserId, remoteUserId, cleanup]);
+
+    setCallState('ended');
+    cleanup();
+  }, [callState, sendSignal, localUserId, remoteUserId, cleanup, mode]);
 
   // Cleanup on unmount
   useEffect(() => () => cleanup(), [cleanup]);

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   date_of_birth DATE,
   intro_video_url VARCHAR(500),
   avatar_image TEXT,
+  reliability_score NUMERIC DEFAULT 100,
   profile_id VARCHAR(20) UNIQUE,
   referred_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -188,6 +189,21 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Reliability penalty log for cancellation penalties
+CREATE TABLE IF NOT EXISTS reliability_penalty_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  penalty_percent NUMERIC NOT NULL,
+  previous_score NUMERIC NOT NULL,
+  new_score NUMERIC NOT NULL,
+  reason TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reliability_penalty_log_user_id
+  ON reliability_penalty_log(user_id);
+
 -- Event Saves (Wishlist/Bookmarks - Save Event for Later)
 CREATE TABLE IF NOT EXISTS event_saves (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -232,6 +248,31 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, subscription_data)
 );
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+CREATE TABLE IF NOT EXISTS notification_delivery_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_id UUID REFERENCES notifications(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  body TEXT,
+  url TEXT,
+  notification_type VARCHAR(50),
+  payload TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  attempts INTEGER DEFAULT 0,
+  max_attempts INTEGER DEFAULT 5,
+  next_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_error TEXT,
+  sent_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_status ON notification_delivery_queue(status);
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_next_attempt ON notification_delivery_queue(next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_notification_delivery_queue_user ON notification_delivery_queue(user_id);
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_city ON users(city);
