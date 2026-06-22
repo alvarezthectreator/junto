@@ -33,6 +33,14 @@ export interface User {
   avatar_image?: string | null;
   avatar_url?: string | null;
   profile_photos?: string[];
+  risk_score?: number;
+  behavior_score?: number;
+  identity_score?: number;
+  flags_count?: number;
+  last_updated?: string;
+  reviewed_at?: string;
+  review_status?: string;
+  review_notes?: string;
 }
 
 export interface UserProfile {
@@ -69,10 +77,12 @@ export interface Event {
   id: string;
   host_id: string;
   display_name?: string;
+  profile_id?: string;
   title: string;
   description?: string;
   event_type?: string;
   location_city: string;
+  location_address?: string;
   event_date: string;
   event_time: string;
   cover_photo_url?: string;
@@ -436,7 +446,8 @@ function normalizeDeploymentOpsReport(report: any): DeploymentOpsReport {
 async function apiCall(
   endpoint: string,
   method: string = 'GET',
-  body?: any
+  body?: any,
+  extraHeaders?: HeadersInit
 ): Promise<any> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers: HeadersInit = {
@@ -450,6 +461,14 @@ if (!sessionToken) {
 
   if (sessionToken) {
     headers['Authorization'] = `Bearer ${sessionToken}`;
+  }
+
+  if (appConfig.adminSetupKey) {
+    headers['x-admin-setup-key'] = appConfig.adminSetupKey;
+  }
+
+  if (extraHeaders) {
+    Object.assign(headers as Record<string, string>, extraHeaders as Record<string, string>);
   }
 
   const options: RequestInit = {
@@ -873,6 +892,56 @@ export async function getUserById(userId: string): Promise<User> {
   return response.user || response;
 }
 
+export async function getUsers(filters?: { q?: string; city?: string; limit?: number; offset?: number; all?: boolean }): Promise<{ users: User[]; total: number }> {
+  const params = new URLSearchParams();
+  if (filters?.q) params.append('q', filters.q);
+  if (filters?.city) params.append('city', filters.city);
+  if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+  if (filters?.offset !== undefined) params.append('offset', String(filters.offset));
+  if (filters?.all) params.append('all', 'true');
+  const endpoint = params.toString() ? `/users?${params.toString()}` : '/users';
+  return apiCall(endpoint);
+}
+
+export async function updateUserAdminStatus(
+  userId: string,
+  updates: {
+    is_active?: boolean;
+    verification_status?: string;
+    reliability_score?: number;
+    risk_score?: number;
+    behavior_score?: number;
+    identity_score?: number;
+    flags_count?: number;
+    last_updated?: string;
+    reviewed_at?: string;
+    review_status?: string;
+    review_notes?: string;
+    display_name?: string;
+    username?: string;
+    email?: string;
+    phone_number?: string;
+    city?: string;
+    occupation?: string;
+  }
+): Promise<{ success: boolean; message: string; user: User }> {
+  const response = await apiCall(`/users/${userId}/admin-status`, 'PATCH', updates);
+
+  try {
+    const payload = {
+      userId,
+      updates: response?.user || updates,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem('junto-user-admin-status-updated', JSON.stringify(payload));
+    window.dispatchEvent(new CustomEvent('junto-user-admin-status-updated', { detail: payload }));
+  } catch {
+    // Ignore storage failures and still return the API response.
+  }
+
+  return response;
+}
+
 export async function deleteUserAccount(userId: string): Promise<{ success: boolean; message?: string }> {
   return apiCall(`/users/${userId}`, 'DELETE');
 }
@@ -989,11 +1058,14 @@ export async function getTravelModeUsers(city: string): Promise<User[]> {
 
 // ==================== EVENTS ====================
 
-export async function getEvents(filters?: { city?: string; date?: string }): Promise<{ events: Event[] }> {
+export async function getEvents(filters?: { city?: string; date?: string; limit?: number; offset?: number; all?: boolean }): Promise<{ events: Event[] }> {
   let endpoint = '/events';
   const params = new URLSearchParams();
   if (filters?.city) params.append('city', filters.city);
   if (filters?.date) params.append('date', filters.date);
+  if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+  if (filters?.offset !== undefined) params.append('offset', String(filters.offset));
+  if (filters?.all) params.append('all', 'true');
   if (params.toString()) endpoint += `?${params.toString()}`;
   try {
     return await apiCall(endpoint);
@@ -1006,6 +1078,39 @@ export async function getEvents(filters?: { city?: string; date?: string }): Pro
 
     throw error;
   }
+}
+
+export async function getVenues(filters?: { city?: string; category?: string; all?: boolean }): Promise<{ venues: any[] }> {
+  const params = new URLSearchParams();
+  if (filters?.city) params.append('city', filters.city);
+  if (filters?.category) params.append('category', filters.category);
+  if (filters?.all) params.append('all', 'true');
+  const endpoint = params.toString() ? `/venues?${params.toString()}` : '/venues';
+  return apiCall(endpoint);
+}
+
+export async function getVenueById(venueId: string): Promise<any> {
+  return apiCall(`/venues/${venueId}`);
+}
+
+export async function createVenue(payload: Record<string, any>): Promise<any> {
+  return apiCall('/venues', 'POST', payload);
+}
+
+export async function updateVenue(venueId: string, payload: Record<string, any>): Promise<any> {
+  return apiCall(`/venues/${venueId}`, 'PUT', payload);
+}
+
+export async function deleteVenue(venueId: string): Promise<any> {
+  return apiCall(`/venues/${venueId}`, 'DELETE');
+}
+
+export async function deleteVenueReview(reviewId: string): Promise<any> {
+  return apiCall(`/venues/reviews/${reviewId}`, 'DELETE');
+}
+
+export async function createVenueReview(venueId: string, payload: Record<string, any>): Promise<any> {
+  return apiCall(`/venues/${venueId}/reviews`, 'POST', payload);
 }
 
 export async function getEventById(eventId: string): Promise<Event> {
@@ -1264,7 +1369,7 @@ export async function updateTravelDestination(userId: string, travelDestinationC
 // ==================== HEALTH CHECK ====================
 
 export async function healthCheck(): Promise<any> {
-  return apiCall('/health', 'GET');
+  return apiCall('/health');
 }
 
 export async function getDeploymentOpsReport(): Promise<DeploymentOpsReport> {
@@ -1349,6 +1454,24 @@ export async function reportUser(
     report_type: reportType,
     description,
     evidence_urls: evidenceUrls || [],
+  });
+}
+
+export async function rateUser(
+  ratedByUserId: string,
+  targetUserId: string,
+  rating: number,
+  review?: string
+): Promise<{ message: string }> {
+  trackEvent('user_rate_submitted', {
+    rated_by_user_id: ratedByUserId,
+    target_user_id: targetUserId,
+    rating,
+    review_present: Boolean(review?.trim()),
+  }, ratedByUserId);
+
+  return Promise.resolve({
+    message: 'User rating recorded locally',
   });
 }
 
@@ -1647,6 +1770,34 @@ export async function getCelebrities(category?: string) {
   const url = category ? `${BASE_URL}/api/celebrities?category=${category}` : `${BASE_URL}/api/celebrities`;
   const res = await fetch(url, { credentials: 'include' });
   return res.json();
+}
+
+export async function getCelebritiesAdmin(category?: string, all: boolean = true) {
+  const params = new URLSearchParams();
+  if (category) params.append('category', category);
+  if (all) params.append('all', 'true');
+  const endpoint = params.toString() ? `/celebrities?${params.toString()}` : '/celebrities';
+  return apiCall(endpoint);
+}
+
+export async function createCelebrity(payload: Record<string, any>): Promise<any> {
+  return apiCall('/celebrities', 'POST', payload);
+}
+
+export async function updateCelebrity(celebrityId: string, payload: Record<string, any>): Promise<any> {
+  return apiCall(`/celebrities/${celebrityId}`, 'PUT', payload);
+}
+
+export async function deleteCelebrity(celebrityId: string): Promise<any> {
+  return apiCall(`/celebrities/${celebrityId}`, 'DELETE');
+}
+
+export async function createCelebrityReview(celebrityId: string, payload: Record<string, any>): Promise<any> {
+  return apiCall(`/celebrities/${celebrityId}/reviews`, 'POST', payload);
+}
+
+export async function deleteCelebrityReview(reviewId: string): Promise<any> {
+  return apiCall(`/celebrities/reviews/${reviewId}`, 'DELETE');
 }
 export async function getCelebrityById(id: string) {
   const res = await fetch(`${BASE_URL}/api/celebrities/${id}`, { credentials: 'include' });

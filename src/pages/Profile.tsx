@@ -49,8 +49,9 @@ import React, { useState, useEffect, useRef } from 'react';
     onCloseSidebar?: () => void;
     currentUser?: any;
     handleLogout?: () => void;
-    startEditing?: boolean;
-  }
+  startEditing?: boolean;
+  setCurrentUser?: (user: any) => void;
+}
 
   const quickTraits = ['Reliable', 'Great communicator', 'Brunch planner', 'Weekend explorer'];
   const DEFAULT_AVATAR =
@@ -206,6 +207,18 @@ import React, { useState, useEffect, useRef } from 'react';
     } catch {
       return {};
     }
+  }
+
+  function resolveFraudVerificationStatus(source?: any) {
+    const status = String(source?.fraud_verification_status || source?.verification_status || source?.fraudStatus || '').toLowerCase();
+    if (status === 'verified' || status === 'unverified' || status === 'pending') {
+      return status;
+    }
+    return '';
+  }
+
+  function getProfileVerificationStatus(source?: any) {
+    return resolveFraudVerificationStatus(source) || 'unverified';
   }
 
   function isDataUrl(value?: string) {
@@ -578,7 +591,8 @@ import React, { useState, useEffect, useRef } from 'react';
     onCloseSidebar = () => {},
     currentUser,
     handleLogout,
-    startEditing = false
+    startEditing = false,
+    setCurrentUser,
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [showMessage, setShowMessage] = useState('');
@@ -673,7 +687,8 @@ import React, { useState, useEffect, useRef } from 'react';
         bio: '',
         interests: [],
         reliabilityScore: 0,
-        isVerified: true,
+        verificationStatus: getProfileVerificationStatus(currentUser) || getProfileVerificationStatus(storedUserSnapshot),
+        isVerified: getProfileVerificationStatus(currentUser) === 'verified' || getProfileVerificationStatus(storedUserSnapshot) === 'verified',
         location: 'Lagos, Nigeria',
         profileId: currentUser?.profile_id || initialProfileId,
         avatarImage: getAvatarSrc(
@@ -694,8 +709,73 @@ import React, { useState, useEffect, useRef } from 'react';
         photos: Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos.slice(1, 5) : initialPhotos,
       };
     });
+    const [profileRefreshTick, setProfileRefreshTick] = useState(0);
 
     const isOwnProfile = !selectedUser;
+
+    useEffect(() => {
+      if (!currentUser?.id) {
+        return;
+      }
+
+      const handleAdminStatusUpdate = (userId?: string) => {
+        if (!userId || String(userId) !== String(currentUser.id)) {
+          return;
+        }
+
+        setProfileRefreshTick((value) => value + 1);
+      };
+
+      const handleStorage = (event: StorageEvent) => {
+        if (event.key !== 'junto-user-admin-status-updated' || !event.newValue) {
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(event.newValue);
+          handleAdminStatusUpdate(parsed?.userId);
+        } catch {
+          // Ignore malformed payloads.
+        }
+      };
+
+      const handleCustomUpdate = (event: Event) => {
+        const payload = event instanceof CustomEvent ? event.detail : null;
+        handleAdminStatusUpdate(payload?.userId);
+      };
+
+      window.addEventListener('storage', handleStorage);
+      window.addEventListener('junto-user-admin-status-updated', handleCustomUpdate as EventListener);
+
+      return () => {
+        window.removeEventListener('storage', handleStorage);
+        window.removeEventListener('junto-user-admin-status-updated', handleCustomUpdate as EventListener);
+      };
+    }, [currentUser?.id]);
+
+    useEffect(() => {
+      if (!isOwnProfile || !currentUser?.id) {
+        return;
+      }
+
+      const refreshProfile = () => setProfileRefreshTick((value) => value + 1);
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          refreshProfile();
+        }
+      };
+
+      window.addEventListener('focus', refreshProfile);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      const intervalId = window.setInterval(refreshProfile, 30000);
+
+      return () => {
+        window.removeEventListener('focus', refreshProfile);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.clearInterval(intervalId);
+      };
+    }, [currentUser?.id, isOwnProfile]);
 
     useEffect(() => {
       if (currentUser && !selectedUser) {
@@ -711,8 +791,10 @@ import React, { useState, useEffect, useRef } from 'react';
             prev.avatarImage
           ),
           photos: Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos.slice(1, 5) : prev.photos,
+          verificationStatus: getProfileVerificationStatus(currentUser) || getProfileVerificationStatus(storedUserSnapshot),
+          isVerified: getProfileVerificationStatus(currentUser) === 'verified' || getProfileVerificationStatus(storedUserSnapshot) === 'verified',
         }));
-      }
+    }
     }, [currentUser, selectedUser]);
 
     useEffect(() => {
@@ -751,6 +833,8 @@ import React, { useState, useEffect, useRef } from 'react';
               photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
               introVideo: userProfile.intro_video_url || prev.introVideo,
               location: userProfile.location || userProfile.city || prev.location,
+              verificationStatus: getProfileVerificationStatus(userProfile) || getProfileVerificationStatus(currentUser),
+              isVerified: getProfileVerificationStatus(userProfile) === 'verified' || getProfileVerificationStatus(currentUser) === 'verified',
               reliabilityScore: calculateReliabilityScore({
                 bio: userProfile.bio || prev.bio,
                 interests: userProfile.interests || prev.interests,
@@ -783,7 +867,7 @@ import React, { useState, useEffect, useRef } from 'react';
       if (isOwnProfile && currentUser?.id) {
         fetchProfile();
       }
-    }, [currentUser?.id, isOwnProfile]);
+    }, [currentUser?.id, isOwnProfile, profileRefreshTick]);
 
     useEffect(() => {
       if (selectedUser) {
@@ -793,8 +877,8 @@ import React, { useState, useEffect, useRef } from 'react';
             ? rawAvatar
             : undefined
         );
-        setProfile(prev => ({
-          ...prev,
+          setProfile(prev => ({
+            ...prev,
           name: selectedUser.name || prev.name,
           age: selectedUser.age ?? null,
           bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
@@ -812,8 +896,9 @@ import React, { useState, useEffect, useRef } from 'react';
             introVideo: prev.introVideo,
             dob: prev.dob,
             occupation: prev.occupation,
-          }),
-          isVerified: true,
+            }),
+          verificationStatus: getProfileVerificationStatus(selectedUser) || (selectedUser.isVerified ? 'verified' : 'unverified'),
+          isVerified: getProfileVerificationStatus(selectedUser) === 'verified' || Boolean(selectedUser.isVerified),
         }));
         setServerReliabilityScore(pickServerReliabilityScore(selectedUser));
         setLoading(false);
@@ -1047,8 +1132,20 @@ import React, { useState, useEffect, useRef } from 'react';
               profile_photos: persistedMedia,
               avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
               avatar_url: persistedMedia[0] || storedUser.avatar_url || null,
+              date_of_birth: storedUser.date_of_birth || currentUser?.date_of_birth || profile.dob || null,
             })
           );
+          setCurrentUser?.({
+            ...storedUser,
+            id: storedUser.id || currentUser?.id,
+            name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
+            username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
+            profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
+            profile_photos: persistedMedia,
+            avatar_image: persistedMedia[0] || storedUser.avatar_image || null,
+            avatar_url: persistedMedia[0] || storedUser.avatar_url || null,
+            date_of_birth: storedUser.date_of_birth || currentUser?.date_of_birth || profile.dob || null,
+          });
         } catch (storageError) {
           console.error('Failed to persist photo edit locally:', storageError);
         }
@@ -1292,27 +1389,26 @@ import React, { useState, useEffect, useRef } from 'react';
             }),
           }));
 
-          try {
-            const storedUserRaw = sessionStorage.getItem('junto-current-user');
-            const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
-            sessionStorage.setItem(
-              'junto-current-user',
-              JSON.stringify({
-                ...storedUser,
-                name: normalizedProfile.name,
-                username: storedUser.username || normalizedProfile.name,
-                profile_id: currentUser.profile_id || storedUser.profile_id,
-                profile_photos: storedMediaUrls,
-                avatar_image: updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_image || null,
-                avatar_url: updatedProfile.avatar_url || updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_url || null,
-                date_of_birth: normalizedProfile.dob || storedUser.date_of_birth || null,
-                gender: normalizedProfile.genderIdentity || storedUser.gender || null,
-                occupation: normalizedProfile.occupation || storedUser.occupation || null,
-                email: storedUser.email || currentUser.email || null,
-                phone: storedUser.phone || currentUser.phone || null,
-              })
-            );
-          } catch (storageError) {
+        try {
+          const storedUserRaw = sessionStorage.getItem('junto-current-user');
+          const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+          const nextStoredUser = {
+            ...storedUser,
+            name: normalizedProfile.name,
+            username: storedUser.username || normalizedProfile.name,
+            profile_id: currentUser.profile_id || storedUser.profile_id,
+            profile_photos: storedMediaUrls,
+            avatar_image: updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_image || null,
+            avatar_url: updatedProfile.avatar_url || updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_url || null,
+            date_of_birth: updatedProfile.date_of_birth || normalizedProfile.dob || storedUser.date_of_birth || null,
+            gender: normalizedProfile.genderIdentity || storedUser.gender || null,
+            occupation: normalizedProfile.occupation || storedUser.occupation || null,
+            email: storedUser.email || currentUser.email || null,
+            phone: storedUser.phone || currentUser.phone || null,
+          };
+            sessionStorage.setItem('junto-current-user', JSON.stringify(nextStoredUser));
+            setCurrentUser?.(nextStoredUser);
+        } catch (storageError) {
             console.error('Failed to update stored user snapshot:', storageError);
           }
         }
@@ -1398,6 +1494,19 @@ import React, { useState, useEffect, useRef } from 'react';
     const inputStyle = isLightMode
       ? 'border-amber-900/10 bg-amber-50/50 text-amber-950 focus:border-amber-500 focus:bg-white'
       : 'border-white/[0.08] bg-white/[0.03] text-white focus:border-yellow-500 focus:bg-white/[0.06]';
+    const verificationStatus = getProfileVerificationStatus(profile);
+    const verificationBadgeClass =
+      verificationStatus === 'verified'
+        ? 'border-green-500/20 bg-green-500/10 text-green-400'
+        : verificationStatus === 'pending'
+          ? 'border-yellow-500/20 bg-yellow-500/10 text-yellow-300'
+          : 'border-yellow-500/20 bg-yellow-500/10 text-yellow-300';
+    const verificationLabel =
+      verificationStatus === 'verified'
+        ? 'Verified'
+        : verificationStatus === 'pending'
+          ? 'Pending'
+          : 'Unverified';
 
     // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC PROFILE VIEW
@@ -1500,12 +1609,12 @@ import React, { useState, useEffect, useRef } from 'react';
                       <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
                         {profile.name}
                       </h2>
-                      {profile.isVerified && (
-                        <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-400">
-                          <ShieldCheck size={12} />
-                          <span>Verified</span>
-                        </div>
-                      )}
+                      <div
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${verificationBadgeClass}`}
+                      >
+                        <ShieldCheck size={12} />
+                        <span>{verificationLabel}</span>
+                      </div>
                     </div>
 
                     <div className="mt-2 flex items-center gap-2 text-sm font-medium opacity-70">
@@ -2090,12 +2199,18 @@ import React, { useState, useEffect, useRef } from 'react';
                           <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${isLightMode ? 'text-amber-950' : 'text-white'}`}>
                             {profile.name}, <span className="opacity-80">{displayAge ?? '—'}</span>
                           </h2>
-                          {profile.isVerified && (
-                            <div className="inline-flex items-center gap-1.5 rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-400">
-                              <ShieldCheck size={12} />
-                              <span>Verified Connection</span>
-                            </div>
-                          )}
+                          <div
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${verificationBadgeClass}`}
+                          >
+                            <ShieldCheck size={12} />
+                            <span>
+                              {verificationStatus === 'verified'
+                                ? 'Verified Connection'
+                                : verificationStatus === 'pending'
+                                  ? 'Pending Connection'
+                                  : 'Unverified Connection'}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="mt-2 flex items-center gap-2 text-sm font-medium opacity-70">
