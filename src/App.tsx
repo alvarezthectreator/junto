@@ -25,7 +25,13 @@ import { PublicHostProfile } from './pages/PublicHostProfile';
 import SquadsPage from './pages/Squads';
 import { Celebrities } from './pages/Celebrities';
 import { Venues } from './pages/Venues';
-import { AdminModerator } from './pages/AdminModerator';
+import { AdminModerator } from './admin/AdminModerator';
+import { AdminLogin } from './admin/AdminLogin';
+import { AdminUsers } from './admin/AdminUsers';
+import { HighRiskAccounts } from './admin/HighRiskAccounts';
+import { SafetyPlansPage } from './admin/SafetyPlansPage';
+import { VenueCelebrityControl } from './admin/VenueCelebrityControl';
+import { SystemStatusPage } from './admin/SystemStatusPage';
 import { OTPSignup } from './pages/OTPSignup';
 import { OnboardingInterests } from './pages/OnboardingInterests';
 import { OnboardingLocation } from './pages/OnboardingLocation';
@@ -70,6 +76,12 @@ function getPageFromPath(pathname: string) {
   if (cleanPath === '/settings') return 'settings';
   if (cleanPath === '/travel') return 'travel';
   if (cleanPath === '/squads') return 'squads';
+  if (cleanPath === '/admin/login') return 'admin-login';
+  if (cleanPath === '/admin/users') return 'admin-users';
+  if (cleanPath === '/admin/high-risk') return 'admin-high-risk';
+  if (cleanPath === '/admin/safety-plans') return 'admin-safety-plans';
+  if (cleanPath === '/admin/listings') return 'admin-listings';
+  if (cleanPath === '/admin/system') return 'admin-system';
   if (cleanPath === '/admin') return 'admin';
   if (cleanPath === '/help') return 'help';
   if (cleanPath === '/notifications') return 'notifications';
@@ -116,6 +128,18 @@ function getPagePath(page: string, eventId?: string | null) {
       return '/travel';
     case 'squads':
       return '/squads';
+    case 'admin-login':
+      return '/admin/login';
+    case 'admin-users':
+      return '/admin/users';
+    case 'admin-high-risk':
+      return '/admin/high-risk';
+    case 'admin-safety-plans':
+      return '/admin/safety-plans';
+    case 'admin-listings':
+      return '/admin/listings';
+    case 'admin-system':
+      return '/admin/system';
     case 'admin':
       return '/admin';
     case 'help':
@@ -183,6 +207,7 @@ export function App() {
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false);
   const { eventId: routeEventId, publicHostId: routePublicHostId } = getRouteIds(location.pathname);
   const routeState = (location.state || {}) as RouteState;
+  const hasAdminAccess = typeof window !== 'undefined' && window.sessionStorage.getItem('junto-admin-access') === 'true';
 
   const onboardingFlowActive = typeof window !== 'undefined' && window.sessionStorage.getItem(ONBOARDING_FLOW_KEY) === 'true';
 
@@ -246,6 +271,41 @@ export function App() {
           title: 'Comprehensive Assessment',
           description: 'Current implementation status and outstanding product work.',
         };
+      case 'admin-login':
+        return {
+          title: 'Admin Login',
+          description: 'Enter the admin dashboard.',
+        };
+      case 'admin-users':
+        return {
+          title: 'Registered Users',
+          description: 'Admin user management and moderation.',
+        };
+      case 'admin-high-risk':
+        return {
+          title: 'High-Risk Accounts',
+          description: 'Manual review queue for risky accounts.',
+        };
+      case 'admin-safety-plans':
+        return {
+          title: 'Safety Queue and Payments',
+          description: 'Safety workflow and monetization oversight.',
+        };
+      case 'admin-listings':
+        return {
+          title: 'Venue and Celebrity Control',
+          description: 'Create, edit, review, and delete venues and celebrities.',
+        };
+      case 'admin-system':
+        return {
+          title: 'System Status',
+          description: 'Operational health and system activity tracking.',
+        };
+      case 'admin':
+        return {
+          title: 'Admin Dashboard',
+          description: 'Admin dashboard and user management.',
+        };
       default:
         return {
           title: appConfig.appName,
@@ -273,6 +333,36 @@ export function App() {
       setActiveNav('Profile');
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (currentPage === 'admin' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+
+    if (currentPage === 'admin-login' && hasAdminAccess) {
+      navigate('/admin', { replace: true });
+    }
+
+    if (currentPage === 'admin-users' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+
+    if (currentPage === 'admin-high-risk' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+
+    if (currentPage === 'admin-safety-plans' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+
+    if (currentPage === 'admin-listings' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+
+    if (currentPage === 'admin-system' && !hasAdminAccess) {
+      navigate('/admin/login', { replace: true });
+    }
+  }, [currentPage, hasAdminAccess, navigate]);
 
   useEffect(() => {
     document.title = pageMeta.title;
@@ -380,6 +470,8 @@ export function App() {
     window.sessionStorage.removeItem('junto-session-token');
     window.sessionStorage.removeItem('junto-current-user');
     window.sessionStorage.removeItem('junto-user-id');
+    window.sessionStorage.removeItem('junto-admin-access');
+    window.sessionStorage.removeItem('junto-admin-user');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('userId');
     localStorage.removeItem('sessionToken');
@@ -604,6 +696,40 @@ export function App() {
   }
 
   const content = (() => {
+    if (currentPage === 'admin-login' || (currentPage === 'admin' && !hasAdminAccess)) {
+      return (
+        <AdminLogin
+          onEnterDashboard={() => {
+            navigate('/admin', { replace: true });
+          }}
+        />
+      );
+    }
+
+    if (currentPage === 'admin-users') {
+      return <AdminUsers onNavigate={navigateToPage} />;
+    }
+
+    if (currentPage === 'admin-high-risk') {
+      return <HighRiskAccounts onNavigate={navigateToPage} />;
+    }
+
+    if (currentPage === 'admin-safety-plans') {
+      return <SafetyPlansPage onNavigate={navigateToPage} />;
+    }
+
+    if (currentPage === 'admin-listings') {
+      return <VenueCelebrityControl onNavigate={navigateToPage} />;
+    }
+
+    if (currentPage === 'admin-system') {
+      return <SystemStatusPage onNavigate={navigateToPage} />;
+    }
+
+    if (currentPage === 'admin') {
+      return <AdminModerator onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
+    }
+
     if (currentPage === 'onboarding-interests' && (isAuthenticated || getSessionToken())) {
       return (
         <OnboardingInterests
@@ -709,7 +835,6 @@ export function App() {
     if (currentPage === 'safety') return <SafetyCentre onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode initialCity={(location.state as any)?.city || currentUser?.city || undefined} />;
     if (currentPage === 'squads') return <SquadsPage />;
-    if (currentPage === 'admin') return <AdminModerator onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
     if (currentPage === 'help') return <Help onNavigate={navigateToPage} isLightMode={isLightMode} />;
     if (currentPage === 'assessment') return <ComprehensiveAssessment onNavigate={navigateToPage} />;
     if (currentPage === 'public-profile' && (routePublicHostId || publicHostId)) return <PublicHostProfile hostId={routePublicHostId || publicHostId || ''} onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
@@ -821,7 +946,7 @@ export function App() {
             {activeNav === 'My Requests' && <MyRequests />}
             {activeNav === 'Messages' && <Messages currentUser={currentUser} onNavigate={navigateToPage} />}
             {activeNav === 'Safety' && <Safety />}
-            {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} startEditing={Boolean((routeState as any)?.startEditing)} />}
+            {activeNav === 'Profile' && <Profile onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} startEditing={Boolean((routeState as any)?.startEditing)} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
             {activeNav === 'Nearby' && <Nearby onNavigate={navigateToPage} setActiveNav={setActiveNav} isLightMode={isLightMode} currentUser={currentUser} />}
           </div>
         </main>
