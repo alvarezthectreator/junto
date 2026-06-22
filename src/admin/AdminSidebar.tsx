@@ -1,4 +1,4 @@
-import { useAdminViewport } from "./useAdminViewport";
+import { useEffect, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -42,7 +42,20 @@ const ITEMS: Array<{
 ];
 
 export function AdminSidebar({ activePage, onNavigate }: AdminSidebarProps) {
-  const isMobile = useAdminViewport();
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.innerWidth < 768;
+  });
+
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 768);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   return (
     <aside
