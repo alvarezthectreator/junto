@@ -143,7 +143,7 @@ export function Settings({
     {
       id: 'push',
       label: 'Push Notifications',
-      description: 'Allow Junto to send push notifications to your device',
+      description: 'Allow wantuu to send push notifications to your device',
       enabled: true,
       icon: <Smartphone className="w-5 h-5" />,
     },
@@ -167,7 +167,7 @@ export function Settings({
     {
       id: 'activity',
       label: 'Activity Status',
-      description: 'Show when you\'re active on Junto',
+      description: 'Show when you\'re active on wantuu',
       enabled: true,
       icon: <User className="w-5 h-5" />,
     },
@@ -1313,7 +1313,7 @@ export function Settings({
               className="space-y-4"
             >
               <div className="p-6 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 rounded-xl text-center">
-                <h2 className="text-2xl font-bold mb-2">Junto</h2>
+                <h2 className="text-2xl font-bold mb-2">wantuu</h2>
                 <p className="text-sm text-slate-400">Version 1.0.0</p>
                 <p className="text-xs text-slate-500 mt-3">The easiest way to find fun plans nearby</p>
               </div>
@@ -1322,7 +1322,7 @@ export function Settings({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Terms of Service</h3>
-                    <p className="text-sm text-slate-400 mt-1">Read our terms and conditions</p>
+                    <p className="text-sm text-slate-400 mt-1">Read the legal terms that govern use of wantuu</p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-400" />
                 </div>
@@ -1332,7 +1332,7 @@ export function Settings({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Privacy Policy</h3>
-                    <p className="text-sm text-slate-400 mt-1">Learn how we protect your data</p>
+                    <p className="text-sm text-slate-400 mt-1">See how we collect, use, and safeguard your data</p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-400" />
                 </div>
@@ -1342,7 +1342,7 @@ export function Settings({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Help & Support</h3>
-                    <p className="text-sm text-slate-400 mt-1">Contact us or browse FAQs</p>
+                    <p className="text-sm text-slate-400 mt-1">Find answers, contact support, and browse FAQs</p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-400" />
                 </div>
@@ -1352,7 +1352,7 @@ export function Settings({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Comprehensive Assessment</h3>
-                    <p className="text-sm text-slate-400 mt-1">Open the latest feature status report</p>
+                    <p className="text-sm text-slate-400 mt-1">Open the latest wantuu feature status report</p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-400" />
                 </div>
@@ -1373,7 +1373,7 @@ export function Settings({
                   ))}
                 </div>
                 <p className="text-xs text-slate-400">
-                  Love Junto? Please rate us on the app store!
+                  Love wantuu? Please rate us on the app store!
                 </p>
               </div>
             </motion.div>

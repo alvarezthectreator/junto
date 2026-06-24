@@ -142,9 +142,9 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
     {
       id: "1",
       category: "Getting Started",
-      question: "How does TagAlong work?",
+      question: "How does wantuu work?",
       answer:
-        "TagAlong is a social platform for finding and joining activities with people near you. Hosts post events they're planning, and you can browse, save, and join events that match your interests. All payments happen at the venue only - never online.",
+        "wantuu is a social platform for finding and joining activities with people near you. Hosts post events they are planning, and you can browse, save, and join events that match your interests. All payments happen at the venue only - never online.",
     },
     {
       id: "2",
@@ -158,7 +158,7 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
       category: "Billing",
       question: "What are the billing tiers?",
       answer:
-        "TagAlong has 4 billing tiers: HOST_ALL (host covers everything), HOST_NO_TRANSPORT (~75% covered), SPLIT (50/50), and HOST_ME (you cover both). The host chooses the tier when creating an event.",
+        "wantuu has 4 billing tiers: HOST_ALL (host covers everything), HOST_NO_TRANSPORT (~75% covered), SPLIT (50/50), and HOST_ME (you cover both). The host chooses the tier when creating an event.",
     },
     {
       id: "4",
@@ -275,7 +275,7 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
             }}
           >
             <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#F69D11" }}>💬 Need Help?</h3>
-            <p style={{ margin: "0 0 12px", fontSize: 12, color: isLightMode ? "#8d7758" : "#aaa" }}>Didn't find what you're looking for? Reach out to our support team.</p>
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: isLightMode ? "#8d7758" : "#aaa" }}>Didn't find what you're looking for? Reach out to the wantuu support team.</p>
             <div style={{ display: "flex", gap: 10 }}>
               <button
                 style={{
@@ -351,12 +351,12 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
               Resources
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-              <ResourceCard icon="📱" title="Download App" description="iOS & Android" delay={200} isLightMode={isLightMode} />
-              <ResourceCard icon="🔒" title="Privacy & Security" description="Trusted contacts & data" delay={240} isLightMode={isLightMode} />
-              <ResourceCard icon="⚖️" title="Terms of Service" description="Community guidelines" delay={280} isLightMode={isLightMode} />
-              <ResourceCard icon="⬇️" title="Download Data" description="Export your profile" delay={300} isLightMode={isLightMode} />
-              <ResourceCard icon="🗑️" title="Delete Account" description="Close your account" delay={320} isLightMode={isLightMode} />
-              <ResourceCard icon="🆘" title="Report a Problem" description="Improve our service" delay={340} isLightMode={isLightMode} />
+              <ResourceCard icon="📱" title="Download App" description="Install wantuu on iOS or Android" delay={200} isLightMode={isLightMode} />
+              <ResourceCard icon="🔒" title="Privacy & Security" description="Account safety and data handling" delay={240} isLightMode={isLightMode} />
+              <ResourceCard icon="⚖️" title="Terms of Service" description="Usage rules and responsibilities" delay={280} isLightMode={isLightMode} />
+              <ResourceCard icon="⬇️" title="Download Data" description="Export your profile and history" delay={300} isLightMode={isLightMode} />
+              <ResourceCard icon="🗑️" title="Delete Account" description="Close your wantuu account" delay={320} isLightMode={isLightMode} />
+              <ResourceCard icon="🆘" title="Report a Problem" description="Tell us what needs fixing" delay={340} isLightMode={isLightMode} />
             </div>
           </div>
 
@@ -372,7 +372,7 @@ export const Help: React.FC<HelpProps> = ({ onNavigate = () => {}, isLightMode =
           >
               <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>✨ Community Guidelines</h3>
             <ul style={{ margin: 0, paddingLeft: 20, color: isLightMode ? "#7a674f" : "#aaa", fontSize: 12, lineHeight: 1.8 }}>
-              <li style={{ marginBottom: 6 }}>Be respectful and inclusive to everyone</li>
+              <li style={{ marginBottom: 6 }}>Be respectful and inclusive to everyone on wantuu</li>
               <li style={{ marginBottom: 6 }}>Never ask for money before an outing</li>
               <li style={{ marginBottom: 6 }}>Show up on time or let the host know</li>
               <li style={{ marginBottom: 6 }}>Share your profile ID with trusted contacts</li>

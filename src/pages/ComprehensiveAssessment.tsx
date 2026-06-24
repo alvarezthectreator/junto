@@ -167,13 +167,13 @@ export function ComprehensiveAssessment({ onNavigate = () => {} }: Comprehensive
               </button>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
                 <ClipboardList className="h-3.5 w-3.5" />
-                Comprehensive assessment
+                wantuu feature status report
               </div>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">Current feature assessment</h1>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">wantuu feature status report</h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                This page reflects the current local codebase, not the old static checklist. It is meant to show what is actually implemented today and what still needs backend or product work.
+                This report reflects the current local wantuu codebase, not the old static checklist. It summarizes what is implemented today and what still needs backend or product work.
               </p>
-              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">Last updated: June 20, 2026</p>
+              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">Last updated: June 24, 2026</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
