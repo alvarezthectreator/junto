@@ -243,7 +243,7 @@ export function App() {
         };
       case 'main':
         return {
-          title: 'Discover events on Junto',
+          title: 'Discover events on Wantuu',
           description: 'Browse events, discover people nearby, and plan your next outing.',
         };
       case 'nearby':

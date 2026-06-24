@@ -106,7 +106,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
     }
 
     if (age < 18) {
-      setError('You must be at least 18 years old to join Junto');
+      setError('You must be at least 18 years old to join Wantuu');
       return;
     }
 
@@ -162,7 +162,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            Junto
+            Wantuu
           </div>
           {mode !== 'landing' && (
             <button
@@ -264,7 +264,7 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                 maxWidth: '520px',
                 lineHeight: '1.8'
               }}>
-                Junto connects you with real people for real outings. No dating pressure. No financial surprises.
+                Wantuu connects you with real people for real outings. No dating pressure. No financial surprises.
               </p>
 
               <div className="landing-badges" style={{
