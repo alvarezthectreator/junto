@@ -19,6 +19,8 @@ import { Settings } from './pages/Settings';
 import { SafetyCentre } from './pages/SafetyCentre';
 import { TravelMode } from './pages/TravelMode';
 import { Help } from './pages/Help';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
 import { Notifications } from './pages/Notifications';
 import { ComprehensiveAssessment } from './pages/ComprehensiveAssessment';
 import { PublicHostProfile } from './pages/PublicHostProfile';
@@ -84,6 +86,8 @@ function getPageFromPath(pathname: string) {
   if (cleanPath === '/admin/system') return 'admin-system';
   if (cleanPath === '/admin') return 'admin';
   if (cleanPath === '/help') return 'help';
+  if (cleanPath === '/terms') return 'terms';
+  if (cleanPath === '/privacy') return 'privacy';
   if (cleanPath === '/notifications') return 'notifications';
   if (cleanPath === '/assessment') return 'assessment';
 
@@ -91,7 +95,9 @@ function getPageFromPath(pathname: string) {
 }
 
 function getPagePath(page: string, eventId?: string | null) {
-  switch (page) {
+  const normalizedPage = page.toLowerCase();
+
+  switch (normalizedPage) {
     case 'landing':
     case 'main':
     case 'discover':
@@ -113,6 +119,7 @@ function getPagePath(page: string, eventId?: string | null) {
     case 'profile':
       return '/profile';
     case 'dashboard':
+    case 'hostdashboard':
       return '/dashboard';
     case 'myhost':
       return '/myhost';
@@ -144,6 +151,10 @@ function getPagePath(page: string, eventId?: string | null) {
       return '/admin';
     case 'help':
       return '/help';
+    case 'terms':
+      return '/terms';
+    case 'privacy':
+      return '/privacy';
     case 'notifications':
       return '/notifications';
     case 'assessment':
@@ -212,24 +223,25 @@ export function App() {
   const onboardingFlowActive = typeof window !== 'undefined' && window.sessionStorage.getItem(ONBOARDING_FLOW_KEY) === 'true';
 
   const navigateToPage = useCallback((page: string) => {
+    const normalizedPage = page.toLowerCase();
     setIsRouteTransitioning(true);
 
-    if (page === 'event') {
+    if (normalizedPage === 'event') {
       const eventId = selectedEvent?.id || routeEventId;
-      navigate(getPagePath(page, eventId));
+      navigate(getPagePath(normalizedPage, eventId));
       setShowMenu(false);
       window.setTimeout(() => setIsRouteTransitioning(false), 250);
       return;
     }
 
-    if (page === 'landing') {
+    if (normalizedPage === 'landing') {
       navigate('/');
       setShowMenu(false);
       window.setTimeout(() => setIsRouteTransitioning(false), 250);
       return;
     }
 
-    navigate(getPagePath(page));
+    navigate(getPagePath(normalizedPage));
     setShowMenu(false);
     window.setTimeout(() => setIsRouteTransitioning(false), 250);
   }, [navigate, routeEventId, selectedEvent?.id]);
@@ -265,6 +277,16 @@ export function App() {
         return {
           title: 'Settings',
           description: 'Manage account preferences, privacy, and notification settings.',
+        };
+      case 'terms':
+        return {
+          title: 'Terms of Service',
+          description: 'Read the legal terms for using wantuu.',
+        };
+      case 'privacy':
+        return {
+          title: 'Privacy Policy',
+          description: 'See how wantuu handles and protects your data.',
         };
       case 'assessment':
         return {
@@ -832,6 +854,8 @@ export function App() {
     if (currentPage === 'celebrities') return <Celebrities />;
     if (currentPage === 'premium') return <Premium />;
     if (currentPage === 'settings') return <Settings onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} isLightMode={isLightMode} onToggleLightMode={() => setIsLightMode((current) => !current)} handleLogout={handleLogout} />;
+    if (currentPage === 'terms') return <Terms onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
+    if (currentPage === 'privacy') return <Privacy onNavigate={navigateToPage} setActiveNav={setActiveNav} onCloseSidebar={() => setIsSidebarOpen(false)} />;
     if (currentPage === 'safety') return <SafetyCentre onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'travel') return <TravelMode initialCity={(location.state as any)?.city || currentUser?.city || undefined} />;
     if (currentPage === 'squads') return <SquadsPage />;

@@ -115,7 +115,7 @@ You can control location sharing through your device settings and wantuu prefere
             className="mb-8"
           >
             <button
-              onClick={() => onNavigate('Settings')}
+              onClick={() => onNavigate('settings')}
               className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium mb-4 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -190,7 +190,7 @@ You can control location sharing through your device settings and wantuu prefere
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => onNavigate('Settings')}
+              onClick={() => onNavigate('settings')}
               className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg font-medium transition-colors"
             >
               Got it

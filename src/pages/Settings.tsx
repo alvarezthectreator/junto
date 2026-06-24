@@ -1318,7 +1318,7 @@ export function Settings({
                 <p className="text-xs text-slate-500 mt-3">The easiest way to find fun plans nearby</p>
               </div>
 
-              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('Terms')}>
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('terms')}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Terms of Service</h3>
@@ -1328,7 +1328,7 @@ export function Settings({
                 </div>
               </div>
 
-              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('Privacy')}>
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('privacy')}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Privacy Policy</h3>
@@ -1338,7 +1338,7 @@ export function Settings({
                 </div>
               </div>
 
-              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('Help')}>
+              <div className="p-6 bg-white/5 border border-white/10 rounded-xl hover:bg-white/8 transition-colors cursor-pointer" onClick={() => onNavigate('help')}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Help & Support</h3>
