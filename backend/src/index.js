@@ -48,7 +48,7 @@ dotenv.config();
 // Wantuu Backend Application
 const app = express();
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const uploadsDir = join(__dirname, '..', process.env.UPLOAD_STORAGE_DIR || 'uploads');
