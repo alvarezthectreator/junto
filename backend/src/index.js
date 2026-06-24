@@ -175,7 +175,7 @@ async function startServer() {
     
     server.listen(PORT, HOST, () => {
       console.log(`
-✅ Junto Backend Server Running
+✅ Wantuu Backend Server Running
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚀 http://${HOST}:${PORT}
 📚 API: http://${HOST}:${PORT}/api

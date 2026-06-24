@@ -54,9 +54,9 @@ function deriveWebSocketUrl(apiBaseUrl: string): string | undefined {
 const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), '/api');
 
 export const appConfig = {
-  appName: readEnv('VITE_APP_NAME') || 'Junto',
+  appName: readEnv('VITE_APP_NAME') || 'Wantuu',
   appDescription:
-    readEnv('VITE_APP_DESCRIPTION') || 'Junto helps people discover events, nearby people, messages, and travel plans in one place.',
+    readEnv('VITE_APP_DESCRIPTION') || 'Wantuu helps people discover events, nearby people, messages, and travel plans in one place.',
   apiBaseUrl,
   adminSetupKey: readEnv('VITE_ADMIN_SETUP_KEY') || '',
   wsUrl: readEnv('VITE_WS_URL') || deriveWebSocketUrl(apiBaseUrl),
