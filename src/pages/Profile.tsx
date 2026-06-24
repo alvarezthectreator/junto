@@ -163,8 +163,11 @@ import React, { useState, useEffect, useRef } from 'react';
     }
 
     if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
-      const backendOrigin = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
-      return `${backendOrigin}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+      // In production, use current window origin for uploads (Vercel will rewrite to Railway)
+      // In development with relative /api path, use window origin
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const uploadPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+      return `${baseUrl}${uploadPath}`;
     }
 
     return trimmed;
