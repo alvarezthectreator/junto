@@ -3,12 +3,22 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function getVenues(req, res) {
   try {
-    const { category, city } = req.query;
-    let sql = `SELECT * FROM venues WHERE is_active = 1`;
+    const { category, city, all } = req.query;
+    let sql = `SELECT v.*,
+      (SELECT COUNT(*) FROM venue_reviews vr WHERE vr.venue_id = v.id) AS review_count,
+      (SELECT AVG(rating) FROM venue_reviews vr WHERE vr.venue_id = v.id) AS avg_rating
+      FROM venues v`;
     const params = [];
-    if (city) { sql += ` AND city = ?`; params.push(city); }
-    if (category) { sql += ` AND category = ?`; params.push(category); }
-    sql += ` ORDER BY name ASC`;
+    const conditions = [];
+    if (all !== 'true') {
+      conditions.push(`is_active = 1`);
+    }
+    if (city) { conditions.push(`city = ?`); params.push(city); }
+    if (category) { conditions.push(`category = ?`); params.push(category); }
+    if (conditions.length) {
+      sql += ` WHERE ${conditions.join(' AND ')}`;
+    }
+    sql += ` ORDER BY v.name ASC`;
     const result = await query(sql, params);
     res.json({ venues: result.rows || [] });
   } catch (err) {
@@ -56,6 +66,81 @@ export async function createVenue(req, res) {
   }
 }
 
+export async function updateVenue(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      category,
+      description,
+      address,
+      city,
+      latitude,
+      longitude,
+      photo_urls,
+      opening_hours,
+      price_range,
+      phone,
+      website,
+      is_active,
+    } = req.body;
+
+    await query(
+      `UPDATE venues SET
+        name = COALESCE(?, name),
+        category = COALESCE(?, category),
+        description = COALESCE(?, description),
+        address = COALESCE(?, address),
+        city = COALESCE(?, city),
+        latitude = COALESCE(?, latitude),
+        longitude = COALESCE(?, longitude),
+        photo_urls = COALESCE(?, photo_urls),
+        opening_hours = COALESCE(?, opening_hours),
+        price_range = COALESCE(?, price_range),
+        phone = COALESCE(?, phone),
+        website = COALESCE(?, website),
+        is_active = COALESCE(?, is_active),
+        updated_at = datetime('now')
+       WHERE id = ?`,
+      [
+        name || null,
+        category || null,
+        description || null,
+        address || null,
+        city || null,
+        latitude ?? null,
+        longitude ?? null,
+        photo_urls ? JSON.stringify(photo_urls) : null,
+        opening_hours || null,
+        price_range || null,
+        phone || null,
+        website || null,
+        typeof is_active === 'boolean' ? (is_active ? 1 : 0) : null,
+        id,
+      ]
+    );
+
+    const result = await query(`SELECT * FROM venues WHERE id = ?`, [id]);
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Venue not found' });
+    }
+
+    res.json({ venue: result.rows[0], message: 'Venue updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function deleteVenue(req, res) {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM venues WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Venue deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 export async function addVenueReview(req, res) {
   try {
     const { venue_id } = req.params;
@@ -67,6 +152,16 @@ export async function addVenueReview(req, res) {
       [id, venue_id, user_id, rating, review || null]
     );
     res.status(201).json({ id, message: 'Review added' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function deleteVenueReview(req, res) {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM venue_reviews WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Venue review deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

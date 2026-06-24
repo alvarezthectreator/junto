@@ -528,6 +528,31 @@ function ensureProductionTables() {
     }
   });
 
+  const createAdminDashboardItemsTable = `
+    CREATE TABLE IF NOT EXISTS admin_dashboard_items (
+      id TEXT PRIMARY KEY,
+      item_type VARCHAR(50) NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      severity VARCHAR(20) DEFAULT 'standard',
+      status VARCHAR(20) DEFAULT 'open',
+      payload TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+
+  db.run(createAdminDashboardItemsTable, (err) => {
+    if (err && !err.message.includes('already exists')) {
+      console.warn('⚠️  Could not create admin_dashboard_items table:', err.message);
+    } else {
+      console.log('✅ Ensured admin_dashboard_items table exists');
+      db.run('CREATE INDEX IF NOT EXISTS idx_admin_dashboard_items_item_type ON admin_dashboard_items(item_type);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_admin_dashboard_items_severity ON admin_dashboard_items(severity);');
+      db.run('CREATE INDEX IF NOT EXISTS idx_admin_dashboard_items_status ON admin_dashboard_items(status);');
+    }
+  });
+
   db.all(
     `SELECT user_id, profile_photos
      FROM user_profiles

@@ -39,9 +39,10 @@ const checkAndSendEventReminders = async (db) => {
       SELECT DISTINCT
         e.id as event_id,
         e.title,
-        e.date,
-        e.time,
-        e.location,
+        e.event_date,
+        e.event_time,
+        e.location_city,
+        e.location_address,
         ea.user_id,
         np.reminder_hours_before,
         np.reminders_enabled,
@@ -59,8 +60,8 @@ const checkAndSendEventReminders = async (db) => {
         AND e.status != 'cancelled'
         AND ea.status IN ('accepted', 'waitlisted')
         AND ea.reminder_sent = 0
-        AND datetime(e.date || ' ' || e.time) <= datetime('now', '+'||COALESCE(np.reminder_hours_before, 24)||' hours')
-        AND datetime(e.date || ' ' || e.time) > datetime('now')
+        AND datetime(e.event_date || ' ' || e.event_time) <= datetime('now', '+'||COALESCE(np.reminder_hours_before, 24)||' hours')
+        AND datetime(e.event_date || ' ' || e.event_time) > datetime('now')
       LIMIT 100
     `;
 
@@ -157,7 +158,7 @@ export const sendEventReminder = (db, eventId, userId) => {
   return new Promise((resolve, reject) => {
     const sql = `
       SELECT 
-        e.title, e.date, e.time, e.location,
+        e.title, e.event_date, e.event_time, e.location_city, e.location_address,
         u.display_name, u.email, u.profile_id
       FROM events e
       INNER JOIN event_applications ea ON e.id = ea.event_id

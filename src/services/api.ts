@@ -1,11 +1,10 @@
-// Junto API Service
+// Wantuu API Service
 // Handles all backend API communication
 
-import { appConfig } from '../config/appConfig';
+import { appConfig, getApiBaseCandidates } from '../config/appConfig';
 import { discoverEvents, type DiscoverEventSeed } from '../data/discoverEvents';
 import { trackEvent } from './analytics';
 
-const API_BASE_URL = appConfig.apiBaseUrl;
 const SESSION_ACTIVITY_KEY = 'junto-last-activity';
 const SESSION_TOKEN_KEY = 'sessionToken';
 const LEGACY_SESSION_TOKEN_KEY = 'junto-session-token';
@@ -449,7 +448,6 @@ async function apiCall(
   body?: any,
   extraHeaders?: HeadersInit
 ): Promise<any> {
-  const url = `${API_BASE_URL}${endpoint}`;
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
@@ -480,55 +478,69 @@ if (!sessionToken) {
     options.body = JSON.stringify(body);
   }
 
-  try {
-    const response = await fetch(url, options);
-    const responseText = await response.text();
+  const apiBases = getApiBaseCandidates();
+  let lastError: unknown = null;
 
-    if (!response.ok) {
+  for (let index = 0; index < apiBases.length; index += 1) {
+    const baseUrl = apiBases[index];
+    const url = `${baseUrl}${endpoint}`;
+
+    try {
+      const response = await fetch(url, options);
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        if (!responseText) {
+          routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status });
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        let message = responseText;
+        try {
+          const error = JSON.parse(responseText);
+          message = error.message || error.error || message;
+        } catch {
+          // Keep the raw response text if it isn't JSON.
+        }
+
+        routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status, message });
+        throw new Error(message || `API Error: ${response.status}`);
+      }
+
       if (!responseText) {
-        routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status });
-        throw new Error(`API Error: ${response.status}`);
+        return {};
       }
 
-      let message = responseText;
-      try {
-        const error = JSON.parse(responseText);
-        message = error.message || error.error || message;
-      } catch {
-        // Keep the raw response text if it isn't JSON.
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return JSON.parse(responseText);
       }
 
-      routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status, message });
-      throw new Error(message || `API Error: ${response.status}`);
-    }
+      return responseText;
+    } catch (error) {
+      lastError = error;
 
-    if (!responseText) {
-      return {};
+      if (!isNetworkFailure(error) || index === apiBases.length - 1) {
+        if (!isNetworkFailure(error)) {
+          console.error(`API Error (${method} ${endpoint}):`, error);
+          routeOperationalAlert('api_response_failure', {
+            endpoint,
+            method,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        } else {
+          routeOperationalAlert('api_transport_failure', {
+            endpoint,
+            method,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        throw error;
+      }
     }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return JSON.parse(responseText);
-    }
-
-    return responseText;
-  } catch (error) {
-    if (!isNetworkFailure(error)) {
-      console.error(`API Error (${method} ${endpoint}):`, error);
-      routeOperationalAlert('api_response_failure', {
-        endpoint,
-        method,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } else {
-      routeOperationalAlert('api_transport_failure', {
-        endpoint,
-        method,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-    throw error;
   }
+
+  throw lastError instanceof Error ? lastError : new Error(`API Error: unable to reach ${endpoint}`);
 }
 
 function parseMaybeJsonArray(value: unknown): string[] | undefined {
@@ -1725,6 +1737,60 @@ export async function runFraudEnforcement(): Promise<any> {
   return apiCall('/fraud/run-enforcement', 'POST');
 }
 
+// ==================== ADMIN DASHBOARD ITEMS ====================
+
+export type AdminDashboardItemType = 'safety_case' | 'payment_record';
+
+export interface AdminDashboardItem {
+  id: string;
+  item_type: AdminDashboardItemType | string;
+  title: string;
+  summary?: string | null;
+  severity?: string;
+  status?: string;
+  payload: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getAdminDashboardItems(filters?: { type?: AdminDashboardItemType; limit?: number; offset?: number }): Promise<{ items: AdminDashboardItem[]; total: number }> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.append('type', filters.type);
+  if (filters?.limit !== undefined) params.append('limit', String(filters.limit));
+  if (filters?.offset !== undefined) params.append('offset', String(filters.offset));
+  const endpoint = params.toString() ? `/admin/dashboard/items?${params.toString()}` : '/admin/dashboard/items';
+  return apiCall(endpoint);
+}
+
+export async function createAdminDashboardItem(payload: {
+  item_type: AdminDashboardItemType;
+  title: string;
+  summary?: string;
+  severity?: string;
+  status?: string;
+  payload: Record<string, any>;
+}): Promise<{ item: AdminDashboardItem; message?: string }> {
+  return apiCall('/admin/dashboard/items', 'POST', payload);
+}
+
+export async function updateAdminDashboardItem(
+  itemId: string,
+  payload: Partial<{
+    item_type: AdminDashboardItemType;
+    title: string;
+    summary: string;
+    severity: string;
+    status: string;
+    payload: Record<string, any>;
+  }>
+): Promise<{ item: AdminDashboardItem; message?: string }> {
+  return apiCall(`/admin/dashboard/items/${itemId}`, 'PUT', payload);
+}
+
+export async function deleteAdminDashboardItem(itemId: string): Promise<{ success: boolean; message?: string }> {
+  return apiCall(`/admin/dashboard/items/${itemId}`, 'DELETE');
+}
+
 // ==================== FOLLOW-UP MANAGEMENT ====================
 
 export async function getEventFollowups(eventId: string): Promise<any> {
@@ -1767,9 +1833,10 @@ export async function getOTPExpiry(email: string): Promise<any> {
 
 // ── Celebrity API ─────────────────────────────────────────────
 export async function getCelebrities(category?: string) {
-  const url = category ? `${BASE_URL}/api/celebrities?category=${category}` : `${BASE_URL}/api/celebrities`;
-  const res = await fetch(url, { credentials: 'include' });
-  return res.json();
+  const params = new URLSearchParams();
+  if (category) params.append('category', category);
+  const endpoint = params.toString() ? `/celebrities?${params.toString()}` : '/celebrities';
+  return apiCall(endpoint);
 }
 
 export async function getCelebritiesAdmin(category?: string, all: boolean = true) {
@@ -1800,17 +1867,11 @@ export async function deleteCelebrityReview(reviewId: string): Promise<any> {
   return apiCall(`/celebrities/reviews/${reviewId}`, 'DELETE');
 }
 export async function getCelebrityById(id: string) {
-  const res = await fetch(`${BASE_URL}/api/celebrities/${id}`, { credentials: 'include' });
-  return res.json();
+  return apiCall(`/celebrities/${id}`);
 }
 export async function createCelebrityBooking(celebrityId: string, data: { user_id: string; outing_type: string; duration_minutes: number; booking_date: string; price: number; currency: string; notes?: string }) {
-  const res = await fetch(`${BASE_URL}/api/celebrities/${celebrityId}/bookings`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', body: JSON.stringify(data),
-  });
-  return res.json();
+  return apiCall(`/celebrities/${celebrityId}/bookings`, 'POST', data);
 }
 export async function getCelebrityReviews(celebrityId: string) {
-  const res = await fetch(`${BASE_URL}/api/celebrities/${celebrityId}/reviews`, { credentials: 'include' });
-  return res.json();
+  return apiCall(`/celebrities/${celebrityId}/reviews`);
 }

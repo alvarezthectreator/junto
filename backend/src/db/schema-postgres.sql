@@ -156,6 +156,19 @@ CREATE TABLE IF NOT EXISTS blocked_users (
   UNIQUE(blocker_id, blocked_user_id)
 );
 
+-- Admin dashboard items
+CREATE TABLE IF NOT EXISTS admin_dashboard_items (
+  id TEXT PRIMARY KEY,
+  item_type VARCHAR(50) NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  severity VARCHAR(20) DEFAULT 'standard',
+  status VARCHAR(20) DEFAULT 'open',
+  payload JSONB NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,

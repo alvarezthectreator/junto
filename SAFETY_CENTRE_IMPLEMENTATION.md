@@ -348,14 +348,14 @@ You'll receive updates at your email/SMS.
 │ 🚨 Emergency: 911              │
 │ (Available 24/7)               │
 │                                │
-│ 📞 Junto Support: 1-800-JUNTO  │
+│ 📞 Wantuu Support: 1-800-WANTUU  │
 │ (Available 24/7)               │
 │                                │
 │ 🏥 Poison Control              │
 │ 1-800-222-1222                 │
 │                                │
 │ 💬 Crisis Text Line            │
-│ Text "JUNTO" to 741741         │
+│ Text "WANTUU" to 741741         │
 │                                │
 │ 🛡️ Local Police                │
 │ Non-Emergency: [City Specific] │

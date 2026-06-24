@@ -42,8 +42,8 @@ const checkAndSendFollowups = async (db) => {
       SELECT DISTINCT
         e.id as event_id,
         e.title,
-        e.date,
-        e.time,
+        e.event_date,
+        e.event_time,
         e.host_id,
         ea.user_id,
         ea.status,
@@ -60,8 +60,8 @@ const checkAndSendFollowups = async (db) => {
         e.status != 'cancelled'
         AND ea.status IN ('accepted', 'checked_in')
         AND ea.followup_sent = 0
-        AND datetime(e.date || ' ' || e.time, '+2 hours') <= datetime('now')
-        AND datetime(e.date || ' ' || e.time, '+3 hours') > datetime('now')
+        AND datetime(e.event_date || ' ' || e.event_time, '+2 hours') <= datetime('now')
+        AND datetime(e.event_date || ' ' || e.event_time, '+3 hours') > datetime('now')
       LIMIT 100
     `;
 
@@ -225,7 +225,7 @@ export const getFollowupAnalytics = (db, hostId) => {
       SELECT 
         e.id as event_id,
         e.title,
-        e.date,
+        e.event_date,
         COUNT(CASE WHEN ea.followup_sent = 1 THEN 1 END) as followups_sent,
         COUNT(CASE WHEN n.is_read = 1 THEN 1 END) as followups_opened,
         COUNT(CASE WHEN ea.followup_response_type IS NOT NULL THEN 1 END) as responses_received,
@@ -234,8 +234,8 @@ export const getFollowupAnalytics = (db, hostId) => {
       LEFT JOIN event_applications ea ON e.id = ea.event_id
       LEFT JOIN notifications n ON ea.user_id = n.user_id AND n.event_id = e.id AND n.notification_type = 'event_followup'
       WHERE e.host_id = ? AND e.status != 'cancelled'
-      GROUP BY e.id, e.title, e.date
-      ORDER BY e.date DESC
+      GROUP BY e.id, e.title, e.event_date
+      ORDER BY e.event_date DESC
       LIMIT 20
     `;
 

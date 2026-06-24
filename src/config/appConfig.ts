@@ -58,6 +58,7 @@ export const appConfig = {
   appDescription:
     readEnv('VITE_APP_DESCRIPTION') || 'Junto helps people discover events, nearby people, messages, and travel plans in one place.',
   apiBaseUrl,
+  adminSetupKey: readEnv('VITE_ADMIN_SETUP_KEY') || '',
   wsUrl: readEnv('VITE_WS_URL') || deriveWebSocketUrl(apiBaseUrl),
   releaseVersion: readEnv('VITE_RELEASE_VERSION') || readEnv('VITE_APP_VERSION') || 'development',
   buildSha: readEnv('VITE_BUILD_SHA') || readEnv('VITE_COMMIT_SHA') || '',
@@ -73,6 +74,23 @@ export const appConfig = {
   vapidPublicKey: readEnv('VITE_VAPID_PUBLIC_KEY') || readEnv('VITE_PUBLIC_KEY') || '',
   themeColor: readEnv('VITE_THEME_COLOR') || '#0f0f13',
 };
+
+export function getApiBaseCandidates(): string[] {
+  const candidates = new Set<string>();
+
+  if (appConfig.apiBaseUrl) {
+    candidates.add(appConfig.apiBaseUrl);
+  }
+
+  if (typeof window !== 'undefined') {
+    candidates.add('/api');
+    candidates.add(`${window.location.origin}/api`);
+  }
+
+  candidates.add('http://localhost:5000/api');
+
+  return Array.from(candidates).filter(Boolean);
+}
 
 export function getFeatureFlag(flagName: string, defaultValue = false): boolean {
   if (flagName in appConfig.featureFlags) {

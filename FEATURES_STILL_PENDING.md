@@ -16,13 +16,23 @@ This file tracks the gaps that are still open after the current profile, event, 
 - Settings account utilities, notification preferences, referral info, blocked users, and data export
 - Messaging prototype with attachments, voice notes, local persistence, group chats, scheduled delivery, and call mockups
 - True push delivery provider integration and background job delivery
-- Admin dashboard deployment-readiness fetch for secret coverage, monitoring posture, and badge support
+- Admin dashboard frontend mock now renders locally at `/admin`
 - Runtime/API failure alert routing plus backend health heartbeat tracking
 - Optional OS-level app badge support where the platform exposes it
+
+## Admin dashboard notes
+
+- The admin screen is currently frontend-only and uses static mock data.
+- Backend admin CRUD, moderation actions, and live data integration are intentionally deferred for now.
+- The mocked admin UI is intended to be the working surface until the backend pass is resumed.
+
 ## Remaining items
 
 - Identity verification provider integration for full KYC-style checks
 - Premium live payment provider checkout, webhooks, and receipts
+- Admin backend CRUD, moderation, and protected data fetches for the dashboard mock
+- Persisted alert, asset, and severity data for the admin panels
+- Role-based admin authentication and session enforcement for production rollout
 
 ## Lower Priority
 

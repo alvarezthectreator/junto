@@ -19,12 +19,20 @@ import {
   ShieldBan,
   ShieldCheck,
   Smartphone,
+  Trash2,
   UserCheck,
   Users2,
   Wallet,
 } from "lucide-react";
 import { AdminSidebar } from "./AdminSidebar";
 import { appendAdminActivity } from "../services/adminActivityLog";
+import {
+  createAdminDashboardItem,
+  deleteAdminDashboardItem,
+  getAdminDashboardItems,
+  updateAdminDashboardItem,
+  type AdminDashboardItem,
+} from "../services/api";
 import { useAdminViewport } from "./useAdminViewport";
 
 const COLORS = {
@@ -262,6 +270,78 @@ function writeJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+function mapSafetyRecord(item: AdminDashboardItem): SafetyCase {
+  const payload = item.payload || {};
+  return {
+    id: item.id,
+    reportType: String(payload.reportType || "Report"),
+    subjectName: String(payload.subjectName || item.title || "Unnamed user"),
+    subjectId: String(payload.subjectId || `USR-${item.id.slice(0, 4).toUpperCase()}`),
+    reportReason: String(payload.reportReason || item.summary || "Manual safety note"),
+    location: String(payload.location || "Lagos, Nigeria"),
+    status: (payload.status || item.status || "open") as SafetyStatus,
+    escalation: (payload.escalation || item.severity || "standard") as SafetyCase["escalation"],
+    sosEvent: Boolean(payload.sosEvent),
+    checkInIssue: Boolean(payload.checkInIssue),
+    blockedAccount: Boolean(payload.blockedAccount),
+    trustedContacts: Number(payload.trustedContacts) || 0,
+    createdAt: String(payload.createdAt || item.created_at || new Date().toISOString()),
+  };
+}
+
+function mapPaymentRecord(item: AdminDashboardItem): PaymentRecord {
+  const payload = item.payload || {};
+  return {
+    id: item.id,
+    userName: String(payload.userName || item.title || "Unnamed user"),
+    userId: String(payload.userId || `USR-${item.id.slice(0, 4).toUpperCase()}`),
+    planId: (payload.planId || "starter") as BillingTier,
+    billingCycle: (payload.billingCycle || "monthly") as BillingCycle,
+    paymentStatus: (payload.paymentStatus || item.status || "active") as PaymentStatus,
+    premiumUsage: Number(payload.premiumUsage) || 0,
+    failedPayments: Number(payload.failedPayments) || 0,
+    receipts: Number(payload.receipts) || 0,
+    billingTierShare: Number(payload.billingTierShare) || 0,
+    amount: Number(payload.amount) || 0,
+    currency: String(payload.currency || "NGN"),
+    lastUpdated: String(payload.lastUpdated || item.updated_at || new Date().toISOString()),
+  };
+}
+
+function toSafetyPayload(item: SafetyCase) {
+  return {
+    reportType: item.reportType,
+    subjectName: item.subjectName,
+    subjectId: item.subjectId,
+    reportReason: item.reportReason,
+    location: item.location,
+    status: item.status,
+    escalation: item.escalation,
+    sosEvent: item.sosEvent,
+    checkInIssue: item.checkInIssue,
+    blockedAccount: item.blockedAccount,
+    trustedContacts: item.trustedContacts,
+    createdAt: item.createdAt,
+  };
+}
+
+function toPaymentPayload(item: PaymentRecord) {
+  return {
+    userName: item.userName,
+    userId: item.userId,
+    planId: item.planId,
+    billingCycle: item.billingCycle,
+    paymentStatus: item.paymentStatus,
+    premiumUsage: item.premiumUsage,
+    failedPayments: item.failedPayments,
+    receipts: item.receipts,
+    billingTierShare: item.billingTierShare,
+    amount: item.amount,
+    currency: item.currency,
+    lastUpdated: item.lastUpdated,
+  };
+}
+
 function toneColor(status: SafetyStatus | PaymentStatus | "high" | "critical" | "standard" | BillingTier) {
   const map: Record<string, { bg: string; color: string }> = {
     open: { bg: "rgba(251,191,36,0.12)", color: COLORS.amber },
@@ -313,6 +393,9 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [isHydrating, setIsHydrating] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [safetyDraft, setSafetyDraft] = useState<SafetyDraft>({
     reportType: "Report",
     subjectName: "",
@@ -346,6 +429,79 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
   useEffect(() => {
     writeJson(PAYMENTS_STORAGE_KEY, paymentRecords);
   }, [paymentRecords]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDashboardData() {
+      try {
+        setIsHydrating(true);
+        setLoadError(null);
+
+        const [safetyResponse, paymentResponse] = await Promise.all([
+          getAdminDashboardItems({ type: "safety_case", limit: 200 }),
+          getAdminDashboardItems({ type: "payment_record", limit: 200 }),
+        ]);
+
+        let nextSafety = Array.isArray(safetyResponse?.items) ? safetyResponse.items.map(mapSafetyRecord) : [];
+        let nextPayments = Array.isArray(paymentResponse?.items) ? paymentResponse.items.map(mapPaymentRecord) : [];
+
+        if (nextSafety.length === 0) {
+          const seededSafety = await Promise.all(
+            DEFAULT_SAFETY_CASES.map((item) =>
+              createAdminDashboardItem({
+                item_type: "safety_case",
+                title: item.subjectName,
+                summary: item.reportReason,
+                severity: item.escalation,
+                status: item.status,
+                payload: toSafetyPayload(item),
+              })
+            )
+          );
+          nextSafety = seededSafety.map((entry) => mapSafetyRecord(entry.item));
+        }
+
+        if (nextPayments.length === 0) {
+          const seededPayments = await Promise.all(
+            DEFAULT_PAYMENT_RECORDS.map((item) =>
+              createAdminDashboardItem({
+                item_type: "payment_record",
+                title: item.userName,
+                summary: `${item.planId} · ${item.paymentStatus}`,
+                severity: item.paymentStatus,
+                status: item.paymentStatus,
+                payload: toPaymentPayload(item),
+              })
+            )
+          );
+          nextPayments = seededPayments.map((entry) => mapPaymentRecord(entry.item));
+        }
+
+        if (cancelled) return;
+
+        setSafetyCases(nextSafety);
+        setPaymentRecords(nextPayments);
+        setSelectedSafetyId((current) => current || nextSafety[0]?.id || null);
+        setSelectedPaymentId((current) => current || nextPayments[0]?.id || null);
+      } catch (error) {
+        if (cancelled) return;
+        setLoadError(error instanceof Error ? error.message : "Failed to load admin dashboard data");
+        setSafetyCases(readJson(SAFETY_STORAGE_KEY, DEFAULT_SAFETY_CASES));
+        setPaymentRecords(readJson(PAYMENTS_STORAGE_KEY, DEFAULT_PAYMENT_RECORDS));
+      } finally {
+        if (!cancelled) {
+          setIsHydrating(false);
+        }
+      }
+    }
+
+    loadDashboardData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
 
   const filteredSafetyCases = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -426,24 +582,43 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
       createdAt: new Date().toISOString(),
     };
 
-    setSafetyCases((current) => [next, ...current]);
-    appendAdminActivity({
-      category: "moderation",
-      title: "Safety queue entry added",
-      detail: `${next.subjectName} was added to the safety queue.`,
-    });
-    setSafetyDraft({
-      reportType: "Report",
-      subjectName: "",
-      subjectId: "",
-      reportReason: "",
-      location: "Lagos, Nigeria",
-      escalation: "standard",
-      sosEvent: false,
-      checkInIssue: false,
-      blockedAccount: false,
-      trustedContacts: "0",
-    });
+    (async () => {
+      try {
+        setSavingKey("safety-create");
+        const response = await createAdminDashboardItem({
+          item_type: "safety_case",
+          title: next.subjectName,
+          summary: next.reportReason,
+          severity: next.escalation,
+          status: next.status,
+          payload: toSafetyPayload(next),
+        });
+        const created = mapSafetyRecord(response.item);
+        setSafetyCases((current) => [created, ...current]);
+        setSelectedSafetyId(created.id);
+        appendAdminActivity({
+          category: "moderation",
+          title: "Safety queue entry added",
+          detail: `${created.subjectName} was added to the safety queue.`,
+        });
+        setSafetyDraft({
+          reportType: "Report",
+          subjectName: "",
+          subjectId: "",
+          reportReason: "",
+          location: "Lagos, Nigeria",
+          escalation: "standard",
+          sosEvent: false,
+          checkInIssue: false,
+          blockedAccount: false,
+          trustedContacts: "0",
+        });
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to add safety case");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
   };
 
   const addPaymentRecord = (event: FormEvent<HTMLFormElement>) => {
@@ -464,37 +639,140 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
       lastUpdated: new Date().toISOString(),
     };
 
-    setPaymentRecords((current) => [next, ...current]);
-    appendAdminActivity({
-      category: "admin",
-      title: "Payment record added",
-      detail: `${next.userName} was added to the plans view.`,
-    });
-    setPaymentDraft({
-      userName: "",
-      userId: "",
-      planId: "starter",
-      billingCycle: "monthly",
-      paymentStatus: "active",
-      premiumUsage: "0",
-      failedPayments: "0",
-      receipts: "0",
-      billingTierShare: "0",
-      amount: "0",
-      currency: "NGN",
-    });
+    (async () => {
+      try {
+        setSavingKey("payment-create");
+        const response = await createAdminDashboardItem({
+          item_type: "payment_record",
+          title: next.userName,
+          summary: `${next.planId} · ${next.paymentStatus}`,
+          severity: next.paymentStatus,
+          status: next.paymentStatus,
+          payload: toPaymentPayload(next),
+        });
+        const created = mapPaymentRecord(response.item);
+        setPaymentRecords((current) => [created, ...current]);
+        setSelectedPaymentId(created.id);
+        appendAdminActivity({
+          category: "admin",
+          title: "Payment record added",
+          detail: `${created.userName} was added to the plans view.`,
+        });
+        setPaymentDraft({
+          userName: "",
+          userId: "",
+          planId: "starter",
+          billingCycle: "monthly",
+          paymentStatus: "active",
+          premiumUsage: "0",
+          failedPayments: "0",
+          receipts: "0",
+          billingTierShare: "0",
+          amount: "0",
+          currency: "NGN",
+        });
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to add payment record");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
   };
 
   const updateSafety = (id: string, patch: Partial<SafetyCase>) => {
-    setSafetyCases((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...patch } : item))
-    );
+    const current = safetyCases.find((item) => item.id === id);
+    if (!current) return;
+
+    (async () => {
+      try {
+        setSavingKey(`safety-${id}`);
+        const next = { ...current, ...patch };
+        const response = await updateAdminDashboardItem(id, {
+          item_type: "safety_case",
+          title: next.subjectName,
+          summary: next.reportReason,
+          severity: next.escalation,
+          status: next.status,
+          payload: toSafetyPayload(next),
+        });
+        setSafetyCases((entries) => entries.map((item) => (item.id === id ? mapSafetyRecord(response.item) : item)));
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to update safety case");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
   };
 
   const updatePayment = (id: string, patch: Partial<PaymentRecord>) => {
-    setPaymentRecords((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...patch, lastUpdated: new Date().toISOString() } : item))
-    );
+    const current = paymentRecords.find((item) => item.id === id);
+    if (!current) return;
+
+    (async () => {
+      try {
+        setSavingKey(`payment-${id}`);
+        const next = { ...current, ...patch, lastUpdated: new Date().toISOString() };
+        const response = await updateAdminDashboardItem(id, {
+          item_type: "payment_record",
+          title: next.userName,
+          summary: `${next.planId} · ${next.paymentStatus}`,
+          severity: next.paymentStatus,
+          status: next.paymentStatus,
+          payload: toPaymentPayload(next),
+        });
+        setPaymentRecords((entries) => entries.map((item) => (item.id === id ? mapPaymentRecord(response.item) : item)));
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to update payment record");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
+  };
+
+  const deleteSafety = (id: string) => {
+    const item = safetyCases.find((entry) => entry.id === id);
+    if (!item || !window.confirm(`Delete safety case for ${item.subjectName}?`)) return;
+
+    (async () => {
+      try {
+        setSavingKey(`safety-delete-${id}`);
+        await deleteAdminDashboardItem(id);
+        setSafetyCases((current) => current.filter((entry) => entry.id !== id));
+        setSelectedSafetyId((current) => (current === id ? null : current));
+        appendAdminActivity({
+          category: "moderation",
+          title: "Safety queue entry deleted",
+          detail: `${item.subjectName} was removed from the safety queue.`,
+        });
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to delete safety case");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
+  };
+
+  const deletePayment = (id: string) => {
+    const item = paymentRecords.find((entry) => entry.id === id);
+    if (!item || !window.confirm(`Delete payment record for ${item.userName}?`)) return;
+
+    (async () => {
+      try {
+        setSavingKey(`payment-delete-${id}`);
+        await deleteAdminDashboardItem(id);
+        setPaymentRecords((current) => current.filter((entry) => entry.id !== id));
+        setSelectedPaymentId((current) => (current === id ? null : current));
+        appendAdminActivity({
+          category: "admin",
+          title: "Payment record deleted",
+          detail: `${item.userName} was removed from the plans view.`,
+        });
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to delete payment record");
+      } finally {
+        setSavingKey(null);
+      }
+    })();
   };
 
   const currentSafety = safetyDetails || null;
@@ -513,13 +791,14 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.02 }}>Safety Queue and Payments</div>
             <div style={{ fontSize: 12, color: COLORS.muted }}>Review safety cases, track billing patterns, and manage monetization signals.</div>
+            <div style={{ fontSize: 11, color: loadError ? COLORS.amber : COLORS.green, marginTop: 4 }}>
+              {isHydrating ? "Syncing dashboard data..." : loadError ? `Using fallback data: ${loadError}` : "Backed by persisted admin records."}
+            </div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button
-              onClick={() => {
-                setSafetyCases(readJson(SAFETY_STORAGE_KEY, DEFAULT_SAFETY_CASES));
-                setPaymentRecords(readJson(PAYMENTS_STORAGE_KEY, DEFAULT_PAYMENT_RECORDS));
-              }}
+              onClick={() => setReloadToken((value) => value + 1)}
+              disabled={isHydrating}
               style={{
                 border: `1px solid ${COLORS.cardBorder}`,
                 background: COLORS.accentGrad,
@@ -531,10 +810,11 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
+                opacity: isHydrating ? 0.8 : 1,
               }}
             >
               <RefreshCw size={16} />
-              Reload
+              {isHydrating ? "Loading" : "Reload"}
             </button>
           </div>
         </div>
@@ -817,6 +1097,9 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
                     <button type="button" onClick={() => { updateSafety(currentSafety.id, { trustedContacts: currentSafety.trustedContacts + 1 }); quickAction("Trusted contact added", `A trusted contact was added for ${currentSafety.subjectName}.`, "admin"); }} style={actionButton}>
                       <Users2 size={14} /> Add contact
                     </button>
+                    <button type="button" onClick={() => deleteSafety(currentSafety.id)} style={actionButton}>
+                      <Trash2 size={14} /> Delete
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -863,6 +1146,9 @@ export function SafetyPlansPage({ onNavigate }: { onNavigate?: (page: string) =>
                     </button>
                     <button type="button" onClick={() => { updatePayment(currentPayment.id, { billingCycle: currentPayment.billingCycle === "monthly" ? "annual" : "monthly" }); quickAction("Billing cycle changed", `${currentPayment.userName} billing cycle updated.`, "admin"); }} style={actionButton}>
                       <ArrowRight size={14} /> Flip cycle
+                    </button>
+                    <button type="button" onClick={() => deletePayment(currentPayment.id)} style={actionButton}>
+                      <Trash2 size={14} /> Delete
                     </button>
                   </div>
                 </div>

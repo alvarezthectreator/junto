@@ -2,13 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
+import { getVenues } from '../services/api';
 import {
   ArrowLeft, MapPin, Clock, Phone, X, Send,
   Film, Wine, Waves, Trophy, CircleDot, Dumbbell, Sofa, Palette, Building2,
   Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, ChevronDown,
 } from 'lucide-react';
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 const CATEGORIES = ['All', 'Cinema', 'Bar', 'Beach', 'Tennis', 'Snooker', 'Gym', 'Lounge', 'Art Gallery'];
 
 const CATEGORY_ICONS: Record<string, any> = {
@@ -127,12 +127,11 @@ export function Venues() {
   async function fetchVenues() {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (activeCategory !== 'All') params.set('category', activeCategory);
-      params.set('city', activeCity);
-      const res = await fetch(`${BASE_URL}/api/venues?${params.toString()}`);
-      const data = await res.json();
-      setVenues(data.venues || []);
+      const response = await getVenues({
+        category: activeCategory !== 'All' ? activeCategory : undefined,
+        city: activeCity,
+      });
+      setVenues(Array.isArray(response?.venues) ? response.venues : []);
     } catch (err) {
       console.error('Failed to fetch venues:', err);
       setVenues([]);

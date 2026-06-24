@@ -3,10 +3,18 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function getCelebrities(req, res) {
   try {
-    const { category } = req.query;
+    const { category, all } = req.query;
     const sql = category
-      ? `SELECT * FROM celebrities WHERE category = ? AND is_active = 1 ORDER BY name ASC`
-      : `SELECT * FROM celebrities WHERE is_active = 1 ORDER BY name ASC`;
+      ? `SELECT c.*,
+          (SELECT COUNT(*) FROM celebrity_bookings cb WHERE cb.celebrity_id = c.id) AS booking_count,
+          (SELECT COUNT(*) FROM celebrity_reviews cr WHERE cr.celebrity_id = c.id) AS review_count,
+          (SELECT AVG(rating) FROM celebrity_reviews cr WHERE cr.celebrity_id = c.id) AS avg_rating
+        FROM celebrities c WHERE c.category = ? ${all === 'true' ? '' : 'AND c.is_active = 1'} ORDER BY c.name ASC`
+      : `SELECT c.*,
+          (SELECT COUNT(*) FROM celebrity_bookings cb WHERE cb.celebrity_id = c.id) AS booking_count,
+          (SELECT COUNT(*) FROM celebrity_reviews cr WHERE cr.celebrity_id = c.id) AS review_count,
+          (SELECT AVG(rating) FROM celebrity_reviews cr WHERE cr.celebrity_id = c.id) AS avg_rating
+        FROM celebrities c ${all === 'true' ? '' : 'WHERE c.is_active = 1'} ORDER BY c.name ASC`;
     const params = category ? [category] : [];
     const result = await query(sql, params);
     res.json({ celebrities: result.rows || [] });
@@ -41,6 +49,66 @@ export async function createCelebrity(req, res) {
       [id, name, category, bio || null, photo_url || null, JSON.stringify(outing_types || []), base_price, currency || 'NGN']
     );
     res.status(201).json({ id, message: 'Celebrity created' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function updateCelebrity(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      category,
+      bio,
+      photo_url,
+      outing_types,
+      base_price,
+      currency,
+      is_active,
+    } = req.body;
+
+    await query(
+      `UPDATE celebrities SET
+        name = COALESCE(?, name),
+        category = COALESCE(?, category),
+        bio = COALESCE(?, bio),
+        photo_url = COALESCE(?, photo_url),
+        outing_types = COALESCE(?, outing_types),
+        base_price = COALESCE(?, base_price),
+        currency = COALESCE(?, currency),
+        is_active = COALESCE(?, is_active),
+        updated_at = datetime('now')
+       WHERE id = ?`,
+      [
+        name || null,
+        category || null,
+        bio || null,
+        photo_url || null,
+        outing_types ? JSON.stringify(outing_types) : null,
+        base_price ?? null,
+        currency || null,
+        typeof is_active === 'boolean' ? (is_active ? 1 : 0) : null,
+        id,
+      ]
+    );
+
+    const result = await query(`SELECT * FROM celebrities WHERE id = ?`, [id]);
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Celebrity not found' });
+    }
+
+    res.json({ celebrity: result.rows[0], message: 'Celebrity updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function deleteCelebrity(req, res) {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM celebrities WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Celebrity deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -105,6 +173,35 @@ export async function getCelebrityReviews(req, res) {
         total_reviews: avgResult.rows[0]?.total || 0
       }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function createCelebrityReview(req, res) {
+  try {
+    const { celebrity_id } = req.params;
+    const { user_id, rating, review, booking_id } = req.body;
+    if (!user_id || !rating) {
+      return res.status(400).json({ error: 'user_id and rating are required' });
+    }
+    const id = uuidv4();
+    await query(
+      `INSERT INTO celebrity_reviews (id, celebrity_id, user_id, booking_id, rating, review, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [id, celebrity_id, user_id, booking_id || null, rating, review || null]
+    );
+    res.status(201).json({ id, message: 'Celebrity review added' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function deleteCelebrityReview(req, res) {
+  try {
+    const { id } = req.params;
+    await query(`DELETE FROM celebrity_reviews WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Celebrity review deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

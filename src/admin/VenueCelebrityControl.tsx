@@ -23,8 +23,11 @@ import {
   deleteVenue,
   deleteVenueReview,
   getCelebritiesAdmin,
+  getCelebrityById,
+  getCelebrityReviews,
   getVenueById,
   getVenues,
+  uploadMedia,
   updateCelebrity,
   updateVenue,
   type EventReview,
@@ -117,6 +120,11 @@ type VenueDraft = {
   is_active: boolean;
 };
 
+type VenuePhotoUpload = {
+  file: File;
+  previewUrl: string;
+};
+
 type CelebrityDraft = {
   name: string;
   category: string;
@@ -173,6 +181,19 @@ function parsePhotoUrls(value: string) {
 function parseNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function dedupeUrls(urls: string[]) {
+  return Array.from(new Set(urls.map((url) => url.trim()).filter(Boolean)));
 }
 
 function emptyVenueDraft(): VenueDraft {
@@ -276,6 +297,13 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
   const [venueReviewDraft, setVenueReviewDraft] = useState<ReviewDraft>(() => emptyReviewDraft());
   const [celebrityReviewDraft, setCelebrityReviewDraft] = useState<ReviewDraft>(() => emptyReviewDraft());
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [venuePhotos, setVenuePhotos] = useState<VenuePhotoUpload[]>([]);
+
+  useEffect(() => {
+    return () => {
+      venuePhotos.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    };
+  }, [venuePhotos]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -338,8 +366,10 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
           website: selected.website || "",
           is_active: selected.is_active !== false && selected.is_active !== 0,
         });
+        setVenuePhotos([]);
       } else {
         setVenueDraft(emptyVenueDraft());
+        setVenuePhotos([]);
       }
     }
   }, [activeTab, selectedVenueId, venues]);
@@ -395,11 +425,9 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
       }
 
       try {
-        const response = await fetch(`${(import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}/api/celebrities/${selectedCelebrityId}`, { credentials: "include", signal: controller.signal });
-        const payload = await response.json();
+        const payload = await getCelebrityById(selectedCelebrityId);
         if (controller.signal.aborted) return;
-        const reviewsResponse = await fetch(`${(import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}/api/celebrities/${selectedCelebrityId}/reviews`, { credentials: "include", signal: controller.signal });
-        const reviewsPayload = await reviewsResponse.json();
+        const reviewsPayload = await getCelebrityReviews(selectedCelebrityId);
         if (controller.signal.aborted) return;
         setCelebrityDetail({
           celebrity: payload?.celebrity,
@@ -470,28 +498,67 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
   const selectedVenueReviews = venueDetail?.reviews || [];
   const selectedCelebrityReviews = celebrityDetail?.reviews || [];
 
+  const handleVenuePhotoFiles = (files: FileList | null) => {
+    const nextFiles = Array.from(files || []).slice(0, 6);
+    if (!nextFiles.length) return;
+
+    setVenuePhotos((current) => {
+      current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      return nextFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    });
+  };
+
+  const removeVenuePhotoFile = (index: number) => {
+    setVenuePhotos((current) => {
+      const next = [...current];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  };
+
   const saveVenue = async (event: FormEvent) => {
     event.preventDefault();
-    const payload = {
-      name: venueDraft.name.trim(),
-      category: venueDraft.category.trim(),
-      description: venueDraft.description.trim(),
-      address: venueDraft.address.trim(),
-      country: venueDraft.country.trim(),
-      state: venueDraft.state.trim(),
-      city: venueDraft.city.trim(),
-      latitude: parseNumber(venueDraft.latitude),
-      longitude: parseNumber(venueDraft.longitude),
-      photo_urls: parsePhotoUrls(venueDraft.photo_urls),
-      opening_hours: venueDraft.opening_hours.trim(),
-      price_range: venueDraft.price_range.trim(),
-      phone: venueDraft.phone.trim(),
-      website: venueDraft.website.trim(),
-      is_active: venueDraft.is_active,
-    };
+    const uploadedPhotoUrls: string[] = [];
 
     try {
       setSavingKey("venue");
+
+      for (const photo of venuePhotos) {
+        const dataUrl = await readFileAsDataUrl(photo.file);
+        const uploaded = await uploadMedia(dataUrl, {
+          fileName: photo.file.name,
+          mimeType: photo.file.type,
+          folder: "venues",
+        });
+        if (uploaded?.url) {
+          uploadedPhotoUrls.push(uploaded.url);
+        }
+      }
+
+      const basePhotoUrls = parsePhotoUrls(venueDraft.photo_urls);
+      const resolvedPhotoUrls = venuePhotos.length > 0
+        ? dedupeUrls(uploadedPhotoUrls)
+        : dedupeUrls(basePhotoUrls);
+
+      const payload = {
+        name: venueDraft.name.trim(),
+        category: venueDraft.category.trim(),
+        description: venueDraft.description.trim(),
+        address: venueDraft.address.trim(),
+        country: venueDraft.country.trim(),
+        state: venueDraft.state.trim(),
+        city: venueDraft.city.trim(),
+        latitude: parseNumber(venueDraft.latitude),
+        longitude: parseNumber(venueDraft.longitude),
+        photo_urls: resolvedPhotoUrls,
+        opening_hours: venueDraft.opening_hours.trim(),
+        price_range: venueDraft.price_range.trim(),
+        phone: venueDraft.phone.trim(),
+        website: venueDraft.website.trim(),
+        is_active: venueDraft.is_active,
+      };
+
       if (selectedVenueId) {
         await updateVenue(selectedVenueId, payload);
         appendAdminActivity({
@@ -510,9 +577,12 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
       setRefreshToken((current) => current + 1);
       setSelectedVenueId(null);
       setVenueDraft(emptyVenueDraft());
+      setVenuePhotos([]);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Failed to save venue");
     } finally {
+      venuePhotos.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setVenuePhotos([]);
       setSavingKey(null);
     }
   };
@@ -692,6 +762,7 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
   const currentStats = activeTab === "venues" ? venueStats : celebrityStats;
   const currentVenue = venueDetail?.venue || null;
   const currentCelebrity = celebrityDetail?.celebrity || null;
+  const venuePhotoUrlPreviews = parsePhotoUrls(venueDraft.photo_urls);
 
   return (
     <div style={{ minHeight: "100vh", width: "100vw", background: COLORS.bg, display: "flex", flexDirection: isMobile ? "column" : "row", color: COLORS.text, overflowX: "hidden" }}>
@@ -977,7 +1048,97 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
                       <Field label="Latitude" value={venueDraft.latitude} onChange={(value) => setVenueDraft((current) => ({ ...current, latitude: value }))} placeholder="6.4281" />
                       <Field label="Longitude" value={venueDraft.longitude} onChange={(value) => setVenueDraft((current) => ({ ...current, longitude: value }))} placeholder="3.4219" />
                     </div>
-                    <Field label="Photo URLs" value={venueDraft.photo_urls} onChange={(value) => setVenueDraft((current) => ({ ...current, photo_urls: value }))} placeholder="https://..., https://..." />
+                    <div style={{ display: "grid", gap: 10 }}>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, color: COLORS.muted }}>Photo upload</span>
+                        <label
+                          style={{
+                            border: `1px dashed ${COLORS.cardBorder}`,
+                            background: "rgba(255,255,255,0.04)",
+                            borderRadius: 14,
+                            padding: 14,
+                            cursor: "pointer",
+                            display: "grid",
+                            gap: 8,
+                            textAlign: "center",
+                          }}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(event) => handleVenuePhotoFiles(event.target.files)}
+                            style={{ display: "none" }}
+                          />
+                          <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>Choose venue photos</div>
+                          <div style={{ fontSize: 11, color: COLORS.muted }}>PNG, JPG, WEBP, or GIF. Up to 6 images.</div>
+                          <div style={{ fontSize: 11, color: COLORS.amber }}>Uploading files replaces the current venue photos.</div>
+                        </label>
+                      </div>
+
+                      {(venuePhotos.length > 0 || venuePhotoUrlPreviews.length > 0) && (
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <div style={{ fontSize: 11, color: COLORS.muted }}>Selected / existing photos</div>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                            {venuePhotos.map((photo, index) => (
+                              <div key={`${photo.file.name}-${index}`} style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${COLORS.cardBorder}`, background: "rgba(255,255,255,0.04)" }}>
+                                <img src={photo.previewUrl} alt={photo.file.name} style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }} />
+                                <button
+                                  type="button"
+                                  onClick={() => removeVenuePhotoFile(index)}
+                                  style={{
+                                    position: "absolute",
+                                    top: 8,
+                                    right: 8,
+                                    border: "none",
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: "50%",
+                                    background: "rgba(0,0,0,0.65)",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            {venuePhotoUrlPreviews.map((url, index) => (
+                              <div key={`${url}-${index}`} style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${COLORS.cardBorder}`, background: "rgba(255,255,255,0.04)" }}>
+                                <img src={url} alt={`Venue photo ${index + 1}`} style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <Field
+                        label="Photo URLs"
+                        value={venueDraft.photo_urls}
+                        onChange={(value) => setVenueDraft((current) => ({ ...current, photo_urls: value }))}
+                        placeholder="https://..., https://..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVenueDraft((current) => ({ ...current, photo_urls: "" }));
+                          setVenuePhotos([]);
+                        }}
+                        style={{
+                          border: `1px solid ${COLORS.cardBorder}`,
+                          background: "rgba(248,113,113,0.12)",
+                          color: COLORS.rose,
+                          borderRadius: 12,
+                          padding: "10px 12px",
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          alignSelf: "start",
+                        }}
+                      >
+                        Clear current photos
+                      </button>
+                    </div>
                     <Field label="Opening hours" value={venueDraft.opening_hours} onChange={(value) => setVenueDraft((current) => ({ ...current, opening_hours: value }))} placeholder="10am - 11pm daily" />
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
                       <Field label="Price range" value={venueDraft.price_range} onChange={(value) => setVenueDraft((current) => ({ ...current, price_range: value }))} placeholder="₦2,000 - ₦5,000" />
@@ -993,7 +1154,7 @@ export function VenueCelebrityControl({ onNavigate }: { onNavigate?: (page: stri
                         <Plus size={16} />
                         {selectedVenueId ? "Save Venue" : "Create Venue"}
                       </button>
-                      <button type="button" onClick={() => { setSelectedVenueId(null); setVenueDraft(emptyVenueDraft()); }} style={{ border: `1px solid ${COLORS.cardBorder}`, background: "rgba(255,255,255,0.05)", color: COLORS.text, borderRadius: 12, padding: "12px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                      <button type="button" onClick={() => { setSelectedVenueId(null); setVenueDraft(emptyVenueDraft()); setVenuePhotos([]); }} style={{ border: `1px solid ${COLORS.cardBorder}`, background: "rgba(255,255,255,0.05)", color: COLORS.text, borderRadius: 12, padding: "12px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                         New
                       </button>
                       {selectedVenueId && (

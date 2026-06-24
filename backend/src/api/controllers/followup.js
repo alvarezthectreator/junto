@@ -155,8 +155,8 @@ export const getUserFollowups = async (req, res) => {
       SELECT 
         e.id as event_id,
         e.title,
-        e.date,
-        e.time,
+        e.event_date,
+        e.event_time,
         u.id as host_id,
         u.display_name as host_name,
         u.profile_id as host_profile_id,

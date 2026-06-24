@@ -62,14 +62,203 @@ async function getReferralStats(userId) {
   };
 }
 
+export async function listUsers(req, res) {
+  try {
+    const {
+      q = '',
+      city = '',
+      limit = 50,
+      offset = 0,
+      all = 'false',
+    } = req.query;
+
+    const filters = [];
+    const params = [];
+    let index = 1;
+
+    if (all !== 'true') {
+      filters.push(`u.is_active = true`);
+    }
+
+    if (q) {
+      filters.push(`(LOWER(u.display_name) LIKE LOWER($${index}) OR LOWER(u.full_name) LIKE LOWER($${index}) OR LOWER(u.username) LIKE LOWER($${index}) OR LOWER(u.profile_id) LIKE LOWER($${index}))`);
+      params.push(`%${q}%`);
+      index += 1;
+    }
+
+    if (city) {
+      filters.push(`u.city = $${index}`);
+      params.push(city);
+      index += 1;
+    }
+
+    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const sql = `
+      SELECT
+        u.*,
+        u.avatar_image AS user_avatar_image,
+        up.interests,
+        up.avatar_image,
+        up.profile_photos,
+        up.travel_mode_enabled,
+        up.travel_destination_city,
+        up.last_active,
+        COALESCE(fs.risk_score, 0) AS risk_score,
+        COALESCE(fs.behavior_score, 0) AS behavior_score,
+        COALESCE(fs.identity_score, 0) AS identity_score,
+        COALESCE(fs.verification_status, 'unverified') AS fraud_verification_status,
+        COALESCE(fs.flags_count, 0) AS flags_count
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      LEFT JOIN fraud_scores fs ON u.id = fs.user_id
+      ${whereClause}
+      ORDER BY u.created_at DESC
+      LIMIT $${index} OFFSET $${index + 1}
+    `;
+
+    params.push(Number(limit), Number(offset));
+    const result = await query(sql, params);
+
+    res.json({
+      users: (result.rows || []).map(enrichProfileRow),
+      total: result.rows?.length || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function updateUserAdminStatus(req, res) {
+  try {
+    const { userId } = req.params;
+    const {
+      is_active,
+      verification_status,
+      reliability_score,
+      display_name,
+      username,
+      email,
+      phone_number,
+      city,
+      occupation,
+    } = req.body || {};
+
+    const updates = [];
+    const params = [];
+    let index = 1;
+
+    if (typeof is_active === 'boolean') {
+      updates.push(`is_active = $${index}`);
+      params.push(is_active);
+      index += 1;
+    }
+
+    if (typeof reliability_score === 'number' && Number.isFinite(reliability_score)) {
+      updates.push(`reliability_score = $${index}`);
+      params.push(reliability_score);
+      index += 1;
+    }
+
+    if (typeof display_name === 'string') {
+      updates.push(`display_name = $${index}`);
+      params.push(display_name.trim() || null);
+      index += 1;
+    }
+
+    if (typeof username === 'string') {
+      updates.push(`username = $${index}`);
+      params.push(username.trim() || null);
+      index += 1;
+    }
+
+    if (typeof email === 'string') {
+      updates.push(`email = $${index}`);
+      params.push(email.trim() || null);
+      index += 1;
+    }
+
+    if (typeof phone_number === 'string') {
+      updates.push(`phone_number = $${index}`);
+      params.push(phone_number.trim() || null);
+      index += 1;
+    }
+
+    if (typeof city === 'string') {
+      updates.push(`city = $${index}`);
+      params.push(city.trim() || null);
+      index += 1;
+    }
+
+    if (typeof occupation === 'string') {
+      updates.push(`occupation = $${index}`);
+      params.push(occupation.trim() || null);
+      index += 1;
+    }
+
+    if (typeof verification_status === 'string' && verification_status.trim()) {
+      updates.push(`verification_status = $${index}`);
+      params.push(verification_status.trim().toLowerCase());
+      index += 1;
+    }
+
+    if (updates.length > 0) {
+      updates.push(`updated_at = CURRENT_TIMESTAMP`);
+      params.push(userId);
+      await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${index}`, params);
+    }
+
+    if (typeof verification_status === 'string' && verification_status.trim()) {
+      const normalized = verification_status.trim().toLowerCase();
+      await query(
+        `INSERT INTO fraud_scores (id, user_id, verification_status, last_updated, created_at)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT(user_id) DO UPDATE SET verification_status = EXCLUDED.verification_status, last_updated = CURRENT_TIMESTAMP`,
+        [uuidv4(), userId, normalized]
+      );
+    }
+
+    const refreshed = await query(
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
+              COALESCE(fs.risk_score, 0) AS risk_score,
+              COALESCE(fs.behavior_score, 0) AS behavior_score,
+              COALESCE(fs.identity_score, 0) AS identity_score,
+              COALESCE(fs.verification_status, 'unverified') AS fraud_verification_status,
+              COALESCE(fs.flags_count, 0) AS flags_count
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       LEFT JOIN fraud_scores fs ON u.id = fs.user_id
+       WHERE u.id = $1`,
+      [userId]
+    );
+
+    if (refreshed.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'User status updated',
+      user: enrichProfileRow(refreshed.rows[0]),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function getUserById(req, res) {
   try {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city,
+              COALESCE(fs.risk_score, 0) AS risk_score,
+              COALESCE(fs.behavior_score, 0) AS behavior_score,
+              COALESCE(fs.identity_score, 0) AS identity_score,
+              COALESCE(fs.verification_status, 'unverified') AS fraud_verification_status,
+              COALESCE(fs.flags_count, 0) AS flags_count
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
+       LEFT JOIN fraud_scores fs ON u.id = fs.user_id
        WHERE u.id = $1`,
       [userId]
     );
@@ -89,9 +278,15 @@ export async function getUserProfile(req, res) {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active
+      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
+              COALESCE(fs.risk_score, 0) AS risk_score,
+              COALESCE(fs.behavior_score, 0) AS behavior_score,
+              COALESCE(fs.identity_score, 0) AS identity_score,
+              COALESCE(fs.verification_status, 'unverified') AS fraud_verification_status,
+              COALESCE(fs.flags_count, 0) AS flags_count
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
+       LEFT JOIN fraud_scores fs ON u.id = fs.user_id
        WHERE u.id = $1`,
       [userId]
     );
@@ -258,7 +453,7 @@ export async function updateUserProfile(req, res) {
 
 export async function searchUsers(req, res) {
   try {
-    const { city, interests, limit = 20, offset = 0 } = req.query;
+    const { city, limit = 20, offset = 0 } = req.query;
 
     let sql = `SELECT u.*, up.interests FROM users u
                LEFT JOIN user_profiles up ON u.id = up.user_id WHERE u.is_active = true`;
@@ -311,7 +506,7 @@ export async function getReferralInfo(req, res) {
     res.json({
       referral: {
         code: stats.user.profile_id,
-        link: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/?ref=${encodeURIComponent(stats.user.profile_id)}`,
+        link: `${globalThis.process?.env?.FRONTEND_URL || 'http://localhost:5173'}/?ref=${encodeURIComponent(stats.user.profile_id)}`,
         referral_count: stats.referralCount,
         referred_users: stats.referredUsers,
       },

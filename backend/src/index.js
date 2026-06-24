@@ -38,6 +38,7 @@ import fraudDetectionRoutes from './api/routes/fraudDetection.js';
 import followupRoutes from './api/routes/followup.js';
 import celebrityRoutes from './api/routes/celebrities.js';
 import venueRoutes from './api/routes/venues.js';
+import adminDashboardRoutes from './api/routes/adminDashboard.js';
 import otpRoutes from './api/routes/otp.js';
 import uploadsRoutes from './api/routes/uploads.js';
 
@@ -46,6 +47,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '127.0.0.1';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const uploadsDir = join(__dirname, '..', process.env.UPLOAD_STORAGE_DIR || 'uploads');
@@ -78,7 +80,7 @@ app.use((req, res, next) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({ status: 'API is running', timestamp: new Date().toISOString() });
 });
 
@@ -105,6 +107,7 @@ app.use('/api/fraud', fraudDetectionRoutes);
 app.use('/api/followups', followupRoutes);
 app.use('/api/celebrities', celebrityRoutes);
 app.use('/api/venues', venueRoutes);
+app.use('/api/admin', adminDashboardRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/uploads', express.static(uploadsDir));
 
@@ -170,13 +173,13 @@ async function startServer() {
     // Initialize WebSocket
     initWebSocket(server);
     
-    server.listen(PORT, () => {
+    server.listen(PORT, HOST, () => {
       console.log(`
 ✅ Junto Backend Server Running
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 http://localhost:${PORT}
-📚 API: http://localhost:${PORT}/api
-🔌 WebSocket: ws://localhost:${PORT}
+🚀 http://${HOST}:${PORT}
+📚 API: http://${HOST}:${PORT}/api
+🔌 WebSocket: ws://${HOST}:${PORT}
 ❤️  Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       `);

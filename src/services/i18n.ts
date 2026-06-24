@@ -1,4 +1,4 @@
-// Multilingual support for Junto - English, French, Swahili, Hausa
+// Multilingual support for Wantuu - English, French, Swahili, Hausa
 
 export type Language = 'en' | 'fr' | 'sw' | 'ha';
 
