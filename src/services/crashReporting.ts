@@ -12,6 +12,8 @@ type CrashReport = {
 
 const CRASH_QUEUE_KEY = 'junto-crash-queue';
 
+export type QueuedCrashReport = CrashReport;
+
 function readQueue(): CrashReport[] {
   if (typeof window === 'undefined') return [];
 
@@ -23,6 +25,10 @@ function readQueue(): CrashReport[] {
   } catch {
     return [];
   }
+}
+
+export function getQueuedCrashReports(): CrashReport[] {
+  return readQueue();
 }
 
 function writeQueue(queue: CrashReport[]): void {
@@ -86,4 +92,3 @@ export function flushCrashReports(): void {
   queued.forEach((report) => sendCrashReport(report));
   writeQueue([]);
 }
-

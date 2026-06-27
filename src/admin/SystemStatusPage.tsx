@@ -15,6 +15,7 @@ import { useAdminViewport } from "./useAdminViewport";
 import { appConfig } from "../config/appConfig";
 import { getDeploymentOpsReport, healthCheck, type DeploymentOpsReport } from "../services/api";
 import { appendAdminActivity, clearAdminActivityLog, loadAdminActivityLog, type AdminActivityCategory, type AdminActivityEntry } from "../services/adminActivityLog";
+import { getQueuedCrashReports, type QueuedCrashReport } from "../services/crashReporting";
 
 const COLORS = {
   bg: "#0f1117",
@@ -152,6 +153,7 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
   const [loading, setLoading] = useState(true);
   const [refreshToken, setRefreshToken] = useState(0);
   const [activities, setActivities] = useState<AdminActivityEntry[]>([]);
+  const [crashReports, setCrashReports] = useState<QueuedCrashReport[]>([]);
   const [filter, setFilter] = useState<AdminActivityCategory | "all">("all");
   const [draft, setDraft] = useState<ActivityComposer>({
     category: "system",
@@ -180,6 +182,7 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
     setReport(deploymentResult);
     setWsStatus(webSocketResult);
     setActivities(loadAdminActivityLog());
+    setCrashReports(getQueuedCrashReports());
     setLoading(false);
   };
 
@@ -207,17 +210,7 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
     return { status: "warning" as StatusTone, note: "Notifications are supported but still awaiting permission." };
   }, [refreshToken]);
 
-  const crashCount = useMemo(() => {
-    if (typeof window === "undefined") return 0;
-    try {
-      const raw = window.localStorage.getItem("junto-crash-queue");
-      if (!raw) return 0;
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      return 0;
-    }
-  }, [refreshToken]);
+  const crashCount = crashReports.length;
 
   const deploymentSummary = report?.summary;
   const checks = report?.checks || [];
@@ -246,7 +239,7 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
       icon: Bell,
     },
     {
-      title: "Crash reports",
+      title: "Error logs",
       value: String(crashCount),
       note: crashCount > 0 ? "Pending crash reports found in the local queue." : "No crash reports are queued locally.",
       tone: crashCount > 0 ? "warning" : "success",
@@ -282,6 +275,41 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
   const handleClearLog = () => {
     clearAdminActivityLog();
     setActivities([]);
+  };
+
+  const renderCrashLogs = () => {
+    if (crashReports.length === 0) {
+      return (
+        <div style={{ color: COLORS.muted, fontSize: 13 }}>
+          No crash reports are queued locally.
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: "grid", gap: 10 }}>
+        {crashReports.slice(0, 8).map((report, index) => (
+          <div
+            key={`${report.timestamp}-${index}`}
+            style={{
+              border: `1px solid ${COLORS.cardBorder}`,
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.03)",
+              padding: 12,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 700 }}>{report.name || "Error"}</div>
+              <div style={{ color: COLORS.muted, fontSize: 11 }}>{formatTimestamp(report.timestamp)}</div>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, color: COLORS.text }}>{report.message}</div>
+            <div style={{ marginTop: 6, fontSize: 11, color: COLORS.muted }}>
+              {report.path || "Unknown path"}{report.url ? ` • ${report.url}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -450,6 +478,24 @@ export function SystemStatusPage({ onNavigate }: { onNavigate?: (page: string) =
                   })}
                 </div>
               )}
+            </article>
+
+            <article
+              style={{
+                background: COLORS.card,
+                border: `1px solid ${COLORS.cardBorder}`,
+                borderRadius: 20,
+                padding: 18,
+                minWidth: 0,
+                display: "grid",
+                gap: 14,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Error logs</div>
+                <div style={{ fontSize: 12, color: COLORS.muted }}>Local crash reports captured in this browser session.</div>
+              </div>
+              {renderCrashLogs()}
             </article>
 
             <article

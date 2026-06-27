@@ -23,12 +23,16 @@ function normalizeProfilePhotos(value) {
   return [];
 }
 
+function keepAvatarAndThreeGalleryPhotos(value) {
+  return normalizeProfilePhotos(value).slice(0, 4);
+}
+
 function enrichProfileRow(row) {
   if (!row || typeof row !== 'object') {
     return row;
   }
 
-  const profilePhotos = normalizeProfilePhotos(row.profile_photos);
+  const profilePhotos = keepAvatarAndThreeGalleryPhotos(row.profile_photos);
   const avatarImage = row.avatar_image || row.user_avatar_image || profilePhotos[0] || null;
   return {
     ...row,
@@ -418,7 +422,7 @@ export async function updateUserProfile(req, res) {
       }
       if (profile_photos !== undefined) {
         updates.push(`profile_photos = $${paramCount}`);
-        params.push(JSON.stringify(profile_photos));
+        params.push(JSON.stringify(keepAvatarAndThreeGalleryPhotos(profile_photos)));
         paramCount++;
       }
 

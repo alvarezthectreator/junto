@@ -446,6 +446,7 @@ export function App() {
       date_of_birth: user.date_of_birth || storedSnapshot.date_of_birth || null,
       gender: user.gender || null,
       occupation: user.occupation || null,
+      intro_video_url: user.intro_video_url || storedSnapshot.intro_video_url || null,
       avatar_image: user.avatar_image || user.avatar_url || storedSnapshot.avatar_image || storedSnapshot.avatar_url || null,
       avatar_url: user.avatar_url || user.avatar_image || storedSnapshot.avatar_url || storedSnapshot.avatar_image || null,
       profile_photos: Array.isArray(user.profile_photos)
@@ -580,8 +581,9 @@ export function App() {
       currentUser.avatar_url ||
       (Array.isArray(currentUser.profile_photos) && currentUser.profile_photos.length > 0)
     );
+    const hasIntroVideo = Boolean(currentUser.intro_video_url);
 
-    if (alreadyHasAvatar) {
+    if (alreadyHasAvatar && hasIntroVideo) {
       return;
     }
 
@@ -599,6 +601,7 @@ export function App() {
         const mergedUser = {
           ...currentUser,
           date_of_birth: currentUser.date_of_birth || profile.date_of_birth || null,
+          intro_video_url: currentUser.intro_video_url || profile.intro_video_url || null,
           avatar_image: hydratedAvatar,
           avatar_url: hydratedAvatar,
           profile_photos: Array.isArray(profile.profile_photos) ? profile.profile_photos : currentUser.profile_photos || [],
@@ -670,6 +673,7 @@ export function App() {
           date_of_birth: user.date_of_birth || verifiedUser.date_of_birth || null,
           name: verifiedUser.username || verifiedUser.display_name || user.name || user.username || 'User',
           username: verifiedUser.username || user.username || user.name || 'User',
+          intro_video_url: verifiedUser.intro_video_url || user.intro_video_url || null,
           avatar_image: verifiedUser.avatar_image || verifiedUser.avatar_url || user.avatar_image || user.avatar_url || null,
           avatar_url: verifiedUser.avatar_url || verifiedUser.avatar_image || user.avatar_url || user.avatar_image || null,
           profile_photos: Array.isArray(verifiedUser.profile_photos)

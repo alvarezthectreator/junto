@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
     Calendar,
     Camera,
     CheckCircle2,
+    ChevronLeft,
     ChevronRight,
     AlertCircle,
     Download,
@@ -121,7 +122,9 @@ import React, { useState, useEffect, useRef } from 'react';
   const STAR_LABELS = ['Poor', 'Not great', 'Okay', 'Good', 'Excellent'];
 
   const ALLOWED_PROFILE_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const ALLOWED_PROFILE_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
   const MAX_PROFILE_IMAGE_BYTES = 8 * 1024 * 1024;
+  const MAX_PROFILE_VIDEO_BYTES = 60 * 1024 * 1024;
   const MIN_NAME_LENGTH = 2;
   const MIN_BIO_LENGTH = 40;
   const MAX_BIO_LENGTH = 280;
@@ -243,6 +246,27 @@ import React, { useState, useEffect, useRef } from 'react';
     );
   }
 
+  function isLikelyVideoSource(value?: string) {
+    if (!value || !value.trim()) {
+      return false;
+    }
+
+    const trimmed = value.trim().toLowerCase();
+    return (
+      trimmed.startsWith('data:video/') ||
+      trimmed.includes('/videos/') ||
+      /\.(mp4|webm|mov)(\?|#|$)/i.test(trimmed)
+    );
+  }
+
+  function normalizeGalleryPhotos(value?: string[]) {
+    return Array.isArray(value) ? value.filter(Boolean).slice(0, 3) : [];
+  }
+
+  function getProfilePhotoPayload(avatarImage: string, photos: string[]) {
+    return [avatarImage, ...normalizeGalleryPhotos(photos)].filter(Boolean);
+  }
+
   function clampScore(value: number) {
     return Math.max(0, Math.min(100, Math.round(value)));
   }
@@ -290,8 +314,8 @@ import React, { useState, useEffect, useRef } from 'react';
       errors.avatar = 'Add a clear profile picture before saving.';
     }
 
-    if (profile.photos.filter(Boolean).length > 4) {
-      errors.avatar = 'Keep your gallery to 4 photos or fewer.';
+    if (profile.photos.filter(Boolean).length > 3) {
+      errors.avatar = 'Keep your gallery to 3 photos plus 1 intro video.';
     }
 
     if (location.length > MAX_LOCATION_LENGTH) {
@@ -583,6 +607,12 @@ import React, { useState, useEffect, useRef } from 'react';
     </motion.div>
   );
 
+  type MediaViewerItem = {
+    type: 'image' | 'video';
+    src: string;
+    label: string;
+  };
+
   // --- MAIN PROFILE COMPONENT ---
 
   export const Profile: React.FC<ProfileProps> = ({
@@ -633,6 +663,15 @@ import React, { useState, useEffect, useRef } from 'react';
     const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
     const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
     const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
+    const [mediaViewer, setMediaViewer] = useState<{
+      open: boolean;
+      items: MediaViewerItem[];
+      index: number;
+    }>({
+      open: false,
+      items: [],
+      index: 0,
+    });
 
     // ── Report & Rate state ──────────────────────────────────────────────────
     const [showReportModal, setShowReportModal] = useState(false);
@@ -648,8 +687,135 @@ import React, { useState, useEffect, useRef } from 'react';
     const [rateSubmitted, setRateSubmitted] = useState(false);
     // ────────────────────────────────────────────────────────────────────────
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const storedUserSnapshot = readStoredCurrentUserSnapshot();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const storedUserSnapshot = readStoredCurrentUserSnapshot();
+    const initialIntroVideo =
+    currentUser?.intro_video_url ||
+    storedUserSnapshot.intro_video_url ||
+    '';
+
+    const openMediaViewer = (items: MediaViewerItem[], index: number) => {
+      if (!items.length || index < 0 || index >= items.length) {
+        return;
+      }
+
+      setMediaViewer({
+        open: true,
+        items,
+        index,
+      });
+    };
+
+    const closeMediaViewer = () => {
+      setMediaViewer({
+        open: false,
+        items: [],
+        index: 0,
+      });
+    };
+
+    const showPreviousMedia = () => {
+      setMediaViewer((current) => ({
+        ...current,
+        index: (current.index - 1 + current.items.length) % current.items.length,
+      }));
+    };
+
+    const showNextMedia = () => {
+      setMediaViewer((current) => ({
+        ...current,
+        index: (current.index + 1) % current.items.length,
+      }));
+    };
+
+    const renderMediaViewer = () => {
+      if (!mediaViewer.open || mediaViewer.items.length === 0) {
+        return null;
+      }
+
+      const activeItem = mediaViewer.items[mediaViewer.index];
+
+      return (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 px-4 py-8 backdrop-blur-md"
+            onClick={closeMediaViewer}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: 12, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+              className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-[#0B0B0E] shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-yellow-400/80">
+                    Media Viewer
+                  </p>
+                  <h3 className="mt-1 text-sm font-semibold text-white sm:text-base">
+                    {activeItem.label}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {mediaViewer.items.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={showPreviousMedia}
+                        className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                        aria-label="Previous media"
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={showNextMedia}
+                        className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                        aria-label="Next media"
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={closeMediaViewer}
+                    className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                    aria-label="Close viewer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex max-h-[78vh] items-center justify-center bg-black px-4 py-6 sm:px-6">
+                {activeItem.type === 'video' ? (
+                  <video
+                    src={resolveMediaUrl(activeItem.src)}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-[72vh] w-full rounded-2xl bg-black object-contain"
+                  />
+                ) : (
+                  <img
+                    src={resolveMediaUrl(activeItem.src)}
+                    alt={activeItem.label}
+                    className="max-h-[72vh] w-full rounded-2xl object-contain"
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      );
+    };
     
     const [profile, setProfile] = useState(() => {
       let initialName = 'Sarah Adeyemi';
@@ -675,7 +841,7 @@ import React, { useState, useEffect, useRef } from 'react';
             (Array.isArray(userData.profile_photos) ? userData.profile_photos[0] : '') ||
             initialAvatar
           );
-          initialPhotos = Array.isArray(userData.profile_photos) ? userData.profile_photos.slice(1, 5) : [];
+          initialPhotos = normalizeGalleryPhotos(Array.isArray(userData.profile_photos) ? userData.profile_photos.slice(1) : []);
         }
       } catch (e) {
         console.error('Failed to parse stored user:', e);
@@ -708,10 +874,26 @@ import React, { useState, useEffect, useRef } from 'react';
           bio: 'public',
           photos: 'public',
         },
-        introVideo: '',
-        photos: Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos.slice(1, 5) : initialPhotos,
+        introVideo: initialIntroVideo,
+        photos: normalizeGalleryPhotos(Array.isArray(currentUser?.profile_photos) ? currentUser.profile_photos.slice(1) : initialPhotos),
       };
     });
+
+    const galleryMediaItems: MediaViewerItem[] = [
+      ...profile.photos.map((src, index) => ({
+        type: 'image' as const,
+        src,
+        label: `${profile.name} photo ${index + 1}`,
+      })),
+      ...(profile.introVideo
+        ? [{
+            type: 'video' as const,
+            src: profile.introVideo,
+            label: `${profile.name} intro video`,
+          }]
+        : []),
+    ].filter((item) => Boolean(item.src));
+
     const [profileRefreshTick, setProfileRefreshTick] = useState(0);
 
     const isOwnProfile = !selectedUser;
@@ -793,7 +975,8 @@ import React, { useState, useEffect, useRef } from 'react';
             (Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos[0] : '') ||
             prev.avatarImage
           ),
-          photos: Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos.slice(1, 5) : prev.photos,
+          photos: normalizeGalleryPhotos(Array.isArray(currentUser.profile_photos) ? currentUser.profile_photos.slice(1) : prev.photos),
+          introVideo: currentUser.intro_video_url || prev.introVideo,
           verificationStatus: getProfileVerificationStatus(currentUser) || getProfileVerificationStatus(storedUserSnapshot),
           isVerified: getProfileVerificationStatus(currentUser) === 'verified' || getProfileVerificationStatus(storedUserSnapshot) === 'verified',
         }));
@@ -833,15 +1016,15 @@ import React, { useState, useEffect, useRef } from 'react';
                 serverPhotos[0] ||
                 prev.avatarImage
               ),
-              photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
-              introVideo: userProfile.intro_video_url || prev.introVideo,
+              photos: serverPhotos.length > 0 ? normalizeGalleryPhotos(serverPhotos.slice(1)) : normalizeGalleryPhotos(Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1) : prev.photos),
+              introVideo: userProfile.intro_video_url || currentUser?.intro_video_url || storedUserSnapshot.intro_video_url || prev.introVideo,
               location: userProfile.location || userProfile.city || prev.location,
               verificationStatus: getProfileVerificationStatus(userProfile) || getProfileVerificationStatus(currentUser),
               isVerified: getProfileVerificationStatus(userProfile) === 'verified' || getProfileVerificationStatus(currentUser) === 'verified',
               reliabilityScore: calculateReliabilityScore({
                 bio: userProfile.bio || prev.bio,
                 interests: userProfile.interests || prev.interests,
-                photos: serverPhotos.length > 0 ? serverPhotos.slice(1) : (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1, 5) : prev.photos),
+                photos: serverPhotos.length > 0 ? normalizeGalleryPhotos(serverPhotos.slice(1)) : normalizeGalleryPhotos(Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1) : prev.photos),
                 avatarImage: getAvatarSrc(
                   userProfile.avatar_image ||
                   userProfile.avatar_url ||
@@ -853,7 +1036,7 @@ import React, { useState, useEffect, useRef } from 'react';
                   serverPhotos[0] ||
                   prev.avatarImage
                 ),
-                introVideo: userProfile.intro_video_url || prev.introVideo,
+                introVideo: userProfile.intro_video_url || currentUser?.intro_video_url || storedUserSnapshot.intro_video_url || prev.introVideo,
                 dob: userProfile.date_of_birth || prev.dob,
                 occupation: userProfile.occupation || prev.occupation,
               }),
@@ -893,10 +1076,10 @@ import React, { useState, useEffect, useRef } from 'react';
             bio: selectedUser.bio || prev.bio,
             interests: selectedUser.interests || prev.interests,
             photos: Array.isArray(selectedUser.profile_photos)
-              ? selectedUser.profile_photos.filter(Boolean)
-              : prev.photos,
+              ? normalizeGalleryPhotos(selectedUser.profile_photos)
+              : [],
             avatarImage: selectedAvatar,
-            introVideo: prev.introVideo,
+            introVideo: selectedUser.intro_video_url || '',
             dob: prev.dob,
             occupation: prev.occupation,
             }),
@@ -908,6 +1091,81 @@ import React, { useState, useEffect, useRef } from 'react';
         setIsEditing(false);
       }
     }, [selectedUser]);
+
+    useEffect(() => {
+      if (isOwnProfile || !selectedUser?.id) {
+        return;
+      }
+
+      let cancelled = false;
+
+      const fetchPublicProfile = async () => {
+        try {
+          setLoading(true);
+          const publicProfile = await API.getUserProfile(selectedUser.id);
+          if (cancelled) {
+            return;
+          }
+
+          const publicPhotos = Array.isArray(publicProfile.profile_photos) ? publicProfile.profile_photos : [];
+
+          setProfile((prev) => ({
+            ...prev,
+            name: publicProfile.display_name || publicProfile.username || publicProfile.name || selectedUser.name || prev.name,
+            age: publicProfile.date_of_birth ? getAgeFromDob(publicProfile.date_of_birth) : selectedUser.age ?? null,
+            dob: publicProfile.date_of_birth || prev.dob,
+            bio: publicProfile.bio || selectedUser.bio || prev.bio,
+            interests: publicProfile.interests || selectedUser.interests || prev.interests,
+            genderIdentity: publicProfile.gender || selectedUser.gender || prev.genderIdentity,
+            avatarImage: getAvatarSrc(
+              publicProfile.avatar_image ||
+              publicProfile.avatar_url ||
+              publicProfile.profile_photo ||
+              selectedUser.avatar_image ||
+              selectedUser.avatarImage ||
+              selectedUser.avatar_url ||
+              (publicPhotos.length > 0 ? publicPhotos[0] : '')
+            ),
+            photos: normalizeGalleryPhotos(publicPhotos.slice(1)),
+            introVideo: publicProfile.intro_video_url || selectedUser.intro_video_url || '',
+            location: publicProfile.location || publicProfile.city || selectedUser.location || selectedUser.city || prev.location,
+            verificationStatus: getProfileVerificationStatus(publicProfile) || getProfileVerificationStatus(selectedUser),
+            isVerified: getProfileVerificationStatus(publicProfile) === 'verified' || getProfileVerificationStatus(selectedUser) === 'verified' || Boolean(selectedUser.isVerified),
+            reliabilityScore: calculateReliabilityScore({
+              bio: publicProfile.bio || selectedUser.bio || prev.bio,
+              interests: publicProfile.interests || selectedUser.interests || prev.interests,
+              photos: normalizeGalleryPhotos(publicPhotos.slice(1)),
+              avatarImage: getAvatarSrc(
+                publicProfile.avatar_image ||
+                publicProfile.avatar_url ||
+                publicProfile.profile_photo ||
+                selectedUser.avatar_image ||
+                selectedUser.avatarImage ||
+                selectedUser.avatar_url ||
+                (publicPhotos.length > 0 ? publicPhotos[0] : '')
+              ),
+              introVideo: publicProfile.intro_video_url || selectedUser.intro_video_url || '',
+              dob: publicProfile.date_of_birth || prev.dob,
+              occupation: publicProfile.occupation || selectedUser.occupation || prev.occupation,
+            }),
+          }));
+
+          setServerReliabilityScore(pickServerReliabilityScore(publicProfile) || pickServerReliabilityScore(selectedUser));
+        } catch (error) {
+          console.error('Failed to fetch public profile:', error);
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      };
+
+      void fetchPublicProfile();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isOwnProfile, selectedUser?.id]);
 
     useEffect(() => {
       const fetchHostedEventsCount = async () => {
@@ -1032,8 +1290,17 @@ import React, { useState, useEffect, useRef } from 'react';
     };
 
     const beginPhotoUpload = (target: 'avatar' | { type: 'gallery'; index: number }) => {
+      if (typeof target === 'object' && target.type === 'gallery' && target.index >= 3) {
+        beginVideoUpload();
+        return;
+      }
+
       setPhotoUploadTarget(target);
       fileInputRef.current?.click();
+    };
+
+    const beginVideoUpload = () => {
+      videoInputRef.current?.click();
     };
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1066,6 +1333,88 @@ import React, { useState, useEffect, useRef } from 'react';
       }
     };
 
+    const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) {
+        return;
+      }
+
+      if (!ALLOWED_PROFILE_VIDEO_TYPES.includes(file.type.toLowerCase())) {
+        setProfileValidationError('Please upload an MP4, WebM, or MOV video.');
+        return;
+      }
+
+      if (file.size > MAX_PROFILE_VIDEO_BYTES) {
+        setProfileValidationError('Videos must be 60MB or smaller.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const source = String(event.target?.result || '');
+        if (!source) {
+          setProfileValidationError('Could not read that video. Please try again.');
+          return;
+        }
+
+        let storedUrl = source;
+        try {
+          const uploaded = await API.uploadMedia(source, {
+            fileName: `profile-video-${Date.now()}.${file.type.includes('webm') ? 'webm' : file.type.includes('quicktime') ? 'mov' : 'mp4'}`,
+            mimeType: file.type,
+            folder: 'profiles',
+          });
+          storedUrl = uploaded.url;
+        } catch (uploadError) {
+          console.warn('Falling back to local video data for profile video:', uploadError);
+        }
+
+        const nextPhotos = normalizeGalleryPhotos(profile.photos);
+        setProfile((current) => ({
+          ...current,
+          photos: nextPhotos,
+          introVideo: storedUrl,
+          reliabilityScore: calculateReliabilityScore({
+            ...current,
+            photos: nextPhotos,
+            introVideo: storedUrl,
+          }),
+        }));
+        setProfileValidationError('');
+        setShowMessage('Intro video updated!');
+        setTimeout(() => setShowMessage(''), 2000);
+
+        const persistedMedia = getProfilePhotoPayload(profile.avatarImage, nextPhotos);
+        try {
+          const storedUserRaw = sessionStorage.getItem('junto-current-user');
+          const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : {};
+          const nextStoredUser = {
+            ...storedUser,
+            profile_photos: persistedMedia,
+            intro_video_url: storedUrl,
+          };
+          sessionStorage.setItem('junto-current-user', JSON.stringify(nextStoredUser));
+          setCurrentUser?.(nextStoredUser);
+        } catch (storageError) {
+          console.error('Failed to persist intro video locally:', storageError);
+        }
+
+        const resolvedUserId = currentUser?.id || API.getUserId();
+        if (resolvedUserId) {
+          try {
+            await API.updateUserProfile(resolvedUserId, {
+              profile_photos: persistedMedia,
+              intro_video_url: storedUrl,
+            });
+          } catch (error) {
+            console.error('[handleVideoUpload] Failed to persist intro video on the backend:', error);
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+
     const handleApplyPhotoEdit = async () => {
       if (!photoEditorSource) {
         setProfileValidationError('Select a photo first.');
@@ -1093,6 +1442,10 @@ import React, { useState, useEffect, useRef } from 'react';
         }
         const nextGallery = [...profile.photos];
         if (photoUploadTarget && typeof photoUploadTarget === 'object' && photoUploadTarget.type === 'gallery') {
+          if (photoUploadTarget.index >= 3) {
+            setProfileValidationError('The 4th media slot is reserved for your intro video.');
+            return;
+          }
           while (nextGallery.length <= photoUploadTarget.index) {
             nextGallery.push('');
           }
@@ -1104,7 +1457,7 @@ import React, { useState, useEffect, useRef } from 'react';
           photos: photoUploadTarget === 'avatar' ? profile.photos : nextGallery,
         };
 
-        const persistedMedia = [nextProfile.avatarImage, ...nextProfile.photos].filter(Boolean);
+        const persistedMedia = getProfilePhotoPayload(nextProfile.avatarImage, nextProfile.photos);
         setProfile({
           ...nextProfile,
           reliabilityScore: calculateReliabilityScore(nextProfile),
@@ -1322,7 +1675,7 @@ import React, { useState, useEffect, useRef } from 'react';
         setProfile((current) => ({ ...current, reliabilityScore: nextReliabilityScore }));
 
         if (currentUser?.id) {
-          const mediaToStore = [normalizedProfile.avatarImage, ...normalizedProfile.photos.filter(Boolean)];
+          const mediaToStore = getProfilePhotoPayload(normalizedProfile.avatarImage, normalizedProfile.photos);
           const storedMediaUrls: string[] = [];
 
           for (let index = 0; index < mediaToStore.length; index += 1) {
@@ -1367,9 +1720,9 @@ import React, { useState, useEffect, useRef } from 'react';
             interests: updatedProfile.interests || current.interests,
             avatarImage: getAvatarSrc(updatedProfile.avatar_image || storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
             photos: Array.isArray(updatedProfile.profile_photos)
-              ? updatedProfile.profile_photos.slice(1, 5)
-              : storedMediaUrls.slice(1, 5).length > 0
-                ? storedMediaUrls.slice(1, 5)
+              ? normalizeGalleryPhotos(updatedProfile.profile_photos.slice(1))
+              : storedMediaUrls.slice(1).length > 0
+                ? normalizeGalleryPhotos(storedMediaUrls.slice(1))
                 : current.photos,
             location: updatedProfile.location || updatedProfile.city || current.location,
             introVideo: updatedProfile.intro_video_url || current.introVideo,
@@ -1381,9 +1734,9 @@ import React, { useState, useEffect, useRef } from 'react';
               bio: updatedProfile.bio || current.bio,
               interests: updatedProfile.interests || current.interests,
               photos: Array.isArray(updatedProfile.profile_photos)
-                ? updatedProfile.profile_photos.slice(1, 5)
-                : storedMediaUrls.slice(1, 5).length > 0
-                  ? storedMediaUrls.slice(1, 5)
+                ? normalizeGalleryPhotos(updatedProfile.profile_photos.slice(1))
+                : storedMediaUrls.slice(1).length > 0
+                  ? normalizeGalleryPhotos(storedMediaUrls.slice(1))
                   : current.photos,
               avatarImage: getAvatarSrc(updatedProfile.avatar_image || storedMediaUrls[0] || updatedProfile.profile_photos?.[0] || current.avatarImage),
               introVideo: updatedProfile.intro_video_url || current.introVideo,
@@ -1403,6 +1756,7 @@ import React, { useState, useEffect, useRef } from 'react';
             profile_photos: storedMediaUrls,
             avatar_image: updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_image || null,
             avatar_url: updatedProfile.avatar_url || updatedProfile.avatar_image || storedMediaUrls[0] || storedUser.avatar_url || null,
+            intro_video_url: updatedProfile.intro_video_url || normalizedProfile.introVideo || storedUser.intro_video_url || null,
             date_of_birth: updatedProfile.date_of_birth || normalizedProfile.dob || storedUser.date_of_birth || null,
             gender: normalizedProfile.genderIdentity || storedUser.gender || null,
             occupation: normalizedProfile.occupation || storedUser.occupation || null,
@@ -1515,7 +1869,7 @@ import React, { useState, useEffect, useRef } from 'react';
     // PUBLIC PROFILE VIEW
     // ═══════════════════════════════════════════════════════════════════════
     if (!isOwnProfile) {
-      const publicPhotos = [profile.avatarImage, ...profile.photos].filter(Boolean).slice(0, 4);
+      const publicMediaItems = galleryMediaItems;
 
       return (
         <div className={`flex min-h-screen transition-colors duration-500 font-sans antialiased ${pageBg}`}>
@@ -1663,22 +2017,50 @@ import React, { useState, useEffect, useRef } from 'react';
                 </div>
               </WidgetCard>
 
-              {/* Photos */}
-              {publicPhotos.length > 0 && (
-                <WidgetCard title="Photos" subtitle="Shared images only" icon={<Camera size={18} />} isLightMode={isLightMode}>
+              {/* Media */}
+              {publicMediaItems.length > 0 && (
+                <WidgetCard title="Media" subtitle="Shared images and intro video" icon={<Camera size={18} />} isLightMode={isLightMode}>
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    {publicPhotos.map((photo, index) => (
-                      <div
-                        key={`${profile.profileId}-photo-${index}`}
-                        className={`aspect-square overflow-hidden rounded-2xl border ${isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'}`}
+                    {publicMediaItems.map((item, index) => (
+                      <button
+                        key={`${profile.profileId}-media-${index}`}
+                        type="button"
+                        onClick={() => openMediaViewer(publicMediaItems, index)}
+                        className={`group relative aspect-square overflow-hidden rounded-2xl border text-left transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400/40 ${
+                          isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'
+                        }`}
                       >
-                        <img src={resolveMediaUrl(photo)} alt={`${profile.name} photo ${index + 1}`} className="h-full w-full object-cover" />
-                      </div>
+                        {item.type === 'video' ? (
+                          <>
+                            <video
+                              src={resolveMediaUrl(item.src)}
+                              className="h-full w-full object-cover"
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur">
+                                <Video size={22} />
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <img
+                            src={resolveMediaUrl(item.src)}
+                            alt={item.label}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        )}
+                      </button>
                     ))}
                   </div>
                 </WidgetCard>
               )}
             </div>
+
+          {renderMediaViewer()}
+
           </main>
 
           {/* ══════════════════════════════════════════════════════════════════
@@ -2509,20 +2891,76 @@ import React, { useState, useEffect, useRef } from 'react';
               <WidgetCard title="Media Gallery" subtitle="Visual presentation of your lifestyle profile" icon={<Camera size={18} />} isLightMode={isLightMode}>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   {Array.from({ length: 4 }, (_, idx) => {
+                    const isVideoSlot = idx === 3;
                     const photo = profile.photos[idx];
                     const hasPhoto = Boolean(photo);
+                    const hasVideo = Boolean(profile.introVideo);
+                    const mediaIndex = isVideoSlot ? profile.photos.filter(Boolean).length : idx;
                     return (
                       <motion.button
                         key={idx}
                         whileHover={{ scale: isEditing ? 1.02 : 1 }}
                         whileTap={{ scale: isEditing ? 0.98 : 1 }}
-                        onClick={() => isEditing && beginPhotoUpload({ type: 'gallery', index: idx })}
+                        onClick={() => {
+                          if (isEditing) {
+                            if (isVideoSlot) {
+                              beginVideoUpload();
+                            } else {
+                              beginPhotoUpload({ type: 'gallery', index: idx });
+                            }
+                            return;
+                          }
+
+                          if (isVideoSlot) {
+                            if (hasVideo) {
+                              openMediaViewer(galleryMediaItems, galleryMediaItems.length - 1);
+                            }
+                            return;
+                          }
+
+                          if (hasPhoto) {
+                            openMediaViewer(galleryMediaItems, mediaIndex);
+                          }
+                        }}
                         className={`group relative aspect-square overflow-hidden rounded-2xl border transition-all ${
                           isLightMode ? 'border-amber-900/10' : 'border-white/[0.08]'
                         } ${isEditing ? 'cursor-pointer' : 'cursor-default'}`}
                         type="button"
                       >
-                        {hasPhoto ? (
+                        {isVideoSlot ? (
+                          hasVideo ? (
+                            <>
+                              <video
+                                src={resolveMediaUrl(profile.introVideo)}
+                                className="h-full w-full object-cover"
+                                muted
+                                playsInline
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur">
+                                  <Video size={22} />
+                                </span>
+                              </div>
+                              {isEditing && (
+                                <div className="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/35 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                                  <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
+                                    Replace video
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className={`flex h-full w-full flex-col items-center justify-center rounded-2xl border border-dashed text-sm font-semibold transition-all ${
+                              isLightMode
+                                ? 'border-amber-900/20 bg-amber-50 text-amber-900 hover:bg-amber-100/60'
+                                : 'border-white/[0.15] bg-white/[0.01] text-gray-400 hover:bg-white/[0.03]'
+                            }`}>
+                              <Video size={20} className="mb-1 text-yellow-500" />
+                              <span>{isEditing ? 'Add video' : 'Video required'}</span>
+                            </div>
+                          )
+                        ) : hasPhoto ? (
                           <>
                             <img
                               src={resolveMediaUrl(photo)}
@@ -2553,6 +2991,8 @@ import React, { useState, useEffect, useRef } from 'react';
                 </div>
               </WidgetCard>
             </div>
+
+            {renderMediaViewer()}
 
             {/* Sidebar widgets */}
             <aside className="space-y-6">
@@ -3013,6 +3453,13 @@ import React, { useState, useEffect, useRef } from 'react';
             ref={fileInputRef}
             onChange={handlePhotoUpload}
             accept="image/*"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={videoInputRef}
+            onChange={handleVideoUpload}
+            accept="video/mp4,video/webm,video/quicktime"
             className="hidden"
           />
         </main>

@@ -2,6 +2,44 @@ import { query } from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createNotification } from '../../services/notificationService.js';
 
+function normalizeProfilePhotos(value) {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(String);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).map(String);
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+function enrichNearbyUser(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  const profilePhotos = normalizeProfilePhotos(row.profile_photos);
+  const avatarImage = row.avatar_image || row.user_avatar_image || profilePhotos[0] || null;
+
+  return {
+    ...row,
+    profile_photos: profilePhotos,
+    avatar_image: avatarImage,
+    avatar_url: avatarImage,
+  };
+}
+
 function buildNearbyLocationScope(city) {
   const normalized = String(city || '').trim().toLowerCase();
 
@@ -40,6 +78,15 @@ function buildNearbyLocationScope(city) {
   return [normalized];
 }
 
+function buildNearbyLocationPatterns(city) {
+  const scope = buildNearbyLocationScope(city);
+  if (scope.length === 0) {
+    return ['%lagos%'];
+  }
+
+  return scope.map((location) => `%${String(location).trim().toLowerCase()}%`);
+}
+
 export async function getNearbyUsers(req, res) {
   try {
     const { userId } = req.params;
@@ -52,22 +99,41 @@ export async function getNearbyUsers(req, res) {
     }
 
     const userCity = userRes.rows[0].city;
-    const locationScope = buildNearbyLocationScope(userCity);
+    const locationPatterns = buildNearbyLocationPatterns(userCity);
 
     // Get users in same city, excluding self and already swiped
-    const placeholders = locationScope.map(() => '?').join(', ');
+    if (locationPatterns.length === 0) {
+      return res.json({ nearby_users: [] });
+    }
+
+    const locationClauses = locationPatterns.map(() => `LOWER(COALESCE(u.city, '')) LIKE ?`).join(' OR ');
     const result = await query(
-      `SELECT DISTINCT u.* FROM users u
+      `SELECT DISTINCT
+         u.*,
+         u.avatar_image AS user_avatar_image,
+         up.avatar_image,
+         up.profile_photos,
+         up.interests,
+         up.last_active,
+         COALESCE(fs.risk_score, 0) AS risk_score,
+         COALESCE(fs.behavior_score, 0) AS behavior_score,
+         COALESCE(fs.identity_score, 0) AS identity_score,
+         COALESCE(fs.verification_status, 'unverified') AS fraud_verification_status,
+         COALESCE(fs.flags_count, 0) AS flags_count
+       FROM users u
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       LEFT JOIN fraud_scores fs ON u.id = fs.user_id
        LEFT JOIN swipes s ON u.id = s.swiped_user_id AND s.swiper_id = ?
        LEFT JOIN blocked_users b ON (u.id = b.blocked_user_id AND b.blocker_id = ?)
               OR (u.id = b.blocker_id AND b.blocked_user_id = ?)
-       WHERE LOWER(COALESCE(u.city, '')) IN (${placeholders})
+       WHERE (${locationClauses})
        AND u.id != ? AND s.id IS NULL AND b.id IS NULL
+       ORDER BY COALESCE(fs.risk_score, 0) ASC, u.created_at DESC
        LIMIT ?`,
-      [userId, userId, userId, ...locationScope, userId, limit]
+      [userId, userId, userId, ...locationPatterns, userId, limit]
     );
 
-    res.json({ nearby_users: result.rows || [] });
+    res.json({ nearby_users: (result.rows || []).map(enrichNearbyUser) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

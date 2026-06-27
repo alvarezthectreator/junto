@@ -8,10 +8,7 @@ dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const defaultDbPath = join(__dirname, '../../junto.db');
-const railwayVolumePath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'junto.db')
-  : null;
-const dbPath = process.env.DB_PATH || railwayVolumePath || defaultDbPath;
+const dbPath = process.env.DB_PATH || defaultDbPath;
 
 const dbDirectory = dirname(dbPath);
 if (!existsSync(dbDirectory)) {

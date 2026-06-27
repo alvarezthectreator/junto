@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MessageCircle, Heart, AlertCircle } from 'lucide-react';
+import { Calendar, MessageCircle, Share2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import * as API from '../services/api';
 import { isEventExpired, getRemainingCapacity, getCapacityPercentage } from '../utils/eventUtils';
 
 interface EventCardProps {
@@ -63,8 +62,7 @@ export function EventCard({
   currentAttendees = 0,
   status = 'active'
 }: EventCardProps) {
-  const [isSaved, setIsSaved] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const narration = (status !== 'expired') ? `${userName} ${actionText}` : '';
   
   // Check if event is expired
   const eventExpired = isEventExpired(date, eventTime) || status === 'expired';
@@ -73,41 +71,29 @@ export function EventCard({
   const capacityPercentage = maxCapacity ? getCapacityPercentage(currentAttendees, maxCapacity) : 0;
 
   useEffect(() => {
-    // Check if event is already saved
-    if (eventId && currentUserId) {
-      checkIfSaved();
-    }
+    // placeholder for future side-effects
   }, [eventId, currentUserId]);
 
-  const checkIfSaved = async () => {
-    try {
-      if (!eventId || !currentUserId) return;
-      const result = await API.checkEventSaved(currentUserId, eventId);
-      setIsSaved(result.saved);
-    } catch (error) {
-      console.error('Failed to check if event is saved:', error);
-    }
-  };
-
-  const handleSaveToggle = async (e: React.MouseEvent) => {
+  const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!eventId || !currentUserId || isSaving) return;
-
-    setIsSaving(true);
+    const url = eventId ? `${window.location.origin}/event/${eventId}` : window.location.href;
+    const shareData = {
+      title: `${userName} — ${actionText}`,
+      text: `${userName} is ${actionText} — join in!`,
+      url,
+    };
     try {
-      if (isSaved) {
-        await API.unsaveEvent(currentUserId, eventId);
-        setIsSaved(false);
-        onSaveChange?.(false);
+      if ((navigator as any).share) {
+        await (navigator as any).share(shareData);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        // small, visible fallback for now
+        alert('Event link copied to clipboard');
       } else {
-        await API.saveEvent(currentUserId, eventId);
-        setIsSaved(true);
-        onSaveChange?.(true);
+        window.prompt('Copy this link', url);
       }
-    } catch (error) {
-      console.error('Failed to toggle save:', error);
-    } finally {
-      setIsSaving(false);
+    } catch (err) {
+      console.error('Share failed', err);
     }
   };
 
@@ -283,6 +269,13 @@ export function EventCard({
           </div>
         </div>
 
+        {/* Narration */}
+        {narration && (
+          <p className="text-sm text-gray-300 mb-3 sm:mb-4 md:mb-6 leading-relaxed">
+            {narration}
+          </p>
+        )}
+
         {/* Capacity Bar (if max capacity is set) */}
         {maxCapacity && (
           <div className="mb-3 sm:mb-4 md:mb-6">
@@ -325,15 +318,10 @@ export function EventCard({
             
             {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : onInterested ? 'Interested' : 'View event →'}
           </button>
-          <button 
-            onClick={handleSaveToggle}
-            disabled={isSaving}
-            className={`p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl transition-colors ${
-              isSaved 
-                ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30' 
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-            }`}>
-            <Heart size={16} className={`sm:w-4 sm:h-4 md:w-5 md:h-5 ${isSaved ? 'fill-current' : ''}`} />
+          <button
+            onClick={handleShare}
+            className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
+            <Share2 size={16} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
           </button>
           <button className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
             <MessageCircle size={16} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />

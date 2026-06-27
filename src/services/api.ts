@@ -29,6 +29,7 @@ export interface User {
   occupation?: string;
   referred_by_user_id?: string | null;
   created_at?: string;
+  intro_video_url?: string | null;
   avatar_image?: string | null;
   avatar_url?: string | null;
   profile_photos?: string[];
@@ -441,6 +442,61 @@ function normalizeDeploymentOpsReport(report: any): DeploymentOpsReport {
   };
 }
 
+function isAdminApiEndpoint(endpoint: string, method: string): boolean {
+  const [path, query = ''] = endpoint.split('?');
+  const params = new URLSearchParams(query);
+
+  if (path.startsWith('/admin')) {
+    return true;
+  }
+
+  if (path === '/users') {
+    return params.get('all') === 'true';
+  }
+
+  if (path.endsWith('/admin-status') && method === 'PATCH') {
+    return true;
+  }
+
+  if (path === '/venues' && method === 'POST') {
+    return true;
+  }
+
+  if (path === '/venues/seed') {
+    return true;
+  }
+
+  if (path.startsWith('/venues/') && ['PUT', 'DELETE'].includes(method)) {
+    return true;
+  }
+
+  if (path.startsWith('/venues/') && path.includes('/reviews') && method === 'DELETE') {
+    return true;
+  }
+
+  if (path === '/celebrities' && method === 'POST') {
+    return true;
+  }
+
+  if (path.startsWith('/celebrities/') && ['PUT', 'DELETE'].includes(method)) {
+    return true;
+  }
+
+  if (path.endsWith('/reviews') && path.startsWith('/celebrities/') && method === 'POST') {
+    return true;
+  }
+
+  if (path.startsWith('/celebrities/reviews/') && method === 'DELETE') {
+    return true;
+  }
+
+  if (path.startsWith('/celebrities/') && path.includes('/bookings/') && method === 'PATCH') {
+    return true;
+  }
+
+  return false;
+}
+
 // Utility function for API calls
 async function apiCall(
   endpoint: string,
@@ -448,20 +504,21 @@ async function apiCall(
   body?: any,
   extraHeaders?: HeadersInit
 ): Promise<any> {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
+  const headers: HeadersInit = {};
 
-if (!sessionToken) {
-  sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) 
-              || sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
-}
+  if (body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (!sessionToken) {
+    sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || sessionStorage.getItem(LEGACY_SESSION_TOKEN_KEY);
+  }
 
   if (sessionToken) {
     headers['Authorization'] = `Bearer ${sessionToken}`;
   }
 
-  if (appConfig.adminSetupKey) {
+  if (appConfig.adminSetupKey && isAdminApiEndpoint(endpoint, method)) {
     headers['x-admin-setup-key'] = appConfig.adminSetupKey;
   }
 
@@ -725,12 +782,14 @@ function normalizeUserProfile(profile: any): UserProfile {
 
   const profilePhotos = parseMaybeJsonArray(profile.profile_photos) || profile.profile_photos;
   const avatarImage = profile.avatar_image || profile.avatar_url || (Array.isArray(profilePhotos) ? profilePhotos[0] : undefined);
+  const introVideoUrl = profile.intro_video_url || profile.introVideoUrl || profile.introVideo || null;
 
   return {
     ...profile,
     name: profile.name || profile.display_name || profile.full_name || '',
     interests: parseMaybeJsonArray(profile.interests) || profile.interests,
     profile_photos: profilePhotos,
+    intro_video_url: introVideoUrl,
     avatar_image: avatarImage || null,
     avatar_url: avatarImage || null,
   };
@@ -1248,7 +1307,13 @@ export async function markMessagesAsRead(conversationId: string): Promise<void> 
 // ==================== NEARBY ====================
 
 export async function getNearbyUsers(userId: string, latitude: number, longitude: number): Promise<{ nearby_users: User[] }> {
-  return apiCall(`/nearby/${userId}?lat=${latitude}&lon=${longitude}`);
+  const response = await apiCall(`/nearby/${userId}?lat=${latitude}&lon=${longitude}`);
+  return {
+    ...response,
+    nearby_users: Array.isArray(response?.nearby_users)
+      ? response.nearby_users.map((user: any) => normalizeUserProfile(user))
+      : [],
+  };
 }
 
 export async function swipeUser(

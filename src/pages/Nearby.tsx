@@ -1,924 +1,1261 @@
-"use client";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Loader2,
+  MessageCircle,
+  Play,
+  Share2,
+  Plus,
+  UserPlus,
+  X,
+} from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { Sidebar } from '../components/Sidebar';
+import * as API from '../services/api';
+import { appConfig } from '../config/appConfig';
 
-import React, { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Bell, Compass, Flame, Loader2, MapPin, ShieldCheck, User, Heart, X, MessageCircle } from "lucide-react";
-import { Sidebar } from "../components/Sidebar";
-import * as API from "../services/api";
-import { useAppContext } from "../context/AppContext";
+type NearbyMedia = {
+  type: 'image' | 'video';
+  src: string;
+};
 
-interface NearbyProps {
-  onNavigate?: (page: string) => void;
-  setActiveNav?: (nav: string) => void;
-  isLightMode?: boolean;
-  currentUser?: any;
-}
-
-interface NearbyPerson {
+type NearbyPerson = {
   id: string;
   name: string;
   profileId: string;
   city: string;
   bio: string;
-  avatar: string;
-  avatarImage?: string;
-  gallery?: string[];
-  badges: string[];
-  isVerified: boolean;
-  proximityLabel: string;
   age?: number;
   gender?: string;
-  hobbies?: string[];
-  language?: string[];
-}
+  proximityLabel: string;
+  isVerified: boolean;
+  hobbies: string[];
+  avatarImage: string;
+  media: NearbyMedia[];
+  followLabel?: string;
+  likeCount?: number;
+  commentCount?: number;
+};
 
-const mockNearbyPeople: NearbyPerson[] = [];
+type FeedToast = {
+  message: string;
+  tone: 'like' | 'pass' | 'chat' | 'share' | 'save' | 'follow' | 'info';
+};
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
+const PHOTO_DURATION_MS = 3500;
 
-function friendlyName(...candidates: Array<string | null | undefined>) {
-  for (const candidate of candidates) {
-    const value = String(candidate || '').trim();
-    if (!value) continue;
+const demoNearbyPeople: NearbyPerson[] = [
+  {
+    id: 'demo-1',
+    name: 'Chioma',
+    profileId: 'JNT-0021',
+    city: 'Lagos',
+    bio: 'Product manager, brunch enthusiast, and part-time art collector.',
+    age: 27,
+    gender: 'Female',
+    proximityLabel: '0.8 km away',
+    isVerified: true,
+    hobbies: ['Hiking', 'Photography', 'Cooking'],
+    avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
+    media: [
+      { type: 'video', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=1200' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=1200' },
+    ],
+    followLabel: 'Follow',
+    likeCount: 18,
+    commentCount: 4,
+  },
+  {
+    id: 'demo-2',
+    name: 'Tunde',
+    profileId: 'JNT-0044',
+    city: 'Lagos',
+    bio: 'Software engineer who loves live music, football, and trying new spots.',
+    age: 31,
+    gender: 'Male',
+    proximityLabel: '1.4 km away',
+    isVerified: true,
+    hobbies: ['Sports', 'Music', 'Travel'],
+    avatarImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600',
+    media: [
+      { type: 'video', src: 'https://www.w3schools.com/html/movie.mp4' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=1200' },
+    ],
+    followLabel: 'Follow',
+    likeCount: 9,
+    commentCount: 2,
+  },
+  {
+    id: 'demo-3',
+    name: 'Zara',
+    profileId: 'JNT-0067',
+    city: 'Abuja',
+    bio: 'Designer with a soft spot for galleries, good coffee, and weekend getaways.',
+    age: 24,
+    gender: 'Female',
+    proximityLabel: '2.1 km away',
+    isVerified: true,
+    hobbies: ['Art', 'Reading', 'Yoga'],
+    avatarImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600',
+    media: [
+      { type: 'image', src: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=1200' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1200' },
+      { type: 'video', src: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+    ],
+    followLabel: 'Follow',
+    likeCount: 12,
+    commentCount: 6,
+  },
+  {
+    id: 'demo-4',
+    name: 'Chidi',
+    profileId: 'JNT-0089',
+    city: 'Lagos',
+    bio: 'Founder, foodie, and always down for a spontaneous evening plan.',
+    age: 29,
+    gender: 'Male',
+    proximityLabel: '3.0 km away',
+    isVerified: false,
+    hobbies: ['Fitness', 'Music', 'Travel'],
+    avatarImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600',
+    media: [
+      { type: 'image', src: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=1200' },
+      { type: 'video', src: 'https://www.w3schools.com/html/movie.mp4' },
+      { type: 'image', src: 'https://images.unsplash.com/photo-1463453091185-61582044d556?w=1200' },
+    ],
+    followLabel: 'Follow',
+    likeCount: 7,
+    commentCount: 3,
+  },
+];
 
-    const stripped = value
-      .replace(/[_-]+/g, ' ')
-      .replace(/\d+$/g, '')
-      .trim();
-
-    if (!stripped) {
-      continue;
-    }
-
-    if (stripped.includes(' ')) {
-      return stripped.replace(/\s+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-    }
-
-    return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+function parseMaybeJsonArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).map(String);
   }
 
-  return 'Nearby friend';
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean).map(String);
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
 }
 
-function normalizeNearbyPerson(person: API.User, index: number): NearbyPerson {
-  const fallbackNames = ["Ada", "Tunde", "Zara", "Oge", "Kemi", "Chidi"];
-  const displayName = friendlyName(person.display_name, person.full_name, person.username, fallbackNames[index % fallbackNames.length]);
-  const ageRanges = [[25, 28], [32, 35], [19, 24], [45, 48], [29, 31], [22, 26]];
-  const genders = ["Female", "Male", "Female", "Male", "Female", "Male"];
-  const hobbyLists = [
-    ["Hiking", "Photography", "Cooking"],
-    ["Sports", "Music", "Travel"],
-    ["Art", "Reading", "Yoga"],
-    ["Gaming", "Movies", "Cooking"],
-    ["Fitness", "Music", "Travel"],
-    ["Painting", "Books", "Sports"]
-  ];
-  const languages = [
-    ["English", "French"],
-    ["English", "Spanish"],
-    ["English", "Yoruba"],
-    ["English", "Italian"],
-    ["English", "German"],
-    ["English", "Hausa"]
-  ];
+// Uploaded media is served by the API server, which often runs on a
+// different origin/port than the frontend (e.g. localhost:5000 vs 5173).
+// Strip a trailing "/api" so we resolve against the server root.
+const API_SERVER_ORIGIN = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
 
-  const age = ageRanges[index % ageRanges.length][0];
-  const gallery = Array.isArray((person as any).profile_photos) ? ((person as any).profile_photos as string[]).filter(Boolean) : [];
+function resolveMediaUrl(value?: string) {
+  if (!value) {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${API_SERVER_ORIGIN}${path}`;
+}
+
+function normalizeNearbyPerson(person: any, index: number): NearbyPerson {
+  const profilePhotos = parseMaybeJsonArray(person.profile_photos);
+  const introVideo = person.intro_video_url || person.introVideo || '';
+  const avatarImage =
+    person.avatar_image ||
+    person.avatar_url ||
+    person.profile_avatar ||
+    person.profile_photo ||
+    person.avatarUrl ||
+    person.photo ||
+    profilePhotos[0] ||
+    '';
+
+  const media: NearbyMedia[] = [
+    ...(introVideo ? [{ type: 'video' as const, src: introVideo }] : []),
+    ...profilePhotos.map((src) => ({ type: 'image' as const, src })),
+  ].filter((item) => Boolean(item.src));
+
+  if (media.length === 0 && avatarImage) {
+    media.push({ type: 'image', src: avatarImage });
+  }
 
   return {
-    id: person.id,
-    name: displayName,
-    profileId: person.profile_id || `JNT-${String(index + 1).padStart(4, "0")}`,
-    city: person.city || "Near you",
-    bio: "A registered Junto member nearby. Tap in and say hi.",
-    avatar: initials(displayName),
-    avatarImage: gallery[0] || (person as any).profile_photo || undefined,
-    gallery,
-    badges: ["Nearby"],
-    isVerified: true,
-    proximityLabel: `${index + 1}.${(index + 3) % 10} km away`,
-    age,
-    gender: genders[index % genders.length],
-    hobbies: hobbyLists[index % hobbyLists.length],
-    language: languages[index % languages.length],
+    id: String(person.id || `nearby-${index}`),
+    name: person.display_name || person.username || person.name || 'Nearby person',
+    profileId: person.profile_id || `JNT-${String(index + 1).padStart(4, '0')}`,
+    city: person.city || person.location || 'Nearby',
+    bio: person.bio || `Say hello to ${person.display_name || person.username || person.name || 'this person'}.`,
+    age: typeof person.age === 'number' ? person.age : undefined,
+    gender: person.gender || '',
+    proximityLabel: person.proximityLabel || person.distanceLabel || `${(index + 1) * 0.6} km away`,
+    isVerified: Boolean(
+      person.is_verified ||
+      person.isVerified ||
+      person.fraud_verification_status === 'verified' ||
+      person.verification_status === 'verified'
+    ),
+    hobbies: parseMaybeJsonArray(person.interests || person.hobbies),
+    avatarImage: resolveMediaUrl(avatarImage || profilePhotos[0] || ''),
+    media,
+    followLabel: person.followLabel || 'Follow',
+    likeCount: typeof person.likeCount === 'number' ? person.likeCount : undefined,
+    commentCount: typeof person.commentCount === 'number' ? person.commentCount : undefined,
   };
 }
 
-export const Nearby: React.FC<NearbyProps> = ({
-  onNavigate = () => {},
-  setActiveNav = () => {},
-  isLightMode = false,
-  currentUser,
-}) => {
-  const { setSelectedUser } = useAppContext();
-  const [people, setPeople] = useState<NearbyPerson[]>(mockNearbyPeople);
-  const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<"All" | "Verified" | "Close" | "New">("All");
-  const [ageFilter, setAgeFilter] = useState<string | null>(null);
-  const [genderFilter, setGenderFilter] = useState<string | null>(null);
-  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
-  const [hobbyFilter, setHobbyFilter] = useState<string | null>(null);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
-  const [dislikedUserIds, setDislikedUserIds] = useState<Set<string>>(new Set());
-  const [swipeMessage, setSwipeMessage] = useState<{ text: string; type: 'like' | 'dislike' } | null>(null);
-  const [likeActionModal, setLikeActionModal] = useState<NearbyPerson | null>(null);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [fetchError, setFetchError] = useState('');
-  const [refreshCount, setRefreshCount] = useState(0);
+function normalizeFallbackPeople() {
+  return demoNearbyPeople.map((person) => ({
+    ...person,
+    media: person.media.map((media) => ({ ...media, src: resolveMediaUrl(media.src) })),
+    avatarImage: resolveMediaUrl(person.avatarImage),
+  }));
+}
+
+function MediaViewer({
+  open,
+  items,
+  index,
+  onClose,
+  onPrev,
+  onNext,
+  title,
+}: {
+  open: boolean;
+  items: NearbyMedia[];
+  index: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  title: string;
+}) {
+  if (!open || items.length === 0) {
+    return null;
+  }
+
+  const active = items[index];
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 px-4 py-6 backdrop-blur-md"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 16 }}
+          transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+          className="relative h-[88vh] w-full max-w-5xl overflow-hidden rounded-[32px] border border-white/10 bg-[#060606] shadow-2xl"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#FFD700]/80">Media Viewer</p>
+              <h3 className="mt-1 text-sm font-semibold text-white">{title}</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {items.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onPrev}
+                    className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                    aria-label="Previous media"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onNext}
+                    className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                    aria-label="Next media"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                aria-label="Close viewer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex h-[calc(88vh-56px)] items-center justify-center bg-black px-4">
+            {active.type === 'video' ? (
+              <video
+                src={resolveMediaUrl(active.src)}
+                controls
+                autoPlay
+                muted
+                playsInline
+                className="max-h-full w-full rounded-2xl object-contain"
+                onError={() => {
+                  console.warn('[Nearby] media viewer video failed to load:', active.src);
+                }}
+              />
+            ) : (
+              <img
+                src={resolveMediaUrl(active.src)}
+                alt={title}
+                className="max-h-full w-full rounded-2xl object-contain"
+              />
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function PersonCard({
+  person,
+  isActive,
+  viewerOpen,
+  onLike,
+  onPass,
+  onChat,
+  onProfile,
+  onFollow,
+  onShare,
+  onBookmark,
+  onOpenMedia,
+}: {
+  person: NearbyPerson;
+  isActive: boolean;
+  viewerOpen: boolean;
+  onLike: (person: NearbyPerson) => void;
+  onPass: (person: NearbyPerson) => void;
+  onChat: (person: NearbyPerson) => void;
+  onProfile: (person: NearbyPerson) => void;
+  onCreateEvent: (person: NearbyPerson) => void;
+  onShare: (person: NearbyPerson) => void;
+  onBookmark: (person: NearbyPerson) => void;
+  onOpenMedia: (person: NearbyPerson, index: number) => void;
+}) {
+  const [mediaIndex, setMediaIndex] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const transitionTimerRef = useRef<number | null>(null);
+
+  const currentMedia = person.media.length > 0
+    ? person.media[Math.min(mediaIndex, person.media.length - 1)]
+    : null;
+
+  const clearTimers = useCallback(() => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (transitionTimerRef.current) {
+      window.clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+  }, []);
+
+  const advanceMedia = useCallback(() => {
+    if (person.media.length <= 1) {
+      setMediaIndex(0);
+      return;
+    }
+
+    setTransitioning(true);
+    transitionTimerRef.current = window.setTimeout(() => {
+      setMediaIndex((current) => (current + 1) % person.media.length);
+      setTransitioning(false);
+    }, 220);
+  }, [person.media.length]);
 
   useEffect(() => {
-    let mounted = true;
+    setMediaIndex(0);
+    setTransitioning(false);
+    clearTimers();
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  }, [person.id, clearTimers]);
 
-    const fetchNearbyPeople = async () => {
+  useEffect(() => {
+    if (!isActive || viewerOpen) {
+      clearTimers();
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+      return;
+    }
+
+    setMediaIndex(0);
+  }, [isActive, viewerOpen, clearTimers]);
+
+  useEffect(() => {
+    if (!isActive || viewerOpen || !currentMedia) {
+      clearTimers();
+      return;
+    }
+
+    clearTimers();
+
+    if (currentMedia.type === 'image') {
+      timerRef.current = window.setTimeout(advanceMedia, PHOTO_DURATION_MS);
+      return;
+    }
+
+    const video = videoRef.current;
+    if (video) {
+      video.currentTime = 0;
+      void video.play().catch(() => {});
+    }
+  }, [advanceMedia, clearTimers, currentMedia, isActive, mediaIndex, viewerOpen]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (!isActive || viewerOpen) {
+      video.pause();
+    }
+  }, [isActive, viewerOpen, mediaIndex]);
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+    };
+  }, [clearTimers]);
+
+  const handleLike = () => {
+    setLiked(true);
+    onLike(person);
+  };
+
+  const handlePass = () => {
+    onPass(person);
+  };
+
+  const handleFollow = () => {
+    onCreateEvent(person);
+  };
+
+  const mediaCount = person.media.length;
+
+  return (
+    <section className="relative h-screen w-full overflow-hidden bg-black">
+      <button
+        type="button"
+        onClick={() => onOpenMedia(person, mediaIndex)}
+        onWheel={(event) => {
+          const scrollContainer = event.currentTarget.closest('.nearby-feed-scrollbar');
+          if (scrollContainer instanceof HTMLElement) {
+            scrollContainer.scrollBy({ top: event.deltaY, behavior: 'auto' });
+          }
+        }}
+        className="absolute inset-0 z-0 h-full w-full cursor-pointer"
+        style={{ touchAction: 'pan-y' }}
+        aria-label={`Open ${person.name}'s media`}
+      >
+        {currentMedia?.type === 'video' ? (
+          <video
+            ref={videoRef}
+            key={`${person.id}-video-${mediaIndex}`}
+            src={resolveMediaUrl(currentMedia.src)}
+            className="h-full w-full object-cover"
+            autoPlay
+            muted
+            playsInline
+            preload="metadata"
+            onEnded={advanceMedia}
+            onError={() => {
+              console.warn('[Nearby] preview video failed to load:', currentMedia.src);
+              advanceMedia();
+            }}
+          />
+        ) : currentMedia?.type === 'image' ? (
+          <img
+            src={resolveMediaUrl(currentMedia.src)}
+            alt={person.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-900">
+            <div className="flex flex-col items-center gap-3 text-center text-white/75">
+              <UserPlus className="h-16 w-16" />
+              <span className="text-sm font-semibold">No media available</span>
+            </div>
+          </div>
+        )}
+      </button>
+
+      <div
+        className="absolute inset-0 z-10 pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 20%, rgba(0,0,0,0.12) 58%, rgba(0,0,0,0.88) 100%)',
+        }}
+      />
+
+      <div className="absolute inset-x-0 top-0 z-20 px-4 pt-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {person.media.map((_, index) => (
+                <span
+                  key={`${person.id}-dot-${index}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    index === mediaIndex ? 'w-6 bg-[#FFD700]' : 'w-3 bg-white/35'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-[#FFD700]/80">
+              <span>{person.profileId}</span>
+              <span className="h-1 w-1 rounded-full bg-white/50" />
+              <span>{person.proximityLabel}</span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div>
+                <h2 className="text-3xl font-black tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] sm:text-4xl">
+                  {person.name}, {person.age}
+                </h2>
+                <p className="mt-1 text-sm font-medium text-white/75">
+                  {person.city} {person.gender ? `· ${person.gender}` : ''}
+                </p>
+              </div>
+
+              {person.isVerified && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#FFD700]/40 bg-[#FFD700]/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-[#FFD700]">
+                  <span>✓</span>
+                  Verified
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleFollow}
+                className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[#FFD700]/30 bg-[#FFD700]/15 px-4 py-2 text-sm font-bold text-[#FFD700] transition hover:bg-[#FFD700]/20"
+              >
+                <Plus size={14} />
+                Create Event
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onProfile(person)}
+                className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm font-bold text-white transition hover:bg-black/40"
+              >
+                View profile
+              </button>
+            </div>
+          </div>
+
+         <div className="flex flex-col items-end gap-2">
+            <div className="pointer-events-auto rounded-full border border-[#FFD700]/25 bg-black/45 px-3 py-1.5 text-[11px] font-bold text-[#FFD700] backdrop-blur">
+              {mediaIndex + 1}/{mediaCount}
+            </div>
+            <div className="pointer-events-auto rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[11px] font-medium text-white/80 backdrop-blur">
+              Tap media to view
+            </div>
+          </div>
+        </div>
+      </div>
+      
+
+      <div className="absolute left-4 bottom-28 z-20 lg:left-8 xl:left-10">
+        <div className="flex flex-col items-start gap-3">
+          <ActionRailButton
+            icon={<Heart size={18} />}
+            label={`${person.likeCount ?? 0}`}
+            active={liked}
+            onClick={handleLike}
+          />
+          <ActionRailButton
+            icon={<MessageCircle size={18} />}
+            label={`${person.commentCount ?? 0}`}
+            onClick={() => onChat(person)}
+          />
+          <ActionRailButton
+            icon={<Bookmark size={18} />}
+            label=""
+            active={bookmarked}
+            onClick={() => {
+              setBookmarked((current) => !current);
+              onBookmark(person);
+            }}
+          />
+          <ActionRailButton
+            icon={<Share2 size={18} />}
+            label=""
+            onClick={() => onShare(person)}
+          />
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] sm:px-6 lg:px-8">
+        <div className="pointer-events-auto mx-auto max-w-7xl">
+          <div className="max-w-3xl">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {person.hobbies.map((hobby) => (
+                <span
+                  key={hobby}
+                  className="rounded-full border border-[#FFD700]/20 bg-[#FFD700]/12 px-3 py-1 text-[11px] font-semibold text-[#FFD700]"
+                >
+                  {hobby}
+                </span>
+              ))}
+            </div>
+
+            <p className="text-sm leading-6 text-white/88 sm:text-[15px]">
+              {person.bio}
+            </p>
+
+           <div className="mt-4 mb-3 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handlePass}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/8 px-4 py-4 text-sm font-bold text-white transition hover:bg-white/12 sm:flex-none sm:min-w-[120px]"
+              >
+                <X size={16} />
+                Pass
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onProfile(person)}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/35 px-4 py-4 text-sm font-bold text-white transition hover:bg-black/50 sm:flex-none sm:min-w-[150px]"
+              >
+                <Play size={16} />
+                Profile
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onChat(person)}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[#FFD700]/30 bg-[#FFD700]/15 px-4 py-4 text-sm font-bold text-[#111] transition hover:bg-[#FFD700]/20 sm:flex-none sm:min-w-[150px]"
+              >
+                <MessageCircle size={16} />
+                Message
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLike}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-sm font-extrabold transition sm:flex-none sm:min-w-[160px] ${
+                  liked
+                    ? 'border-[#FFD700]/50 bg-[#FFD700] text-black'
+                    : 'border-[#FFD700]/30 bg-gradient-to-r from-[#FFD700] to-[#FFB800] text-black shadow-[0_16px_34px_rgba(255,215,0,0.22)]'
+                }`}
+              >
+                <Heart size={16} fill="currentColor" />
+                Like
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onChat(person)}
+              className="mt-3 flex w-full items-center justify-between rounded-2xl border border-[#FFD700]/25 bg-[#FFD700]/12 px-4 py-4 text-left transition hover:bg-[#FFD700]/16"
+            >
+              <span className="text-sm font-semibold text-white/85">
+                Start a chat with {person.name}
+              </span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD700] text-sm font-black text-black">
+                +
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {transitioning && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/12">
+          <div className="rounded-full border border-white/10 bg-black/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-white/75 backdrop-blur">
+            Next media
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ActionRailButton({
+  icon,
+  label,
+  active = false,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1"
+    >
+      <span
+        className={`flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur transition ${
+          active
+            ? 'border-[#FFD700]/45 bg-[#FFD700]/20 text-[#FFD700]'
+            : 'border-white/10 bg-black/35 text-white hover:bg-black/55'
+        }`}
+      >
+        {icon}
+      </span>
+      {label ? (
+        <span className="text-[11px] font-bold text-white/90">{label}</span>
+      ) : null}
+    </button>
+  );
+}
+
+export function Nearby({
+  onNavigate,
+  setActiveNav,
+  currentUser,
+}: {
+  onNavigate?: (page: string) => void;
+  setActiveNav?: (nav: string) => void;
+  currentUser?: any;
+}) {
+  const { setSelectedUser } = useAppContext();
+  const [people, setPeople] = useState<NearbyPerson[]>(normalizeFallbackPeople());
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [usingFallback, setUsingFallback] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<FeedToast | null>(null);
+  const [viewer, setViewer] = useState<{
+    open: boolean;
+    person: NearbyPerson | null;
+    items: NearbyMedia[];
+    index: number;
+  }>({
+    open: false,
+    person: null,
+    items: [],
+    index: 0,
+  });
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Array<HTMLElement | null>>([]);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = useCallback((message: string, tone: FeedToast['tone'] = 'info') => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message, tone });
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+    }, 2200);
+  }, []);
+
+  useEffect(() => {
+    if (setActiveNav) {
+      setActiveNav('Nearby');
+    }
+  }, [setActiveNav]);
+
+useEffect(() => {
+    let cancelled = false;
+
+    const fetchNearby = async (lat: number, lon: number) => {
+      if (!currentUser?.id) {
+        setPeople(normalizeFallbackPeople());
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       try {
-        setLoading(true);
-        setFetchError('');
-
-        if (!currentUser?.id) {
-          if (mounted) setPeople(mockNearbyPeople);
-          if (mounted) setFetchError('Sign in to see nearby people.');
+        const response = await API.getNearbyUsers(currentUser.id, lat, lon);
+        if (cancelled) {
           return;
         }
 
-        const response = await API.getNearbyUsers(currentUser.id, 0, 0);
-        const apiPeople = (response?.nearby_users || []).map((person: API.User, index: number) =>
-          normalizeNearbyPerson(person, index),
+        const normalized = (response.nearby_users || []).map((person, index) =>
+          normalizeNearbyPerson(person, index)
         );
 
-        if (mounted) {
-          setPeople(apiPeople.length > 0 ? apiPeople : mockNearbyPeople);
+        if (normalized.length > 0) {
+          setPeople(normalized);
+          setUsingFallback(false);
+        } else {
+          setPeople(normalizeFallbackPeople());
+          setUsingFallback(true);
         }
       } catch (error) {
-        console.error("Failed to fetch nearby people:", error);
-        if (mounted) {
-          setPeople(mockNearbyPeople);
-          setFetchError("We couldn't load nearby people right now. Please try again.");
+        if (!cancelled) {
+          console.error('Failed to fetch nearby users:', error);
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Unable to reach nearby backend service.'
+          );
+          setPeople(normalizeFallbackPeople());
+          setUsingFallback(true);
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchNearbyPeople();
+    const loadNearby = async () => {
+      console.log('[Nearby] loadNearby called, currentUser:', currentUser);
+      if (!currentUser?.id) {
+        console.log('[Nearby] no currentUser.id, using fallback');
+        setPeople(normalizeFallbackPeople());
+        setLoading(false);
+        return;
+      }
+      console.log('[Nearby] calling getNearbyUsers for', currentUser.id);
 
-    return () => { mounted = false; };
-  }, [currentUser?.id, refreshCount]);
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!cancelled) {
+              void fetchNearby(position.coords.latitude, position.coords.longitude);
+            }
+          },
+          () => {
+            if (!cancelled) {
+              void fetchNearby(0, 0);
+            }
+          },
+          { timeout: 8000 }
+        );
+      } else {
+        void fetchNearby(0, 0);
+      }
+    };
 
-  const filteredPeople = useMemo(() => {
-    let filtered = people.filter(person => !dislikedUserIds.has(person.id) && !likedUserIds.has(person.id));
-    switch (activeFilter) {
-      case "Verified": filtered = filtered.filter((p) => p.isVerified); break;
-      case "Close": filtered = filtered.slice(0, 3); break;
-      case "New": filtered = filtered.filter((p) => p.badges.includes("Nearby")); break;
+    loadNearby();
+
+    return () => {
+      cancelled = true;
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const container = feedRef.current;
+    if (!container || people.length === 0) {
+      return;
     }
-    if (verifiedOnly) filtered = filtered.filter((p) => p.isVerified);
-    if (ageFilter) {
-      filtered = filtered.filter((p) => {
-        if (!p.age) return false;
-        if (ageFilter === "18-30") return p.age >= 18 && p.age <= 30;
-        if (ageFilter === "30-50") return p.age >= 30 && p.age <= 50;
-        return true;
-      });
-    }
-    if (genderFilter) filtered = filtered.filter((p) => p.gender === genderFilter);
-    if (languageFilter) filtered = filtered.filter((p) => p.language && p.language.includes(languageFilter));
-    if (hobbyFilter) filtered = filtered.filter((p) => p.hobbies && p.hobbies.includes(hobbyFilter));
-    return filtered;
-  }, [activeFilter, people, dislikedUserIds, likedUserIds, verifiedOnly, ageFilter, genderFilter, languageFilter, hobbyFilter]);
 
-  const currentPerson = filteredPeople[0] || null;
-  const nextPeople = filteredPeople.slice(1, 4);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
 
-  const handleDislikePerson = async (personId: string) => {
-    if (!currentUser?.id) return;
-    try {
-      const newDisliked = new Set(dislikedUserIds);
-      newDisliked.add(personId);
-      setDislikedUserIds(newDisliked);
-      setSwipeMessage({ text: `Passed`, type: 'dislike' });
-      await API.swipeUser(currentUser.id, personId, 'left');
-      setTimeout(() => setSwipeMessage(null), 1500);
-    } catch (error) {
-      console.error('Failed to dislike user:', error);
-      const newDisliked = new Set(dislikedUserIds);
-      newDisliked.delete(personId);
-      setDislikedUserIds(newDisliked);
-    }
-  };
+          const index = cardRefs.current.findIndex((card) => card === entry.target);
+          if (index >= 0) {
+            setActiveIdx(index);
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.65,
+      }
+    );
 
-  const handleLikeAndShowModal = (person: NearbyPerson) => {
-    setLikeActionModal(person);
-  };
-
-  const openProfile = (person: NearbyPerson) => {
-    setSelectedUser?.({
-      id: person.id,
-      name: person.name,
-      username: person.name,
-      display_name: person.name,
-      profile_id: person.profileId,
-      city: person.city,
-      bio: person.bio,
-      avatarImage: person.avatarImage,
-      avatar_image: person.avatarImage,
-      profile_photos: person.gallery || [],
-      age: person.age,
-      gender: person.gender,
-      interests: person.hobbies || [],
-      location: person.city,
+    cardRefs.current.forEach((card) => {
+      if (card) {
+        observer.observe(card);
+      }
     });
-    setActiveNav('Profile');
-    onNavigate('profile');
-  };
 
-  const openMessages = (person: NearbyPerson) => {
-    sessionStorage.setItem('junto-message-target', JSON.stringify({
-      id: person.id,
-      name: person.name,
-      display_name: person.name,
-      profile_id: person.profileId,
-      avatarImage: person.avatarImage || '',
-      city: person.city,
-    }));
-    setActiveNav('Messages');
-    onNavigate('messages');
-  };
+    return () => {
+      observer.disconnect();
+    };
+  }, [people]);
 
-  const handleSaveForLater = async (person: NearbyPerson) => {
-    if (!currentUser?.id) return;
-    try {
-      await API.swipeUser(currentUser.id, person.id, 'right');
-      const newLiked = new Set(likedUserIds);
-      newLiked.add(person.id);
-      setLikedUserIds(newLiked);
-      setSwipeMessage({ text: `✅ ${person.name} saved to your friends!`, type: 'like' });
-      setLikeActionModal(null);
-      setTimeout(() => setSwipeMessage(null), 2500);
-    } catch (error) {
-      console.error('Failed to save person:', error);
+  useEffect(() => {
+    if (!viewer.open) {
+      return;
     }
-  };
 
-  const handleCreateEvent = (person: NearbyPerson) => {
-    setLikeActionModal(null);
-    onNavigate('HostDashboard');
-    setActiveNav('HostDashboard');
-  };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setViewer({
+          open: false,
+          person: null,
+          items: [],
+          index: 0,
+        });
+      } else if (event.key === 'ArrowLeft') {
+        setViewer((current) => ({
+          ...current,
+          index: (current.index - 1 + current.items.length) % current.items.length,
+        }));
+      } else if (event.key === 'ArrowRight') {
+        setViewer((current) => ({
+          ...current,
+          index: (current.index + 1) % current.items.length,
+        }));
+      }
+    };
 
-  // ─── Theme tokens ────────────────────────────────────────────────────────────
-  const bg         = isLightMode ? "#F0EDE8" : "#0B0C14";
-  const surface    = isLightMode ? "rgba(255,255,255,0.85)" : "rgba(17,18,28,0.90)";
-  const surfaceAlt = isLightMode ? "rgba(255,255,255,0.65)" : "rgba(22,23,36,0.80)";
-  const border     = isLightMode ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.07)";
-  const coral      = "#FF6B47";
-  const teal       = "#00C9A7";
-  const ink        = isLightMode ? "#111118" : "#F2F0EC";
-  const muted      = isLightMode ? "#7a7670" : "#6B7280";
-  const glass      = isLightMode
-    ? "rgba(255,255,255,0.72)"
-    : "rgba(11,12,20,0.72)";
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewer.open]);
 
-  const filterBtnStyle = (active: boolean) => ({
-    background: active ? coral : surfaceAlt,
-    color: active ? "#fff" : ink,
-    border: `1px solid ${active ? coral : border}`,
-    borderRadius: "9999px",
-    padding: "6px 18px",
-    fontSize: "13px",
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "all 0.18s ease",
-    backdropFilter: "blur(8px)",
-  } as React.CSSProperties);
+  const scrollToIndex = useCallback((index: number) => {
+    const target = cardRefs.current[index];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleNavigationKeyDown = (event: KeyboardEvent) => {
+      if (viewer.open) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest('input,textarea,[contenteditable="true"]') ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const isNext = event.key === 'ArrowDown' || event.key === 'PageDown';
+      const isPrev = event.key === 'ArrowUp' || event.key === 'PageUp';
+      if (!isNext && !isPrev) {
+        return;
+      }
+
+      const nextIndex = isNext
+        ? Math.min(activeIdx + 1, people.length - 1)
+        : Math.max(activeIdx - 1, 0);
+
+      if (nextIndex === activeIdx) {
+        return;
+      }
+
+      event.preventDefault();
+      scrollToIndex(nextIndex);
+    };
+
+    window.addEventListener('keydown', handleNavigationKeyDown);
+    return () => window.removeEventListener('keydown', handleNavigationKeyDown);
+  }, [activeIdx, people.length, scrollToIndex, viewer.open]);
+
+  useEffect(() => {
+    const body = document.body;
+    const previous = body.style.overflow;
+    body.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = previous;
+    };
+  }, []);
+
+  const handleLike = useCallback(
+    (person: NearbyPerson) => {
+      showToast(`Liked ${person.name}`, 'like');
+      if (currentUser?.id) {
+        void API.swipeUser(currentUser.id, person.id, 'right').catch((error) => {
+          console.error('Failed to record like:', error);
+        });
+      }
+    },
+    [currentUser?.id, showToast]
+  );
+
+  const handlePass = useCallback(
+    (person: NearbyPerson) => {
+      showToast(`Passed on ${person.name}`, 'pass');
+      if (currentUser?.id) {
+        void API.swipeUser(currentUser.id, person.id, 'left').catch((error) => {
+          console.error('Failed to record pass:', error);
+        });
+      }
+      const nextIndex = Math.min(activeIdx + 1, Math.max(people.length - 1, 0));
+      scrollToIndex(nextIndex);
+    },
+    [activeIdx, currentUser?.id, people.length, scrollToIndex, showToast]
+  );
+
+  const handleChat = useCallback(
+    (person: NearbyPerson) => {
+      showToast(`Opening chat with ${person.name}`, 'chat');
+      if (setSelectedUser) {
+        void API.getUserProfile(person.id)
+          .then((profile) => {
+            setSelectedUser({
+              ...person,
+              ...profile,
+              profile_photos: profile.profile_photos || person.media.filter((item) => item.type === 'image').map((item) => item.src),
+              intro_video_url: profile.intro_video_url || person.media.find((item) => item.type === 'video')?.src || null,
+            });
+          })
+          .catch(() => {
+            setSelectedUser(person);
+          });
+      }
+      onNavigate?.('messages');
+    },
+    [onNavigate, setSelectedUser, showToast]
+  );
+
+  const openProfile = useCallback(
+    async (person: NearbyPerson) => {
+      try {
+        const profile = await API.getUserProfile(person.id);
+        setSelectedUser?.({
+          ...person,
+          ...profile,
+          profile_photos: profile.profile_photos || person.media.filter((item) => item.type === 'image').map((item) => item.src),
+          intro_video_url: profile.intro_video_url || person.media.find((item) => item.type === 'video')?.src || null,
+        });
+      } catch (error) {
+        console.error('Failed to load public profile:', error);
+        setSelectedUser?.(person);
+      }
+
+      setActiveNav?.('Profile');
+      onNavigate?.('profile');
+    },
+    [onNavigate, setActiveNav, setSelectedUser]
+  );
+
+  const handleFollow = useCallback((person: NearbyPerson) => {
+    showToast(`Following ${person.name}`, 'follow');
+    onCreateEvent(person);
+  }, [showToast]);
+
+  const handleBookmark = useCallback((person: NearbyPerson) => {
+    showToast(`Saved ${person.name} for later`, 'save');
+  }, [showToast]);
+
+  const handleShare = useCallback(
+    async (person: NearbyPerson) => {
+      const shareText = `Check out ${person.name}'s profile on Nearby`;
+      const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/profile` : '/profile';
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: `${person.name} on Nearby`,
+            text: shareText,
+            url: shareUrl,
+          });
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+          showToast('Profile link copied', 'share');
+          return;
+        }
+        showToast('Profile shared', 'share');
+      } catch (error) {
+        console.error('Failed to share profile:', error);
+        showToast('Could not share profile', 'info');
+      }
+    },
+    [showToast]
+  );
+
+  const openMediaViewer = useCallback(
+    (person: NearbyPerson, index: number) => {
+      setViewer({
+        open: true,
+        person,
+        items: person.media,
+        index,
+      });
+    },
+    []
+  );
+
+  const closeMediaViewer = useCallback(() => {
+    setViewer({
+      open: false,
+      person: null,
+      items: [],
+      index: 0,
+    });
+  }, []);
+
+  const prevMedia = useCallback(() => {
+    setViewer((current) => ({
+      ...current,
+      index: (current.index - 1 + current.items.length) % current.items.length,
+    }));
+  }, []);
+
+  const nextMedia = useCallback(() => {
+    setViewer((current) => ({
+      ...current,
+      index: (current.index + 1) % current.items.length,
+    }));
+  }, []);
+
+  const feedEmpty = useMemo(() => !loading && people.length === 0, [loading, people.length]);
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, color: ink }} className="font-sans">
+    <div className="relative h-full min-h-screen overflow-hidden bg-black text-white">
+      <style>{`
+        .nearby-feed-scrollbar::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
+      `}</style>
 
-      {/* ── Toast ─────────────────────────────────────────────────────────── */}
-      {swipeMessage && (
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -16 }}
-          style={{
-            position: "fixed", top: 20, right: 20, zIndex: 60,
-            background: swipeMessage.type === 'like' ? teal : coral,
-            color: "#fff",
-            borderRadius: "9999px",
-            padding: "8px 18px",
-            fontSize: "13px",
-            fontWeight: 700,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
-            display: "flex", alignItems: "center", gap: 8,
-          }}
-        >
-          <Bell size={13} />
-          {swipeMessage.text}
-        </motion.div>
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-[#FFD700]" />
+            <p className="text-sm text-white/60">Loading nearby people...</p>
+          </div>
+        </div>
       )}
 
-      {/* ── Like-action Modal ─────────────────────────────────────────────── */}
-      {likeActionModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{
-            position: "fixed", inset: 0, zIndex: 50,
-            background: "rgba(0,0,0,0.78)",
-            backdropFilter: "blur(12px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "0 16px",
-          }}
-          onClick={() => setLikeActionModal(null)}
+      {errorMessage && !loading && (
+        <div className="fixed left-1/2 top-20 z-[90] w-[min(92vw,640px)] -translate-x-1/2 rounded-3xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100 shadow-2xl backdrop-blur">
+          <p className="font-semibold">Unable to load nearby users</p>
+          <p className="mt-2 text-white/80">{errorMessage}</p>
+          <p className="mt-3 text-xs text-white/60">
+            Ensure the backend server is running on <span className="font-mono">http://localhost:5000</span> and your app is connected to it.
+          </p>
+        </div>
+      )}
+
+      <div className="relative">
+        <div
+          ref={feedRef}
+          className="nearby-feed-scrollbar h-screen snap-y snap-mandatory overflow-y-auto overscroll-y-contain pb-28"
+          style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          <motion.div
-            initial={{ scale: 0.93, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            style={{
-              width: "100%", maxWidth: 400,
-              background: isLightMode ? "#fff" : "#13141F",
-              border: `1px solid ${border}`,
-              borderRadius: "28px",
-              padding: "32px 28px",
-              boxShadow: "0 40px 100px rgba(0,0,0,0.4)",
+        {people.map((person, index) => (
+          <div
+            key={person.id}
+            ref={(element) => {
+              cardRefs.current[index] = element;
             }}
-            onClick={(e) => e.stopPropagation()}
+            className="h-screen w-full snap-start snap-always"
           >
-            {/* Avatar row */}
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: "50%",
-                background: `linear-gradient(135deg, ${coral}, #FF9F6B)`,
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                fontSize: 32, marginBottom: 12,
-              }}>❤️</div>
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.4px" }}>
-                You liked {likeActionModal.name}
-              </div>
-              <div style={{ color: muted, fontSize: 13, marginTop: 4 }}>What's next?</div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "👤  View profile", onClick: () => openProfile(likeActionModal), bg: surfaceAlt, color: ink },
-                { label: `💬  Message ${likeActionModal.name}`, onClick: () => openMessages(likeActionModal), bg: "#2563EB", color: "#fff" },
-                { label: `✨  Create an event together`, onClick: () => handleCreateEvent(likeActionModal), bg: coral, color: "#fff" },
-                { label: "💾  Save for later", onClick: () => handleSaveForLater(likeActionModal), bg: "transparent", color: ink, extraStyle: { border: `1px solid ${border}` } },
-              ].map((btn) => (
-                <button
-                  key={btn.label}
-                  onClick={btn.onClick}
-                  style={{
-                    background: btn.bg,
-                    color: btn.color,
-                    border: "none",
-                    borderRadius: "14px",
-                    padding: "13px 18px",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "opacity 0.15s",
-                    ...(btn.extraStyle || {}),
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-                >
-                  {btn.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setLikeActionModal(null)}
-                style={{
-                  marginTop: 4, background: "transparent", border: "none",
-                  color: muted, fontSize: 13, fontWeight: 600,
-                  cursor: "pointer", padding: "8px",
-                }}
-              >
-                Dismiss
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 120px" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-
-          {/* ── Page header ───────────────────────────────────────────────── */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: `${coral}18`, border: `1px solid ${coral}30`,
-              borderRadius: 9999, padding: "4px 12px",
-              fontSize: 11, fontWeight: 700, color: coral,
-              textTransform: "uppercase", letterSpacing: "0.08em",
-              marginBottom: 12,
-            }}>
-              <MapPin size={11} />
-              People near you
-            </div>
-
-            <h1 style={{
-              fontSize: "clamp(28px, 6vw, 42px)",
-              fontWeight: 900,
-              letterSpacing: "-1.2px",
-              lineHeight: 1.08,
-              margin: "0 0 10px",
-            }}>
-              Nearby members,{" "}
-              <span style={{ color: coral, fontStyle: "italic" }}>one at a time.</span>
-            </h1>
-
-            <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 480, margin: 0 }}>
-              Browse verified Junto members close to you. Like to connect or message directly.
-            </p>
+            <PersonCard
+              person={person}
+              isActive={activeIdx === index}
+              viewerOpen={viewer.open}
+              onLike={handleLike}
+              onPass={handlePass}
+              onChat={handleChat}
+              onProfile={openProfile}
+              onCreateEvent={handleFollow}
+              onShare={handleShare}
+              onBookmark={handleBookmark}
+              onOpenMedia={openMediaViewer}
+            />
           </div>
+        ))}
 
-          {/* ── Filter bar ────────────────────────────────────────────────── */}
-          <div style={{
-            display: "flex", flexWrap: "wrap", gap: 8,
-            marginBottom: showAdvancedFilters ? 16 : 24,
-          }}>
-            {(["All", "Verified", "Close", "New"] as const).map((f) => (
-              <button key={f} onClick={() => setActiveFilter(f)} style={filterBtnStyle(activeFilter === f)}>
-                {f}
-              </button>
-            ))}
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              style={filterBtnStyle(showAdvancedFilters)}
-            >
-              ⚙ Filters
-            </button>
-            <button
-              onClick={() => { setActiveNav('Messages'); onNavigate('messages'); }}
-              style={{
-                ...filterBtnStyle(false),
-                display: "inline-flex", alignItems: "center", gap: 6,
-              }}
-            >
-              <MessageCircle size={13} /> Messages
-            </button>
-
-            {/* count chip */}
-            <span style={{
-              marginLeft: "auto",
-              background: surfaceAlt,
-              border: `1px solid ${border}`,
-              borderRadius: 9999,
-              padding: "6px 14px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: muted,
-              alignSelf: "center",
-              backdropFilter: "blur(8px)",
-            }}>
-              {filteredPeople.length} nearby
-            </span>
+        {feedEmpty && (
+          <div className="flex h-screen snap-start items-center justify-center px-6">
+            <div className="max-w-md rounded-[28px] border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FFD700]/15 text-3xl">
+                ✨
+              </div>
+              <h2 className="text-2xl font-black">No nearby people yet</h2>
+              <p className="mt-3 text-sm leading-6 text-white/65">
+                Try a different city or come back later. When the backend returns profiles in your area, they’ll appear here with looping media and snap scrolling.
+              </p>
+              {usingFallback && (
+                <p className="mt-4 text-xs uppercase tracking-[0.2em] text-[#FFD700]/70">
+                  Showing demo fallback
+                </p>
+              )}
+            </div>
           </div>
-
-          {/* ── Advanced filters panel ────────────────────────────────────── */}
-          {showAdvancedFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              style={{
-                background: surface,
-                border: `1px solid ${border}`,
-                borderRadius: 20,
-                padding: "20px 20px",
-                marginBottom: 20,
-                backdropFilter: "blur(16px)",
-              }}
-            >
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                gap: 20,
-              }}>
-                {/* Age */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Age</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {["18-30", "30-50"].map((r) => (
-                      <button key={r} onClick={() => setAgeFilter(ageFilter === r ? null : r)}
-                        style={{
-                          background: ageFilter === r ? coral : "transparent",
-                          color: ageFilter === r ? "#fff" : ink,
-                          border: `1px solid ${ageFilter === r ? coral : border}`,
-                          borderRadius: 10, padding: "7px 12px",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
-                          textAlign: "left", transition: "all 0.15s",
-                        }}>
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gender */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Gender</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {["Male", "Female"].map((g) => (
-                      <button key={g} onClick={() => setGenderFilter(genderFilter === g ? null : g)}
-                        style={{
-                          background: genderFilter === g ? coral : "transparent",
-                          color: genderFilter === g ? "#fff" : ink,
-                          border: `1px solid ${genderFilter === g ? coral : border}`,
-                          borderRadius: 10, padding: "7px 12px",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
-                          textAlign: "left", transition: "all 0.15s",
-                        }}>
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Language */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Language</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {["English", "French", "Spanish", "German"].map((l) => (
-                      <button key={l} onClick={() => setLanguageFilter(languageFilter === l ? null : l)}
-                        style={{
-                          background: languageFilter === l ? coral : "transparent",
-                          color: languageFilter === l ? "#fff" : ink,
-                          border: `1px solid ${languageFilter === l ? coral : border}`,
-                          borderRadius: 10, padding: "7px 12px",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
-                          textAlign: "left", transition: "all 0.15s",
-                        }}>
-                        {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Hobbies */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Interests</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {["Hiking", "Sports", "Music", "Travel"].map((h) => (
-                      <button key={h} onClick={() => setHobbyFilter(hobbyFilter === h ? null : h)}
-                        style={{
-                          background: hobbyFilter === h ? coral : "transparent",
-                          color: hobbyFilter === h ? "#fff" : ink,
-                          border: `1px solid ${hobbyFilter === h ? coral : border}`,
-                          borderRadius: 10, padding: "7px 12px",
-                          fontSize: 13, fontWeight: 600, cursor: "pointer",
-                          textAlign: "left", transition: "all 0.15s",
-                        }}>
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Verified */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Status</div>
-                  <button
-                    onClick={() => setVerifiedOnly(!verifiedOnly)}
-                    style={{
-                      background: verifiedOnly ? teal : "transparent",
-                      color: verifiedOnly ? "#fff" : ink,
-                      border: `1px solid ${verifiedOnly ? teal : border}`,
-                      borderRadius: 10, padding: "7px 12px",
-                      fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      width: "100%", textAlign: "left",
-                      display: "flex", alignItems: "center", gap: 6,
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <ShieldCheck size={14} />
-                    Verified only
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── Main card area ────────────────────────────────────────────── */}
-          {loading ? (
-            <div style={{
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center",
-              gap: 14, padding: "72px 0",
-              background: surface, border: `1px solid ${border}`,
-              borderRadius: 24, backdropFilter: "blur(12px)",
-            }}>
-              <Loader2 style={{ color: coral, animation: "spin 1s linear infinite", width: 28, height: 28 }} />
-              <span style={{ color: muted, fontSize: 14 }}>Finding people near you…</span>
-            </div>
-
-          ) : fetchError ? (
-            <div style={{
-              textAlign: "center", padding: "56px 24px",
-              background: surface, border: `1px solid ${border}`,
-              borderRadius: 24, backdropFilter: "blur(12px)",
-            }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
-              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Couldn't reach nearby</div>
-              <div style={{ color: muted, fontSize: 14, marginBottom: 24 }}>{fetchError}</div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
-                <button onClick={() => setRefreshCount(c => c + 1)} style={{ background: coral, color: "#fff", border: "none", borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  Retry
-                </button>
-                <button
-                  onClick={() => { setActiveFilter("All"); setAgeFilter(null); setGenderFilter(null); setLanguageFilter(null); setHobbyFilter(null); setVerifiedOnly(false); setRefreshCount(c => c + 1); }}
-                  style={{ background: "transparent", color: ink, border: `1px solid ${border}`, borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                >
-                  Reset filters
-                </button>
-              </div>
-            </div>
-
-          ) : currentPerson ? (
-            /* ── Person card — cinema-poster layout ── */
-            <div style={{ position: "relative" }}>
-              {/* Ghost stack cards behind */}
-              {nextPeople.slice(0, 2).map((_, i) => (
-                <div key={i} style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: 28,
-                  background: surface,
-                  border: `1px solid ${border}`,
-                  transform: `translateY(${(i + 1) * 8}px) scale(${0.97 - i * 0.025})`,
-                  opacity: 0.35 - i * 0.12,
-                  zIndex: -1,
-                }} />
-              ))}
-
-              <motion.div
-                key={currentPerson.id}
-                initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                style={{
-                  borderRadius: 28,
-                  overflow: "hidden",
-                  border: `1px solid ${border}`,
-                  boxShadow: isLightMode
-                    ? "0 20px 64px rgba(0,0,0,0.12)"
-                    : "0 20px 64px rgba(0,0,0,0.5)",
-                  background: isLightMode ? "#fff" : "#13141F",
-                }}
-              >
-                {/* ── Photo hero — full-bleed, tall ── */}
-                <div style={{ position: "relative", height: 340, background: isLightMode ? "#E8E3DC" : "#0F1018" }}>
-                  {currentPerson.avatarImage ? (
-                    <img
-                      src={currentPerson.avatarImage}
-                      alt={currentPerson.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                  ) : (
-                    <div style={{
-                      height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                      background: `linear-gradient(135deg, ${coral}22, ${teal}22)`,
-                      fontSize: 72, fontWeight: 900, color: coral,
-                      letterSpacing: "-2px",
-                    }}>
-                      {currentPerson.avatar}
-                    </div>
-                  )}
-
-                  {/* Gradient overlay so text on photo is readable */}
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.18) 50%, transparent 100%)",
-                  }} />
-
-                  {/* ── Distance pill (top-right) ── */}
-                  <div style={{
-                    position: "absolute", top: 14, right: 14,
-                    background: glass,
-                    backdropFilter: "blur(14px)",
-                    border: `1px solid ${border}`,
-                    borderRadius: 9999,
-                    padding: "5px 12px",
-                    fontSize: 11, fontWeight: 700, color: "#fff",
-                    display: "flex", alignItems: "center", gap: 5,
-                  }}>
-                    <MapPin size={10} />
-                    {currentPerson.proximityLabel}
-                  </div>
-
-                  {/* ── Verified badge (top-left) ── */}
-                  {currentPerson.isVerified && (
-                    <div style={{
-                      position: "absolute", top: 14, left: 14,
-                      background: `${teal}CC`,
-                      backdropFilter: "blur(10px)",
-                      borderRadius: 9999,
-                      padding: "5px 11px",
-                      fontSize: 11, fontWeight: 800, color: "#fff",
-                      display: "flex", alignItems: "center", gap: 4,
-                    }}>
-                      <ShieldCheck size={11} />
-                      Verified
-                    </div>
-                  )}
-
-                  {/* ── Gallery thumbs (bottom-left) ── */}
-                  {currentPerson.gallery && currentPerson.gallery.length > 1 && (
-                    <div style={{
-                      position: "absolute", bottom: 14, left: 14,
-                      display: "flex", gap: 6,
-                    }}>
-                      {currentPerson.gallery.slice(0, 3).map((photo, i) => (
-                        <img key={`${currentPerson.id}-g-${i}`} src={photo} alt=""
-                          style={{
-                            width: 38, height: 38, borderRadius: 10,
-                            objectFit: "cover",
-                            border: "2px solid rgba(255,255,255,0.25)",
-                            boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                          }} />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── Name overlay on photo ── */}
-                  <div style={{ position: "absolute", bottom: 14, right: 14, left: currentPerson.gallery && currentPerson.gallery.length > 1 ? 140 : 14 }}>
-                    <div style={{
-                      fontSize: "clamp(22px, 5vw, 30px)",
-                      fontWeight: 900,
-                      color: "#fff",
-                      letterSpacing: "-0.6px",
-                      lineHeight: 1.1,
-                      textShadow: "0 2px 12px rgba(0,0,0,0.5)",
-                    }}>
-                      {currentPerson.name}{currentPerson.age ? `, ${currentPerson.age}` : ""}
-                    </div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.72)", marginTop: 3, fontWeight: 500 }}>
-                      {[currentPerson.city, currentPerson.gender].filter(Boolean).join(" · ")}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Card body ── */}
-                <div style={{ padding: "20px 20px 24px" }}>
-                  {/* Profile ID */}
-                  <div style={{
-                    fontSize: 10, fontWeight: 800,
-                    textTransform: "uppercase", letterSpacing: "0.15em",
-                    color: muted, marginBottom: 12,
-                    fontFamily: "monospace",
-                  }}>
-                    {currentPerson.profileId}
-                  </div>
-
-                  {/* Bio */}
-                  <p style={{ fontSize: 14, color: muted, lineHeight: 1.6, margin: "0 0 16px" }}>
-                    {currentPerson.bio}
-                  </p>
-
-                  {/* Tags row */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
-                    {currentPerson.language?.map((l) => (
-                      <span key={l} style={{
-                        background: `${teal}1A`, color: teal,
-                        border: `1px solid ${teal}30`,
-                        borderRadius: 9999, padding: "3px 10px",
-                        fontSize: 11, fontWeight: 700,
-                      }}>{l}</span>
-                    ))}
-                    {currentPerson.hobbies?.map((h) => (
-                      <span key={h} style={{
-                        background: `${coral}18`, color: coral,
-                        border: `1px solid ${coral}30`,
-                        borderRadius: 9999, padding: "3px 10px",
-                        fontSize: 11, fontWeight: 700,
-                      }}>{h}</span>
-                    ))}
-                  </div>
-
-                  {/* ── Action buttons ── */}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    {/* Pass */}
-                    <button
-                      onClick={() => void handleDislikePerson(currentPerson.id)}
-                      style={{
-                        flex: 1,
-                        background: isLightMode ? "#F0EDE8" : "#1E1F2E",
-                        color: muted,
-                        border: `1px solid ${border}`,
-                        borderRadius: 14,
-                        padding: "13px 0",
-                        fontSize: 13, fontWeight: 800,
-                        cursor: "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6B7280"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = border; }}
-                    >
-                      <X size={15} /> Pass
-                    </button>
-
-                    {/* Like */}
-                    <button
-                      onClick={() => handleLikeAndShowModal(currentPerson)}
-                      style={{
-                        flex: 2,
-                        background: coral,
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 14,
-                        padding: "13px 0",
-                        fontSize: 13, fontWeight: 800,
-                        cursor: "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        boxShadow: `0 6px 24px ${coral}44`,
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.88"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
-                    >
-                      <Heart size={15} /> Like
-                    </button>
-
-                    {/* Message */}
-                    <button
-                      onClick={() => openMessages(currentPerson)}
-                      style={{
-                        flex: 1,
-                        background: isLightMode ? "#EEF2FF" : "#1E2640",
-                        color: "#2563EB",
-                        border: `1px solid rgba(37,99,235,0.20)`,
-                        borderRadius: 14,
-                        padding: "13px 0",
-                        fontSize: 13, fontWeight: 800,
-                        cursor: "pointer",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#2563EB"; e.currentTarget.style.color = "#fff"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = isLightMode ? "#EEF2FF" : "#1E2640"; e.currentTarget.style.color = "#2563EB"; }}
-                    >
-                      <Bell size={15} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-
-          ) : (
-            /* ── Empty state ── */
-            <div style={{
-              textAlign: "center", padding: "64px 24px",
-              background: surface, border: `1px solid ${border}`,
-              borderRadius: 24,
-            }}>
-              <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.4px", marginBottom: 8 }}>
-                You've seen everyone nearby
-              </div>
-              <div style={{ color: muted, fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
-                Try adjusting your filters or check back a bit later.
-              </div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => { setActiveFilter("All"); setAgeFilter(null); setGenderFilter(null); setLanguageFilter(null); setHobbyFilter(null); setVerifiedOnly(false); }}
-                  style={{ background: "transparent", color: ink, border: `1px solid ${border}`, borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                >
-                  Clear filters
-                </button>
-                <button
-                  onClick={() => setRefreshCount(c => c + 1)}
-                  style={{ background: coral, color: "#fff", border: "none", borderRadius: 9999, padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-          )}
-
-        </motion.div>
-      </main>
+        )}
+      </div>
+      </div>
 
       <Sidebar activeNav="Nearby" onNavigate={onNavigate} setActiveNav={setActiveNav} />
+
+      <MediaViewer
+        open={viewer.open}
+        items={viewer.items}
+        index={viewer.index}
+        onClose={closeMediaViewer}
+        onPrev={prevMedia}
+        onNext={nextMedia}
+        title={viewer.person?.name || 'Nearby media'}
+      />
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            className={`fixed left-1/2 top-5 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-bold shadow-2xl backdrop-blur ${
+              toast.tone === 'like'
+                ? 'border-[#FFD700]/40 bg-[#FFD700] text-black'
+                : toast.tone === 'pass'
+                  ? 'border-rose-400/30 bg-rose-500/90 text-white'
+                  : 'border-white/10 bg-black/70 text-white'
+            }`}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
+}
 
 export default Nearby;

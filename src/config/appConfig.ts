@@ -51,7 +51,7 @@ function deriveWebSocketUrl(apiBaseUrl: string): string | undefined {
   }
 }
 
-const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), '/api');
+const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), 'http://localhost:5000/api');
 
 export const appConfig = {
   appName: readEnv('VITE_APP_NAME') || 'Wantuu',
@@ -84,10 +84,19 @@ export function getApiBaseCandidates(): string[] {
 
   if (typeof window !== 'undefined') {
     candidates.add('/api');
-    candidates.add(`${window.location.origin}/api`);
+
+    const origin = window.location.origin;
+    if (origin && origin !== 'null') {
+      candidates.add(`${origin}/api`);
+      if (origin.startsWith('https:')) {
+        candidates.add(`//localhost:5000/api`);
+        candidates.add(`//127.0.0.1:5000/api`);
+      }
+    }
   }
 
   candidates.add('http://localhost:5000/api');
+  candidates.add('http://127.0.0.1:5000/api');
 
   return Array.from(candidates).filter(Boolean);
 }
