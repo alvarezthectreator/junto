@@ -51,7 +51,8 @@ function deriveWebSocketUrl(apiBaseUrl: string): string | undefined {
   }
 }
 
-const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), 'http://localhost:5000/api');
+const defaultApiBaseUrl = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
+const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), defaultApiBaseUrl);
 
 export const appConfig = {
   appName: readEnv('VITE_APP_NAME') || 'Wantuu',

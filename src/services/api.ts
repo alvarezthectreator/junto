@@ -547,6 +547,20 @@ async function apiCall(
       const responseText = await response.text();
 
       if (!response.ok) {
+        // Debug: log failing URL/method/status and any Allow header for 405 diagnosis
+        try {
+          console.error('[apiCall] Request failed', {
+            url,
+            endpoint,
+            method,
+            status: response.status,
+            allow: response.headers.get ? response.headers.get('allow') : undefined,
+            responseText: responseText ? responseText.slice(0, 1000) : responseText,
+          });
+        } catch (e) {
+          // ignore logging errors
+        }
+
         if (!responseText) {
           routeOperationalAlert('api_response_failure', { endpoint, method, status: response.status });
           throw new Error(`API Error: ${response.status}`);
@@ -575,6 +589,12 @@ async function apiCall(
 
       return responseText;
     } catch (error) {
+      // Network or fetch-level error; include attempted URL for diagnostics
+      try {
+        console.error('[apiCall] Network/fetch error', { url, endpoint, method, error: error instanceof Error ? error.message : String(error) });
+      } catch (e) {
+        // ignore
+      }
       lastError = error;
 
       if (!isNetworkFailure(error) || index === apiBases.length - 1) {
