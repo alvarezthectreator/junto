@@ -2,7 +2,7 @@ import { appConfig } from '../config/appConfig';
 import { healthCheck } from './api';
 import { flushAnalyticsQueue, trackEvent } from './analytics';
 import { flushCrashReports, reportError } from './crashReporting';
-import { clearServiceWorkers, registerServiceWorker, updateThemeColor } from './pwa';
+import { clearServiceWorkers, updateThemeColor } from './pwa';
 
 let hasBootstrapped = false;
 let healthMonitorTimer: number | null = null;
@@ -31,11 +31,9 @@ export async function bootstrapPlatform(): Promise<void> {
   hasBootstrapped = true;
   updateThemeColor(appConfig.themeColor);
 
-  if (import.meta.env.DEV) {
-    await clearServiceWorkers();
-  }
+  await clearServiceWorkers();
 
-  void registerServiceWorker();
+  void Promise.resolve();
   flushAnalyticsQueue();
   flushCrashReports();
   void pingBackendHealth();

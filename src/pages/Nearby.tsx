@@ -1075,9 +1075,9 @@ useEffect(() => {
   );
 
   const handleFollow = useCallback((person: NearbyPerson) => {
-    showToast(`Following ${person.name}`, 'follow');
-    onCreateEvent(person);
-  }, [showToast]);
+    showToast(`Opening event creation for ${person.name}`, 'follow');
+    onNavigate?.('dashboard');
+  }, [onNavigate, showToast]);
 
   const handleBookmark = useCallback((person: NearbyPerson) => {
     showToast(`Saved ${person.name} for later`, 'save');

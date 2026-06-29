@@ -69,34 +69,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Simple request logging middleware for debugging production issues
-app.use((req, res, next) => {
-  try {
-    const safeBody = (() => {
-      if (!req.body || typeof req.body !== 'object') return req.body;
-      const copy = { ...req.body };
-      if (Object.prototype.hasOwnProperty.call(copy, 'password')) {
-        copy.password = '***REDACTED***';
-      }
-      return copy;
-    })();
-
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - client=${req.ip}`);
-    console.log('  headers:', {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent'],
-      referer: req.headers['referer'] || req.headers['referrer'],
-    });
-    if (req.method !== 'GET') {
-      console.log('  body:', safeBody);
-    }
-  } catch (e) {
-    // swallow logging errors
-  }
-
-  next();
-});
-
 // Middleware
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));

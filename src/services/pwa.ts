@@ -1,21 +1,7 @@
 import { appConfig } from '../config/appConfig';
 
 export async function registerServiceWorker(): Promise<boolean> {
-  if (
-    typeof window === 'undefined' ||
-    !('serviceWorker' in navigator) ||
-    import.meta.env.DEV
-  ) {
-    return false;
-  }
-
-  try {
-    await navigator.serviceWorker.register('/sw.js');
-    return true;
-  } catch (error) {
-    console.error('Failed to register service worker:', error);
-    return false;
-  }
+  return false;
 }
 
 export async function clearServiceWorkers(): Promise<void> {
