@@ -1,9 +1,9 @@
-const CACHE_NAME = 'junto-app-v2';
+const CACHE_NAME = 'junto-app-v3';
 const APP_SHELL = [
   '/',
   '/discover',
   '/manifest.webmanifest',
-  '/junto-icon.svg',
+  '/wantuu-icon.svg',
 ];
 
 const IS_LOCAL_DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
@@ -80,8 +80,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Junto';
   const options = {
     body: payload.body || 'You have a new update.',
-    icon: '/junto-icon.svg',
-    badge: '/junto-icon.svg',
+    icon: '/wantuu-icon.svg',
+    badge: '/wantuu-icon.svg',
     data: payload.url || '/discover',
   };
 

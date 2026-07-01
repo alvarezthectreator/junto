@@ -87,7 +87,7 @@ export function EventsMap({ events }: EventsMapProps) {
         zoom={12}
         scrollWheelZoom={false}
         style={{
-          height: '400px',
+          height: '280px',
           width: '100%',
           background: '#0F0F13'
         }}

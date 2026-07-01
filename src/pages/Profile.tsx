@@ -39,6 +39,7 @@ import React, { useState, useEffect, useRef } from 'react';
   import { Sidebar } from '../components/Sidebar';
   import { appConfig } from '../config/appConfig';
   import * as API from '../services/api';
+  import { resolveMediaUrl as resolveAvatarMediaUrl } from '../utils/avatar';
   import { compressImageDataUrl } from '../utils/imageCompression';
 
   interface ProfileProps {
@@ -156,24 +157,7 @@ import React, { useState, useEffect, useRef } from 'react';
   }
 
   function resolveMediaUrl(value?: string) {
-    if (!value || !value.trim()) {
-      return '';
-    }
-
-    const trimmed = value.trim();
-    if (isDataUrl(trimmed) || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) {
-      return trimmed;
-    }
-
-    if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
-      // In production, use current window origin for uploads (Vercel will rewrite to Railway)
-      // In development with relative /api path, use window origin
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const uploadPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-      return `${baseUrl}${uploadPath}`;
-    }
-
-    return trimmed;
+    return resolveAvatarMediaUrl(value);
   }
 
   function getAgeFromDob(dob?: string) {

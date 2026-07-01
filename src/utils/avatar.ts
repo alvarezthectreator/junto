@@ -1,7 +1,19 @@
 import { appConfig } from '../config/appConfig';
 
+const API_SERVER_ORIGIN = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
+const DEFAULT_UPLOAD_FOLDER = 'profiles';
+
 function isDataUrl(value?: string) {
   return typeof value === 'string' && value.startsWith('data:');
+}
+
+function isLocalHost(value: string) {
+  try {
+    const hostname = new URL(`http://${value}`).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
 }
 
 export function resolveMediaUrl(value?: string) {
@@ -10,16 +22,27 @@ export function resolveMediaUrl(value?: string) {
   }
 
   const trimmed = value.trim();
-  if (isDataUrl(trimmed) || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) {
+  if (isDataUrl(trimmed) || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    if (typeof window !== 'undefined' && isLocalHost(new URL(trimmed).host)) {
+      return `${API_SERVER_ORIGIN}${new URL(trimmed).pathname}${new URL(trimmed).search}${new URL(trimmed).hash}`;
+    }
+
     return trimmed;
   }
 
   if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
-    // In production, use current window origin for uploads (Vercel will rewrite to Railway)
-    // In development with relative /api path, use window origin
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    // Uploaded files are served by the backend, not the Vercel frontend.
+    const baseUrl = API_SERVER_ORIGIN;
     const uploadPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
     return `${baseUrl}${uploadPath}`;
+  }
+
+  if (/^[^/?#]+\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i.test(trimmed)) {
+    return `${API_SERVER_ORIGIN}/uploads/${DEFAULT_UPLOAD_FOLDER}/${trimmed}`;
   }
 
   return trimmed;

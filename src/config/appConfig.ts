@@ -51,7 +51,9 @@ function deriveWebSocketUrl(apiBaseUrl: string): string | undefined {
   }
 }
 
-const defaultApiBaseUrl = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
+const defaultApiBaseUrl = import.meta.env.PROD
+  ? 'https://backend-production-981c.up.railway.app/api'
+  : 'http://localhost:5000/api';
 const apiBaseUrl = normalizeUrl(readEnv('VITE_API_BASE_URL'), defaultApiBaseUrl);
 
 export const appConfig = {

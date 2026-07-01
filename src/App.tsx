@@ -889,7 +889,7 @@ export function App() {
                 className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-4 py-2 rounded-full font-semibold text-sm transition-colors"
               >
                 <Plus size={18} />
-                <span>Post</span>
+                <span>Create</span>
               </button>
               <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors relative"
                 onClick={() => navigate('/notifications')}>

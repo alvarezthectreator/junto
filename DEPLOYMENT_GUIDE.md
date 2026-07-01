@@ -1,6 +1,6 @@
 # Local Deployment Guide
 
-This project is now configured to run without Railway.
+This project can run locally or on Railway for the backend.
 
 ## Local Setup
 
@@ -56,4 +56,4 @@ The admin System Status page shows:
 
 - SQLite is the default local database.
 - Crash reports are stored in the browser's local storage unless you configure an external crash endpoint.
-- If you want a public deployment later, we can wire up a different host without bringing Railway back.
+- For production, deploy the backend to Railway and the frontend to Vercel.

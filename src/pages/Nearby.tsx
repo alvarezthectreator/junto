@@ -2,14 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Bookmark,
   ChevronLeft,
   ChevronRight,
   Heart,
   Loader2,
   MessageCircle,
   Play,
-  Share2,
   Plus,
   UserPlus,
   X,
@@ -17,7 +15,7 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { Sidebar } from '../components/Sidebar';
 import * as API from '../services/api';
-import { appConfig } from '../config/appConfig';
+import { resolveMediaUrl as resolveAvatarMediaUrl } from '../utils/avatar';
 
 type NearbyMedia = {
   type: 'image' | 'video';
@@ -158,32 +156,8 @@ function parseMaybeJsonArray(value: unknown): string[] {
   return [];
 }
 
-// Uploaded media is served by the API server, which often runs on a
-// different origin/port than the frontend (e.g. localhost:5000 vs 5173).
-// Strip a trailing "/api" so we resolve against the server root.
-const API_SERVER_ORIGIN = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
-
 function resolveMediaUrl(value?: string) {
-  if (!value) {
-    return '';
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  if (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('data:') ||
-    trimmed.startsWith('blob:')
-  ) {
-    return trimmed;
-  }
-
-  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return `${API_SERVER_ORIGIN}${path}`;
+  return resolveAvatarMediaUrl(value);
 }
 
 function normalizeNearbyPerson(person: any, index: number): NearbyPerson {
@@ -604,36 +578,6 @@ function PersonCard({
         </div>
       </div>
       
-
-      <div className="absolute left-4 bottom-28 z-20 lg:left-8 xl:left-10">
-        <div className="flex flex-col items-start gap-3">
-          <ActionRailButton
-            icon={<Heart size={18} />}
-            label={`${person.likeCount ?? 0}`}
-            active={liked}
-            onClick={handleLike}
-          />
-          <ActionRailButton
-            icon={<MessageCircle size={18} />}
-            label={`${person.commentCount ?? 0}`}
-            onClick={() => onChat(person)}
-          />
-          <ActionRailButton
-            icon={<Bookmark size={18} />}
-            label=""
-            active={bookmarked}
-            onClick={() => {
-              setBookmarked((current) => !current);
-              onBookmark(person);
-            }}
-          />
-          <ActionRailButton
-            icon={<Share2 size={18} />}
-            label=""
-            onClick={() => onShare(person)}
-          />
-        </div>
-      </div>
 
       <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] sm:px-6 lg:px-8">
         <div className="pointer-events-auto mx-auto max-w-7xl">

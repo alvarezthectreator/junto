@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sidebar } from '../components/Sidebar';
 import { getVenues } from '../services/api';
+import { resolveMediaUrl } from '../utils/avatar';
 import {
   ArrowLeft, MapPin, Clock, Phone, X, Send,
   Film, Wine, Waves, Trophy, CircleDot, Dumbbell, Sofa, Palette, Building2,
@@ -147,7 +148,14 @@ export function Venues() {
   }
 
   function getPhotos(venue: Venue): string[] {
-    try { return JSON.parse(venue.photo_urls) || []; } catch { return []; }
+    try {
+      const parsed = JSON.parse(venue.photo_urls) || [];
+      return Array.isArray(parsed)
+        ? parsed.map((photo) => resolveMediaUrl(String(photo || ''))).filter(Boolean)
+        : [];
+    } catch {
+      return [];
+    }
   }
 
   function toggleLike(id: string) {

@@ -40,6 +40,7 @@ import {
   writeMessageStore,
 } from '../utils/messageStore';
 import * as API from '../services/api';
+import { resolveMediaUrl } from '../utils/avatar';
 import type { WebRTCSignal } from '../hooks/useWebRTC';
 import { RealtimeSocket } from '../services/realtimeSocket';
 
@@ -912,7 +913,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             className="flex items-center gap-2 rounded-full bg-[#F59E0B] px-3 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#F59E0B]/90 md:px-4"
           >
             <Plus size={18} />
-            <span className="hidden sm:inline">Post</span>
+            <span className="hidden sm:inline">Create</span>
           </button>
           <button
             onClick={() => navigate('/notifications')}
@@ -1126,7 +1127,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
                         {message.type === 'image' && (
                           <div className="space-y-2">
-                            {message.url && <img src={message.url} alt={messageText || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
+                            {message.url && <img src={resolveMediaUrl(message.url)} alt={messageText || 'Attachment'} className="max-w-full rounded-xl object-cover" />}
                             {messageText && <p className="text-xs text-gray-300">{messageText}</p>}
                           </div>
                         )}
@@ -1135,7 +1136,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                           <div className="space-y-2">
                             {message.url && (
                               <video controls className="max-w-full rounded-xl">
-                                <source src={message.url} />
+                                <source src={resolveMediaUrl(message.url)} />
                               </video>
                             )}
                             <p className="text-xs text-gray-300">{messageText || 'Video attachment'}</p>

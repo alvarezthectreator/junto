@@ -34,6 +34,41 @@ function parseDataUrl(dataUrl) {
   };
 }
 
+function getPublicOrigin(req) {
+  const configuredOrigin = String(process.env.UPLOAD_PUBLIC_ORIGIN || process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const host = forwardedHost || String(req.headers.host || '').split(',')[0].trim();
+
+  if (!host) {
+    return '';
+  }
+
+  let hostname = host;
+  try {
+    hostname = new URL(`http://${host}`).hostname;
+  } catch {
+    // Keep the raw host if parsing fails.
+  }
+
+  const isLocalHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1';
+
+  if (isLocalHost) {
+    const localPort = process.env.PORT || '5000';
+    return `http://127.0.0.1:${localPort}`;
+  }
+
+  const protocol = forwardedProto || (req.secure ? 'https' : 'http');
+  return `${protocol}://${host}`;
+}
+
 export async function ensureUploadStorage() {
   await fs.mkdir(mediaRoot, { recursive: true });
 }
@@ -65,9 +100,14 @@ export async function uploadMedia(req, res) {
 
     const publicBasePath = process.env.UPLOAD_PUBLIC_PATH || '/uploads';
     const publicPath = `${publicBasePath}/${safeFolder}/${fileId}`;
+    const publicOrigin = getPublicOrigin(req);
+    const publicUrl = publicOrigin && publicPath.startsWith('/')
+      ? `${publicOrigin}${publicPath}`
+      : publicPath;
     res.status(201).json({
       success: true,
-      url: publicPath,
+      url: publicUrl,
+      public_path: publicPath,
       file_name: file_name || fileId,
       mime_type: parsed.mimeType,
       size: parsed.buffer.length,

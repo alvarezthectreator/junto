@@ -643,7 +643,7 @@ export const Nearby: React.FC<NearbyProps> = ({
 
         {isMobile && (
           <div style={{ padding: "14px 14px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
-                <span>Post</span>
+                <span>Create</span>
               </button>
               <button
                 onClick={() => onNavigate?.("notifications")}

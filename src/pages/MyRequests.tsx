@@ -1544,6 +1544,31 @@ export function MyRequests({ onNavigate, setActiveNav, onCloseSidebar }: MyReque
               })}
             </div>
 
+            <div className="mb-8 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('Applications')}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
+                  activeTab === 'Applications'
+                    ? 'border-[#F59E0B]/30 bg-[#F59E0B]/15 text-[#FBBF24]'
+                    : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                Sent
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('Hosted')}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
+                  activeTab === 'Hosted'
+                    ? 'border-[#F59E0B]/30 bg-[#F59E0B]/15 text-[#FBBF24]'
+                    : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                Received
+              </button>
+            </div>
+
             {/* Stats Row - Only show for Hosted tab */}
             {activeTab === 'Hosted' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">

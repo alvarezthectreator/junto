@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plane, Flame, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Flame, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
-import { SearchFilter } from '../components/SearchFilter';
 import { type EventDetailData } from './EventDetail';
 import { discoverEvents, toEventDetail } from '../data/discoverEvents';
 import * as API from '../services/api';
@@ -224,7 +223,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [activeFilter, setActiveFilter] = useState('All vibes');
   const [searchTerm, setSearchTerm] = useState('');
-  const [travelMode, setTravelMode] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'trending' | 'nearest'>('recent');
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
@@ -245,8 +243,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   'Females only',
   'Males only',
   'Trending 🔥'];
-  const travelCtaVariant = getExperimentVariant('discover_travel_cta', ['A', 'B']);
-  const showTravelHandoff = getFeatureFlag('discover_travel_handoff', true);
 
   useEffect(() => {
     const nextCity = selectedLocation || currentUser?.city || 'All cities';
@@ -374,7 +370,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     setSortBy('recent');
     setShowSavedOnly(false);
     setSelectedCity('All cities');
-    setTravelMode(false);
     setDisplayLimit(12);
   }, []);
 
@@ -435,7 +430,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
   useEffect(() => {
     setDisplayLimit(12);
-  }, [searchTerm, activeFilter, showSavedOnly, selectedCity, sortBy, travelMode]);
+  }, [searchTerm, activeFilter, showSavedOnly, selectedCity, sortBy]);
 
   const displayedEvents = filteredEvents.length > 0 ? filteredEvents : events;
   const visibleEvents = displayedEvents.slice(0, displayLimit);
@@ -620,105 +615,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
           </motion.p>
         </section>
 
-        <motion.div
-          initial={{
-            opacity: 0,
-            scale: 0.95
-          }}
-          animate={{
-            opacity: 1,
-            scale: 1
-          }}
-          transition={{
-            duration: 1.0,
-            delay: 0.4
-          }}
-          className="w-full md:w-72 bg-[#1A1A21] border border-white/5 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-lg">
-          
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <h3 className="text-xs sm:text-sm font-semibold text-white uppercase tracking-wider">
-              Live Vibes
-            </h3>
-          </div>
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#F59E0B] flex-shrink-0"></div>
-              <p className="text-xs sm:text-sm text-gray-300 break-words">
-                <span className="text-white font-medium">127</span> people out tonight
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#4ECDC4] flex-shrink-0"></div>
-              <p className="text-xs sm:text-sm text-gray-300 break-words">
-                <span className="text-white font-medium">24</span> new posts in Lagos
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-[#FB923C]"></div>
-              <p className="text-sm text-gray-300">
-                <span className="text-white font-medium">8</span> events near
-                you
-              </p>
-            </div>
-          </div>
-        </motion.div>
       </div>
 
 
-
-      {/* Search & Filter */}
-      <SearchFilter 
-        onSearch={(results) => {
-          if (Array.isArray(results)) {
-            setUseBackend(true);
-            setApiEvents(results as API.Event[]);
-            setDisplayLimit(12);
-          }
-        }} 
-      />
-
-      {/* Travel Mode Toggle */}
-      <div className="group relative mb-8 sm:mb-10">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-purple-500/0 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur"></div>
-        <div className="relative bg-[#1A1A21] border border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between transition-colors hover:border-white/10 gap-3 sm:gap-4">
-          <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-              <Plane className="text-blue-400 w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold text-white text-sm sm:text-base">Travel Mode</h3>
-              <p className="text-xs sm:text-sm text-gray-400">
-                Browse events anywhere in the world
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {showTravelHandoff && (
-              <button
-                onClick={() => {
-                  trackEvent('discover_open_travel_mode', { city: selectedCity });
-                  navigate('/travel', { state: { city: selectedCity } });
-                }}
-                className="rounded-full border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
-              >
-                {travelCtaVariant === 'A' ? 'Open travel mode' : 'Plan travel'}
-              </button>
-            )}
-            <button 
-              onClick={() => setTravelMode(!travelMode)}
-              className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ${
-                travelMode ? 'bg-[#F59E0B]' : 'bg-white/20 hover:bg-white/30'
-              }`}>
-              <motion.div 
-                className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm`}
-                animate={{ left: travelMode ? '26px' : '2px' }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              ></motion.div>
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Filters */}
       <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
@@ -750,61 +649,11 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         </div>
       </div>
 
-      {/* Sorting and View Options */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-2 overflow-x-auto pb-2 w-full sm:w-auto">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'recent' | 'trending' | 'nearest')}
-            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
-          >
-            <option value="recent">Recent first</option>
-            <option value="trending">Trending</option>
-            <option value="nearest">Nearest</option>
-          </select>
-          <select
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            className="bg-[#1A1A21] border border-white/5 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
-          >
-            {cityOptions.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-         
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-  <span className="text-sm text-gray-400">{displayedEvents.length} vibes found</span>
-  <button
-    onClick={() => setShowSavedOnly(!showSavedOnly)}
-    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
-      showSavedOnly
-        ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-        : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-    }`}
-  >
-    {showSavedOnly ? '❤️ Saved' : '🤍 Saved'}
-  </button>
-  <button
-    onClick={() => {
-      trackEvent('discover_create_event_click', { city: selectedCity });
-      onNavigate('myhost');
-    }}
-    className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FB923C] px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-95"
-  >
-    <Plus size={14} />
-    Create
-  </button>
-</div>
-      </div>
-
       {/* Trending Banner */}
       <div className="mb-8 inline-flex items-center gap-2 bg-gradient-to-r from-[#F59E0B]/10 to-transparent border border-[#F59E0B]/20 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm overflow-x-auto max-w-full">
         <Flame size={14} className="sm:w-4 sm:h-4 text-[#F59E0B] flex-shrink-0" />
         <p className="text-gray-300 whitespace-nowrap sm:whitespace-normal">
-          <span className="font-medium text-white">Trending:</span> <span className="hidden sm:inline">Movie nights in Lagos · 47 people interested this week</span><span className="sm:hidden">Movie nights</span>
+          <span className="font-medium text-white">{displayedEvents.length}</span> vibes found around you
         </p>
       </div>
 
@@ -817,7 +666,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Map Section */}
       <div className="mb-8 sm:mb-10">
-        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-4 gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-3 gap-3">
           <div className="min-w-0">
             <h3 className="text-xl sm:text-2xl font-serif font-bold text-white">
               Vibes{' '}
@@ -861,6 +710,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             emoji={event.emoji}
             description={event.description}
             date={event.date}
+            eventTime={event.event_time}
             audience={event.audience}
             interestedCount={event.interestedCount}
             accentColor={event.accentColor}
@@ -901,7 +751,6 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
                 setSortBy('recent');
                 setShowSavedOnly(false);
                 setSelectedCity('All cities');
-                setTravelMode(false);
                 setDisplayLimit(12);
               }}
               className="mt-4 text-[#F59E0B] hover:text-[#ffd700] font-semibold transition-colors"

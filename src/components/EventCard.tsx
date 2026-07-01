@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MessageCircle, Share2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MessageCircle, Share2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { isEventExpired, getRemainingCapacity, getCapacityPercentage } from '../utils/eventUtils';
+import { resolveMediaUrl } from '../utils/avatar';
 
 interface EventCardProps {
   userInitial: string;
@@ -97,15 +98,7 @@ export function EventCard({
     }
   };
 
-  const avatarColors = [
-    'bg-blue-500',
-    'bg-purple-500',
-    'bg-emerald-500',
-    'bg-amber-500',
-    'bg-rose-500'
-  ];
-
-  const displayAvatars = Math.min(interestedCount, 3);
+  const resolvedCoverImage = resolveMediaUrl(coverImage);
   return (
     <motion.div
       initial={{
@@ -165,10 +158,10 @@ export function EventCard({
       )}
 
       {/* Cover Image */}
-      {coverImage &&
-      <div className={`w-full h-28 sm:h-32 md:h-40 relative overflow-hidden ${eventExpired ? 'bg-gray-900' : 'bg-[#0F0F13]'}`}>
+      {resolvedCoverImage &&
+      <div className={`w-full h-36 sm:h-44 md:h-56 relative overflow-hidden ${eventExpired ? 'bg-gray-900' : 'bg-[#0F0F13]'}`}>
           <img
-          src={coverImage}
+          src={resolvedCoverImage}
           alt={actionText}
           className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${eventExpired ? 'opacity-40' : ''}`} />
         
@@ -177,7 +170,7 @@ export function EventCard({
       }
 
       <div
-        className={`p-3 sm:p-4 md:p-6 flex flex-col flex-1 relative z-10 ${coverImage ? 'pt-2 sm:pt-3 md:pt-4' : ''}`}>
+        className={`p-3 sm:p-4 md:p-6 flex flex-col flex-1 relative z-10 ${resolvedCoverImage ? 'pt-2 sm:pt-3 md:pt-4' : ''}`}>
         
         {/* Header */}
         <div 
@@ -204,12 +197,6 @@ export function EventCard({
             {userInitial}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm sm:text-base md:text-lg text-white line-clamp-2">
-              <span className="font-semibold">{userName}</span> <span className="hidden xs:inline">wants to</span>
-            </h3>
-            <p className="text-xs sm:text-base md:text-lg font-serif italic text-gradient flex items-center gap-1 line-clamp-1">
-              {actionText} <span className="text-sm sm:text-base md:text-lg">{emoji}</span>
-            </p>
             <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-xs font-semibold ${
@@ -232,7 +219,7 @@ export function EventCard({
 
         {/* Description */}
         <p className="text-xs sm:text-sm text-gray-300 mb-3 sm:mb-4 md:mb-6 leading-relaxed flex-1 line-clamp-2 sm:line-clamp-3">
-          {description}
+          <span className="font-semibold text-white">Narration:</span> {description}
         </p>
 
         {/* Tags */}
@@ -242,30 +229,17 @@ export function EventCard({
               <Calendar size={12} className="text-gray-400" />
               <span className="line-clamp-1">{date}</span>
             </div>
+            {eventTime && (
+              <div className="flex items-center gap-1 bg-white/5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-xs text-gray-300 whitespace-nowrap">
+                <Clock size={12} className="text-gray-400" />
+                <span className="line-clamp-1">{eventTime}</span>
+              </div>
+            )}
             <div
               className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-xs font-medium ${audienceColor} whitespace-nowrap`}>
               
               {audience}
             </div>
-          </div>
-
-          {/* Interested Count Visualization */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            <div className="flex -space-x-1 sm:-space-x-1.5">
-              {Array.from({
-                length: displayAvatars
-              }).map((_, i) =>
-              <div
-                key={i}
-                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-[#1A1A21] ${avatarColors[i % avatarColors.length]} flex items-center justify-center text-[6px] sm:text-[8px] font-bold text-white`}>
-                
-                  {String.fromCharCode(65 + i)}
-                </div>
-              )}
-            </div>
-            <span className="text-[9px] sm:text-xs text-gray-400 font-medium">
-              {interestedCount} interested
-            </span>
           </div>
         </div>
 
