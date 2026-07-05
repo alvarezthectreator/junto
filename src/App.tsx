@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, Plus, MoreVertical } from 'lucide-react';
+import { Bell, Plane, Plus, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeProvider } from 'next-themes';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -880,92 +880,128 @@ export function App() {
         <main className="flex-1 ml-0 md:ml-64">
           <div className="max-w-5xl mx-auto px-4 py-4 pb-28 md:px-8 md:py-8 md:pb-32">
             {/* Top Header with Action Buttons */}
-            <header className="flex items-center justify-end gap-3 mb-8">
-              <button 
-                onClick={() => {
-                  navigate('/myhost');
-                  setOpenCreateModal(true);
-                }}
-                className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-4 py-2 rounded-full font-semibold text-sm transition-colors"
-              >
-                <Plus size={18} />
-                <span>Create</span>
-              </button>
-              <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors relative"
-                onClick={() => navigate('/notifications')}>
-                <Bell size={18} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-              <div className="relative">
+            <header className="relative mb-8 flex items-start justify-between gap-3">
+              <div className="flex items-end gap-2">
                 <button 
-                  onClick={() => setShowMenu(!showMenu)}
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors">
-                  <MoreVertical size={18} />
+                  onClick={() => {
+                    navigate('/myhost');
+                    setOpenCreateModal(true);
+                  }}
+                  className="mt-4 flex h-10 w-10 flex-col items-center justify-center rounded-full bg-[#F59E0B]/15 text-[#F59E0B] transition-colors hover:bg-[#F59E0B]/25 hover:text-[#FBBF24] sm:mt-5 sm:h-11 sm:w-11"
+                  title="Create a post"
+                >
+                  <Plus size={14} className="sm:hidden" />
+                  <Plus size={16} className="hidden sm:block" />
+                  <span className="mt-0.5 whitespace-nowrap text-[7px] font-semibold leading-none text-[#F69D11]">
+                    Create Event
+                  </span>
                 </button>
-                {showMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-48 rounded-xl bg-[#1A1A21] border border-white/10 shadow-lg overflow-hidden"
-                  >
-                    <button
-                      onClick={() => {
-                        navigate('/venues');
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+              </div>
+
+              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center">
+                <button
+                  onClick={() => navigate('/discover')}
+                  className="flex items-center gap-0 rounded-full bg-transparent px-1 py-1 text-xs font-semibold text-white/90 transition-colors hover:text-white sm:text-sm"
+                  title="Wantuu home"
+                >
+                  <span className="tracking-wide">
+                    <span>Want</span>
+                    <span className="text-[#F69D11]">uu</span>
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2 sm:mt-6 sm:gap-3">
+                <button
+                  className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white sm:h-10 sm:w-10"
+                  onClick={() => navigate('/notifications')}
+                >
+                  <Bell size={16} className="sm:hidden" />
+                  <Bell size={18} className="hidden sm:block" />
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500"></span>
+                </button>
+
+                <button
+                  onClick={() => navigate('/travel')}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white sm:h-10 sm:w-10"
+                  title="Travel mode"
+                >
+                  <Plane size={16} className="sm:hidden" />
+                  <Plane size={18} className="hidden sm:block" />
+                </button>
+
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white sm:h-10 sm:w-10">
+                    <MoreVertical size={16} className="sm:hidden" />
+                    <MoreVertical size={18} className="hidden sm:block" />
+                  </button>
+                  {showMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-[#1A1A21] shadow-lg"
                     >
-                      Venues
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigate('/celebrities');
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
-                    >
-                      Celeb
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigate('/premium');
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
-                    >
-                      Premium
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigate('/squads');
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
-                    >
-                      Squads
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigate('/help');
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
-                    >
-                      Help
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setShowMenu(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5"
-                    >
-                      Logout
-                    </button>
-                  </motion.div>
-                )}
+                      <button
+                        onClick={() => {
+                          navigate('/venues');
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Venues
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/celebrities');
+                          setShowMenu(false);
+                        }}
+                        className="w-full border-t border-white/5 px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Celeb
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/premium');
+                          setShowMenu(false);
+                        }}
+                        className="w-full border-t border-white/5 px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Premium
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/squads');
+                          setShowMenu(false);
+                        }}
+                        className="w-full border-t border-white/5 px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Squads
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/help');
+                          setShowMenu(false);
+                        }}
+                        className="w-full border-t border-white/5 px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Help
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setShowMenu(false);
+                        }}
+                        className="w-full border-t border-white/5 px-4 py-3 text-left text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+                      >
+                        Logout
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
               </div>
             </header>
 

@@ -2,7 +2,7 @@ const MESSAGE_STORE_KEY = 'junto-message-store-v2';
 const MESSAGE_STORE_EVENT = 'junto-message-store-updated';
 const DEFAULT_MESSAGE_RETENTION_HOURS = 24;
 
-export type MessageType = 'text' | 'image' | 'video' | 'voice' | 'system';
+export type MessageType = 'text' | 'image' | 'video' | 'voice' | 'system' | 'event_request';
 export type MessageStatus = 'scheduled' | 'sent' | 'delivered' | 'read';
 
 export type MessageRecord = {

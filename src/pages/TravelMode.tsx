@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { Calendar, Save, Trash2, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Save, Trash2, ChevronRight, Filter, MapPin, Search, Sparkles, Compass } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
+import { Sidebar } from "../components/Sidebar";
 import * as API from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, Info } from "lucide-react";
@@ -106,6 +108,7 @@ function TravelEventCard({ event, index, isLightMode = false }: { event: any; in
 }
 
 export const TravelMode = ({ initialCity }: TravelModeProps) => {
+  const navigate = useNavigate();
   const { currentUser } = useAppContext();
   const [isLightMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState(initialCity || 'Lagos');
@@ -403,117 +406,257 @@ export const TravelMode = ({ initialCity }: TravelModeProps) => {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: isLightMode ? "#f7f3ea" : "#050505", color: isLightMode ? "#241b10" : "#fff", fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
+    <div style={{
+      minHeight: "100vh",
+      background: isLightMode
+        ? "radial-gradient(circle at top left, rgba(246,157,17,0.14), transparent 36%), linear-gradient(180deg, #fffaf2 0%, #f6efe2 100%)"
+        : "radial-gradient(circle at top left, rgba(246,157,17,0.18), transparent 34%), radial-gradient(circle at top right, rgba(59,130,246,0.14), transparent 28%), linear-gradient(180deg, #09090b 0%, #050505 100%)",
+      color: isLightMode ? "#241b10" : "#fff",
+      fontFamily: "'Helvetica Neue', Arial, sans-serif",
+      overflowX: "hidden"
+    }}>
       <style>{`
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(-10px); }
           to { opacity: 1; transform: translateX(0); }
         }
+        @keyframes floaty {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .travel-shell {
+          width: 100%;
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: 20px 16px 40px;
+        }
+        .travel-hero {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(280px, 420px);
+          gap: 18px;
+          align-items: stretch;
+          margin-bottom: 18px;
+          animation: fadeUp 0.55s ease both;
+        }
+        .travel-hero-card, .travel-panel, .travel-feed, .travel-section {
+          border-radius: 28px;
+          overflow: hidden;
+          backdrop-filter: blur(18px);
+        }
+        .travel-hero-card {
+          padding: 24px;
+          border: 1px solid ${isLightMode ? 'rgba(36,27,16,0.08)' : 'rgba(255,255,255,0.08)'};
+          background: ${isLightMode ? 'rgba(255,250,242,0.86)' : 'rgba(15,15,19,0.82)'};
+          box-shadow: ${isLightMode ? '0 18px 60px rgba(122,103,79,0.12)' : '0 22px 70px rgba(0,0,0,0.45)'};
+          position: relative;
+        }
+        .travel-panel {
+          padding: 20px;
+          border: 1px solid ${isLightMode ? 'rgba(36,27,16,0.08)' : 'rgba(255,255,255,0.08)'};
+          background: ${isLightMode ? 'rgba(255,250,242,0.74)' : 'rgba(10,10,10,0.82)'};
+          box-shadow: ${isLightMode ? '0 16px 48px rgba(122,103,79,0.10)' : '0 16px 52px rgba(0,0,0,0.35)'};
+        }
+        .travel-grid {
+          display: grid;
+          grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+          gap: 18px;
+          align-items: start;
+        }
+        .travel-column {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          min-width: 0;
+        }
+        .travel-feed {
+          padding: 20px;
+          border: 1px solid ${isLightMode ? 'rgba(36,27,16,0.08)' : 'rgba(255,255,255,0.08)'};
+          background: ${isLightMode ? 'rgba(255,250,242,0.6)' : 'rgba(8,8,10,0.72)'};
+          box-shadow: ${isLightMode ? '0 14px 44px rgba(122,103,79,0.08)' : '0 18px 56px rgba(0,0,0,0.35)'};
+        }
+        .travel-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+        }
+        .travel-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 18px;
+        }
+        .travel-stat {
+          border-radius: 18px;
+          padding: 14px 16px;
+          border: 1px solid ${isLightMode ? 'rgba(36,27,16,0.08)' : 'rgba(255,255,255,0.08)'};
+          background: ${isLightMode ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.04)'};
+        }
+        .travel-input::placeholder {
+          color: ${isLightMode ? '#8d7758' : '#7f7f87'};
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: ${isLightMode ? '#f3eadc' : '#0a0a0a'}; }
         ::-webkit-scrollbar-thumb { background: ${isLightMode ? '#d8c7ab' : '#1c1c1c'}; border-radius: 2px; }
+        @media (max-width: 1024px) {
+          .travel-hero,
+          .travel-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 640px) {
+          .travel-shell {
+            padding: 12px 12px 28px;
+          }
+          .travel-hero-card, .travel-panel, .travel-feed {
+            border-radius: 22px;
+          }
+          .travel-hero-card, .travel-panel, .travel-feed {
+            padding: 18px;
+          }
+          .travel-stats {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
-      <main className="mobile-page-main" style={{ flex: 1, marginLeft: 0, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", background: isLightMode ? "#f7f3ea" : "#050505" }}>
+      <main
+        className="travel-shell"
+        style={{
+          minHeight: "100vh",
+          paddingBottom: "110px",
+        }}
+      >
         <div
           style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 40,
-            background: isLightMode ? "rgba(247,243,234,0.92)" : "rgba(5,5,5,0.9)",
-            backdropFilter: "blur(20px)",
-            borderBottom: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #111",
-            padding: "16px 28px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
             opacity: headerVisible ? 1 : 0,
             transform: headerVisible ? "translateY(0)" : "translateY(-8px)",
             transition: "opacity 0.4s ease, transform 0.4s ease",
-            width: "100%",
-            maxWidth: 720,
           }}
         >
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 2, color: "#F69D11", marginBottom: 2 }}>
-              Explore
-            </div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: isLightMode ? "#241b10" : "#fff", letterSpacing: -0.5 }}>
-              ✈️ Travel Mode
-            </h1>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: isLightMode ? "#7a674f" : "#888" }}>Exploring {selectedCity}</p>
-          </div>
-        </div>
-
-        <div style={{ padding: "24px 28px", maxWidth: 720, width: "100%", flex: 1, overflowY: "auto" }}>
-          <div style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 10,
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}>
-            <div style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 14px",
-              borderRadius: 999,
-              background: travelModeEnabled ? "rgba(34,197,94,0.12)" : (isLightMode ? "#fffaf2" : "#0a0a0a"),
-              border: travelModeEnabled ? "1px solid rgba(34,197,94,0.2)" : (isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a"),
-            }}>
-              <span style={{ fontSize: 18 }}>{travelModeEnabled ? '🟢' : '✈️'}</span>
-              <div>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
-                  {travelModeEnabled ? 'Travel mode enabled' : 'Travel mode off'}
-                </p>
-                <p style={{ margin: "2px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#888" }}>
-                  {travelModeEnabled ? `Showing live events for ${selectedCity}` : 'Turn it on to save your destination'}
-                </p>
+        <div className="travel-hero">
+            <div className="travel-hero-card">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "start", flexWrap: "wrap" }}>
+                <div style={{ maxWidth: 680 }}>
+                  <div className="travel-pill" style={{ background: travelModeEnabled ? "rgba(34,197,94,0.14)" : "rgba(246,157,17,0.14)", color: travelModeEnabled ? "#22c55e" : "#F69D11", border: `1px solid ${travelModeEnabled ? 'rgba(34,197,94,0.22)' : 'rgba(246,157,17,0.22)'}` }}>
+                    <Sparkles size={14} />
+                    Explore smarter
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+                    <div style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 18,
+                      background: "linear-gradient(135deg, #F69D11 0%, #FB923C 100%)",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#111",
+                      boxShadow: "0 12px 30px rgba(246,157,17,0.35)",
+                      animation: "floaty 4s ease-in-out infinite",
+                    }}>
+                      <Compass size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, color: "#F69D11", marginBottom: 2 }}>
+                        Travel Mode
+                      </div>
+                      <h1 style={{ margin: 0, fontSize: "clamp(30px, 4vw, 52px)", fontWeight: 900, lineHeight: 1, letterSpacing: -1 }}>
+                        Find events like a local
+                      </h1>
+                    </div>
+                  </div>
+                  <p style={{ margin: "16px 0 0", fontSize: 15, lineHeight: 1.6, color: isLightMode ? "#7a674f" : "#a1a1aa", maxWidth: 700 }}>
+                    Browse cities, save trip plans, and switch travel mode on to see the best physical and virtual events for where you’re headed.
+                  </p>
+                  <div className="travel-stats">
+                    <div className="travel-stat">
+                      <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa", marginBottom: 6 }}>Current city</div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{selectedCity}</div>
+                    </div>
+                    <div className="travel-stat">
+                      <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa", marginBottom: 6 }}>Live events</div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{filteredEvents.length}</div>
+                    </div>
+                    <div className="travel-stat">
+                      <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa", marginBottom: 6 }}>Mode</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: travelModeEnabled ? "#22c55e" : "#F69D11" }}>
+                        {travelModeEnabled ? 'Enabled' : 'Off'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => void handleToggleTravelMode()}
+                  style={{
+                    alignSelf: "start",
+                    padding: "14px 18px",
+                    background: travelModeEnabled ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" : "linear-gradient(135deg, #F69D11 0%, #FB923C 100%)",
+                    color: "#08110a",
+                    border: "none",
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    boxShadow: travelModeEnabled ? "0 12px 30px rgba(34,197,94,0.24)" : "0 12px 30px rgba(246,157,17,0.28)",
+                    minWidth: 160,
+                  }}
+                >
+                  {travelModeEnabled ? 'Disable mode' : 'Enable mode'}
+                </button>
               </div>
             </div>
 
-            <button
-              onClick={() => void handleToggleTravelMode()}
-              style={{
-                padding: "10px 14px",
-                background: travelModeEnabled ? "#22c55e" : "#F69D11",
-                color: "#000",
-                border: "none",
-                borderRadius: 999,
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              {travelModeEnabled ? 'Disable' : 'Enable'} travel mode
-            </button>
-          </div>
+            <div className="travel-panel">
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 14,
+                  background: "rgba(246,157,17,0.14)",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#F69D11",
+                }}>
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Your trip</p>
+                  <p style={{ margin: "3px 0 0", fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>Pick a destination and dates</p>
+                </div>
+              </div>
 
-          {/* City Selector */}
-          <div style={{ marginBottom: 28 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: isLightMode ? "#7a674f" : "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, display: "block" }}>
-              Select City
-            </label>
-            <div style={{ marginBottom: 12 }}>
-              <input
-                value={citySearch}
-                onChange={(e) => setCitySearch(e.target.value)}
-                placeholder="Search cities"
-                style={{
-                  width: "100%",
-                  padding: "11px 14px",
-                  borderRadius: 12,
-                  border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                  background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                  color: isLightMode ? "#241b10" : "#fff",
-                  fontSize: 13,
-                }}
-              />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-              {filteredCities.map((city) => {
+              <label style={{ fontSize: 11, fontWeight: 800, color: "#F69D11", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, display: "block" }}>
+                Search city
+              </label>
+              <div style={{ position: "relative", marginBottom: 14 }}>
+                <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: isLightMode ? "#8d7758" : "#6b7280" }} />
+                <input
+                  value={citySearch}
+                  onChange={(e) => setCitySearch(e.target.value)}
+                  placeholder="Search cities"
+                  className="travel-input"
+                  style={{
+                    width: "100%",
+                    padding: "13px 14px 13px 42px",
+                    borderRadius: 16,
+                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                    background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                    color: isLightMode ? "#241b10" : "#fff",
+                    fontSize: 14,
+                    outline: "none",
+                  }}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 10 }}>
+                {filteredCities.map((city) => {
                 const isSelected = selectedCity === city.value;
                 return (
                   <button
@@ -547,465 +690,472 @@ export const TravelMode = ({ initialCity }: TravelModeProps) => {
                   </button>
                 );
               })}
-            </div>
-            {citySearch.trim() && filteredCities.length === 0 && (
-              <div style={{
-                marginTop: 12,
-                padding: "12px 14px",
-                borderRadius: 12,
-                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                color: isLightMode ? "#7a674f" : "#aaa",
-                fontSize: 12,
-              }}>
-                No cities found. Try a different search.
-              </div>
-            )}
-          </div>
-
-          {/* Event Type Filter */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            {[
-              { value: "all", label: "All Events" },
-              { value: "virtual", label: "💻 Virtual" },
-              { value: "physical", label: "📍 In-Person" },
-            ].map((filter) => (
-              <button
-                key={filter.value}
-                onClick={() => setEventType(filter.value as any)}
-                style={{
-                  padding: "9px 16px",
-                  background: eventType === filter.value ? "#F69D11" : "transparent",
-                  border: `1px solid ${eventType === filter.value ? "#F69D11" : (isLightMode ? "rgba(36,27,16,0.1)" : "#1a1a1a")}`,
-                  borderRadius: 10,
-                  color: eventType === filter.value ? "#000" : (isLightMode ? "#7a674f" : "#888"),
-                  fontSize: 12,
-                  fontWeight: eventType === filter.value ? 700 : 600,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  if (eventType !== filter.value) {
-                    (e.currentTarget as any).style.borderColor = "#F69D11";
-                    (e.currentTarget as any).style.color = isLightMode ? "#241b10" : "#fff";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (eventType !== filter.value) {
-                    (e.currentTarget as any).style.borderColor = isLightMode ? "rgba(36,27,16,0.1)" : "#1a1a1a";
-                    (e.currentTarget as any).style.color = isLightMode ? "#7a674f" : "#888";
-                  }
-                }}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Trip Date Picker */}
-          <div style={{
-            background: isLightMode ? "rgba(245,158,11,0.08)" : "rgba(246,157,17,0.08)",
-            border: isLightMode ? "1px solid rgba(245,158,11,0.18)" : "1px solid rgba(246,157,17,0.2)",
-            borderRadius: 16,
-            padding: "18px",
-            marginBottom: 28,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <Calendar size={18} color="#F69D11" />
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
-                Plan Your Trip
-              </p>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "flex-end" }}>
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>Start Date</label>
-                <input
-                  type="date"
-                  value={tripStartDate}
-                  onChange={(e) => setTripStartDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                    background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                    color: isLightMode ? "#241b10" : "#fff",
+                </div>
+                {citySearch.trim() && filteredCities.length === 0 && (
+                  <div style={{
+                    marginTop: 12,
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                    background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                    color: isLightMode ? "#7a674f" : "#aaa",
                     fontSize: 12,
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>End Date</label>
-                <input
-                  type="date"
-                  value={tripEndDate}
-                  onChange={(e) => setTripEndDate(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                    background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                    color: isLightMode ? "#241b10" : "#fff",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#888" }}>
-                {tripStartDate && (
-                  <span>
-                    {Math.ceil((new Date(tripEndDate || tripStartDate).getTime() - new Date(tripStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} days
-                  </span>
+                  }}>
+                    No cities found. Try a different search.
+                  </div>
                 )}
               </div>
-              <button
-                onClick={saveTrip}
-                disabled={isSaving}
-                style={{
-                  padding: "8px 14px",
-                  background: isSaving ? "#ccc" : "#F69D11",
-                  color: isSaving ? "#666" : "#000",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: isSaving ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  transition: "opacity 0.2s",
-                  opacity: isSaving ? 0.7 : 1,
-                }}
-                onMouseEnter={(e) => { if (!isSaving) (e.currentTarget as any).style.opacity = "0.9"; }}
-                onMouseLeave={(e) => { if (!isSaving) (e.currentTarget as any).style.opacity = "1"; }}
-              >
-                <Save size={14} /> {isSaving ? 'Saving...' : 'Save'}
-              </button>
             </div>
-            {savedTrips.length > 0 && (
-              <button
-                onClick={() => setShowSavedTrips(!showSavedTrips)}
-                style={{
-                  marginTop: 12,
-                  background: "transparent",
-                  border: "none",
-                  color: "#F69D11",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                View {savedTrips.length} saved trip{savedTrips.length !== 1 ? 's' : ''} →
-              </button>
-            )}
-          </div>
-
-          {/* Saved Trips Modal */}
-          {showSavedTrips && savedTrips.length > 0 && (
-            <div style={{
-              background: isLightMode ? "rgba(255,250,242,0.9)" : "rgba(12,12,15,0.95)",
-              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 16,
-              padding: "16px",
-              marginBottom: 28,
-              maxHeight: "250px",
-              overflowY: "auto"
-            }}>
-              <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#F69D11", textTransform: "uppercase" }}>
-                My Trips
-              </h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {savedTrips.map((trip) => (
-                  <div
-                    key={trip.id}
-                    style={{
-                      background: isLightMode ? "rgba(255,255,255,0.5)" : "rgba(26,26,33,0.5)",
-                      border: isLightMode ? "1px solid rgba(36,27,16,0.08)" : "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 10,
-                      padding: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
-                        🌍 {trip.city}
-                      </p>
-                      <p style={{ margin: "4px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#888" }}>
-                        {trip.startDate} to {trip.endDate}
-                      </p>
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        onClick={() => loadTrip(trip)}
-                        style={{
-                          background: "transparent",
-                          border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
-                          color: "#F69D11",
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <ChevronRight size={12} /> Load
-                      </button>
-                      <button
-                        onClick={() => deleteTrip(trip.id)}
-                        style={{
-                          background: "rgba(239, 68, 68, 0.1)",
-                          border: "1px solid rgba(239, 68, 68, 0.2)",
-                          color: "#ef4444",
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </div>
+          <div className="travel-grid">
+            <div className="travel-column">
+              <div className="travel-panel">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 14,
+                    background: "rgba(246,157,17,0.14)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#F69D11",
+                  }}>
+                    <Filter size={18} />
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Events List */}
-          {eventsLoading && (
-            <div style={{
-              background: isLightMode ? "#fffaf2" : "#0a0a0a",
-              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-              borderRadius: 16,
-              padding: "16px",
-              marginBottom: 24,
-              color: isLightMode ? "#8d7758" : "#aaa",
-              fontSize: 13,
-            }}>
-              Loading live events for {selectedCity}...
-            </div>
-          )}
-
-          {!eventsLoading && eventsError && (
-            <div style={{
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.2)",
-              borderRadius: 16,
-              padding: "16px",
-              marginBottom: 24,
-              color: "#fca5a5",
-              fontSize: 13,
-            }}>
-              {eventsError}
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-            {filteredEvents.length > 0 ? (
-              filteredEvents.map((event, idx) => <TravelEventCard key={event.id} event={event} index={idx} isLightMode={isLightMode} />)
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#2a2a2a" }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>◌</div>
-                <p style={{ fontSize: 14 }}>No {eventType !== "all" ? eventType : ""} events in {selectedCity}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Travel Tips */}
-          <div
-            style={{
-              background: "rgba(59,130,246,0.08)",
-              border: "1px solid rgba(59,130,246,0.2)",
-              borderRadius: 12,
-              padding: "16px",
-              marginBottom: 32,
-            }}
-          >
-            <h3 style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>💡 Traveler Pro Tips</h3>
-            <ul style={{ margin: 0, paddingLeft: 18, color: isLightMode ? "#7a674f" : "#aaa", fontSize: 12, lineHeight: 1.6 }}>
-              <li style={{ marginBottom: 6 }}>Look for Tour Guide listings - locals sharing their city!</li>
-              <li style={{ marginBottom: 6 }}>Join virtual events to meet people before you arrive</li>
-              <li style={{ marginBottom: 6 }}>Check-in to confirm you'll be physically present</li>
-              <li>Share your profile with trusted contacts for safety</li>
-            </ul>
-          </div>
-
-          {savedSearches.length > 0 && (
-            <div
-              style={{
-                background: isLightMode ? "rgba(255,250,242,0.9)" : "rgba(12,12,15,0.95)",
-                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 16,
-                padding: "16px",
-                marginBottom: 24,
-              }}
-            >
-              <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, color: "#F69D11", textTransform: "uppercase" }}>
-                Saved Searches
-              </h4>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {savedSearches.map((search, index) => (
-                  <div
-                    key={search.id || `${search.city}-${search.eventType}-${index}`}
-                    style={{
-                      border: "1px solid rgba(246,157,17,0.2)",
-                      background: "rgba(246,157,17,0.08)",
-                      color: "#F69D11",
-                      borderRadius: 16,
-                      padding: "10px 12px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                      minWidth: 180,
-                    }}
-                  >
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Filter events</p>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>Choose the vibe you want</p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[
+                    { value: "all", label: "All Events" },
+                    { value: "virtual", label: "💻 Virtual" },
+                    { value: "physical", label: "📍 In-Person" },
+                  ].map((filter) => (
                     <button
-                      onClick={() => handleSelectSavedSearch(search.city, search.eventType as "all" | "virtual" | "physical")}
+                      key={filter.value}
+                      onClick={() => setEventType(filter.value as any)}
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "#F69D11",
-                        fontSize: 11,
-                        fontWeight: 700,
+                        padding: "10px 14px",
+                        background: eventType === filter.value ? "#F69D11" : "transparent",
+                        border: `1px solid ${eventType === filter.value ? "#F69D11" : (isLightMode ? "rgba(36,27,16,0.1)" : "rgba(255,255,255,0.08)")}`,
+                        borderRadius: 999,
+                        color: eventType === filter.value ? "#000" : (isLightMode ? "#7a674f" : "#c4c4cc"),
+                        fontSize: 12,
+                        fontWeight: eventType === filter.value ? 800 : 700,
                         cursor: "pointer",
-                        textAlign: "left",
-                        padding: 0,
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (eventType !== filter.value) {
+                          (e.currentTarget as any).style.borderColor = "#F69D11";
+                          (e.currentTarget as any).style.color = isLightMode ? "#241b10" : "#fff";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (eventType !== filter.value) {
+                          (e.currentTarget as any).style.borderColor = isLightMode ? "rgba(36,27,16,0.1)" : "rgba(255,255,255,0.08)";
+                          (e.currentTarget as any).style.color = isLightMode ? "#7a674f" : "#c4c4cc";
+                        }
                       }}
                     >
-                      {search.label || `${search.city} · ${search.eventType}`}
+                      {filter.label}
                     </button>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => beginRenameSavedSearch(search)}
-                        style={{
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "#fff",
-                          borderRadius: 999,
-                          padding: "5px 8px",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        onClick={() => deleteSavedSearch(search.id)}
-                        style={{
-                          background: "rgba(239,68,68,0.12)",
-                          border: "1px solid rgba(239,68,68,0.18)",
-                          color: "#fca5a5",
-                          borderRadius: 999,
-                          padding: "5px 8px",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-              {editingSearchId && (
-                <div style={{
-                  marginTop: 12,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}>
-                  <input
-                    value={editingSearchLabel}
-                    onChange={(e) => setEditingSearchLabel(e.target.value)}
-                    placeholder="Rename saved search"
-                    style={{
-                      flex: 1,
-                      minWidth: 220,
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                      background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                      color: isLightMode ? "#241b10" : "#fff",
-                      fontSize: 12,
-                    }}
-                  />
+
+              <div className="travel-panel">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 14,
+                    background: "rgba(246,157,17,0.14)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#F69D11",
+                  }}>
+                    <Calendar size={18} />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Plan your trip</p>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>Save dates and reuse the search later</p>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>Start Date</label>
+                    <input
+                      type="date"
+                      value={tripStartDate}
+                      onChange={(e) => setTripStartDate(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 12px",
+                        borderRadius: 14,
+                        border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                        background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                        color: isLightMode ? "#241b10" : "#fff",
+                        fontSize: 13,
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#F69D11", marginBottom: 6, textTransform: "uppercase" }}>End Date</label>
+                    <input
+                      type="date"
+                      value={tripEndDate}
+                      onChange={(e) => setTripEndDate(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 12px",
+                        borderRadius: 14,
+                        border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                        background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                        color: isLightMode ? "#241b10" : "#fff",
+                        fontSize: 13,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>
+                    {tripStartDate ? `${Math.ceil((new Date(tripEndDate || tripStartDate).getTime() - new Date(tripStartDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} day trip` : 'Pick dates to save a trip'}
+                  </div>
                   <button
-                    onClick={saveRenamedSearch}
+                    onClick={saveTrip}
+                    disabled={isSaving}
                     style={{
-                      padding: "10px 12px",
-                      background: "#F69D11",
-                      color: "#000",
+                      padding: "11px 16px",
+                      background: isSaving ? "rgba(255,255,255,0.12)" : "#F69D11",
+                      color: isSaving ? "#8b8b93" : "#111",
                       border: "none",
-                      borderRadius: 12,
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Save size={14} /> {isSaving ? 'Saving...' : 'Save trip'}
+                  </button>
+                </div>
+                {savedTrips.length > 0 && (
+                  <button
+                    onClick={() => setShowSavedTrips(!showSavedTrips)}
+                    style={{
+                      marginTop: 14,
+                      background: "transparent",
+                      border: "none",
+                      color: "#F69D11",
                       fontSize: 12,
                       fontWeight: 800,
                       cursor: "pointer",
+                      textDecoration: "underline",
+                      padding: 0,
                     }}
                   >
-                    Save
+                    View {savedTrips.length} saved trip{savedTrips.length !== 1 ? 's' : ''} →
                   </button>
-                  <button
-                    onClick={() => {
-                      setEditingSearchId(null);
-                      setEditingSearchLabel('');
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      background: "transparent",
-                      color: isLightMode ? "#7a674f" : "#aaa",
-                      border: `1px solid ${isLightMode ? 'rgba(36,27,16,0.1)' : '#1a1a1a'}`,
-                      borderRadius: 12,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Cancel
-                  </button>
+                )}
+              </div>
+
+              {showSavedTrips && savedTrips.length > 0 && (
+                <div className="travel-panel">
+                  <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 800, color: "#F69D11", textTransform: "uppercase", letterSpacing: 1 }}>
+                    My Trips
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {savedTrips.map((trip) => (
+                      <div
+                        key={trip.id}
+                        style={{
+                          background: isLightMode ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.04)",
+                          border: isLightMode ? "1px solid rgba(36,27,16,0.08)" : "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 16,
+                          padding: "14px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: isLightMode ? "#241b10" : "#fff" }}>
+                            🌍 {trip.city}
+                          </p>
+                          <p style={{ margin: "4px 0 0", fontSize: 11, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>
+                            {trip.startDate} to {trip.endDate}
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                          <button
+                            onClick={() => loadTrip(trip)}
+                            style={{
+                              background: "transparent",
+                              border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                              color: "#F69D11",
+                              padding: "7px 10px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <ChevronRight size={12} /> Load
+                          </button>
+                          <button
+                            onClick={() => deleteTrip(trip.id)}
+                            style={{
+                              background: "rgba(239,68,68,0.12)",
+                              border: "1px solid rgba(239,68,68,0.18)",
+                              color: "#fca5a5",
+                              padding: "7px 10px",
+                              borderRadius: 999,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-          )}
 
-          {!eventsLoading && !eventsError && filteredEvents.length === 0 && (
-            <div
-              style={{
-                background: isLightMode ? "#fffaf2" : "#0a0a0a",
-                border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid #1a1a1a",
-                borderRadius: 16,
-                padding: "18px",
-                marginBottom: 24,
-                color: isLightMode ? "#8d7758" : "#aaa",
-                fontSize: 13,
-              }}
-            >
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: isLightMode ? "#241b10" : "#fff" }}>
-                No matching events right now
-              </p>
-              <p style={{ margin: "6px 0 0" }}>
-                Try another city, switch event type, or save your current search for later.
-              </p>
+            <div className="travel-column">
+              <div className="travel-feed">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Live events</h2>
+                    <p style={{ margin: "4px 0 0", fontSize: 12, color: isLightMode ? "#8d7758" : "#a1a1aa" }}>
+                      Showing {filteredEvents.length} result{filteredEvents.length !== 1 ? 's' : ''} in {selectedCity}
+                    </p>
+                  </div>
+                  <div style={{
+                    padding: "10px 12px",
+                    borderRadius: 999,
+                    background: "rgba(246,157,17,0.1)",
+                    border: "1px solid rgba(246,157,17,0.18)",
+                    color: "#F69D11",
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}>
+                    {eventType === 'all' ? 'All event types' : eventType === 'virtual' ? 'Virtual only' : 'In-person only'}
+                  </div>
+                </div>
+
+                {eventsLoading && (
+                  <div style={{
+                    background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                    border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 20,
+                    padding: "18px",
+                    marginBottom: 16,
+                    color: isLightMode ? "#8d7758" : "#aaa",
+                    fontSize: 13,
+                  }}>
+                    Loading live events for {selectedCity}...
+                  </div>
+                )}
+
+                {!eventsLoading && eventsError && (
+                  <div style={{
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.2)",
+                    borderRadius: 20,
+                    padding: "18px",
+                    marginBottom: 16,
+                    color: "#fca5a5",
+                    fontSize: 13,
+                  }}>
+                    {eventsError}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {filteredEvents.length > 0 ? (
+                    filteredEvents.map((event, idx) => <TravelEventCard key={event.id} event={event} index={idx} isLightMode={isLightMode} />)
+                  ) : (
+                    <div style={{
+                      textAlign: "center",
+                      padding: "56px 20px",
+                      borderRadius: 22,
+                      border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                      background: isLightMode ? "rgba(255,250,242,0.6)" : "rgba(255,255,255,0.03)",
+                      color: "#8b8b93"
+                    }}>
+                      <div style={{ fontSize: 34, marginBottom: 12 }}>◌</div>
+                      <p style={{ fontSize: 14, margin: 0 }}>
+                        No {eventType !== "all" ? eventType : ""} events in {selectedCity}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="travel-panel">
+                <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: isLightMode ? "#241b10" : "#fff" }}>💡 Traveler Pro Tips</h3>
+                <ul style={{ margin: 0, paddingLeft: 18, color: isLightMode ? "#7a674f" : "#a1a1aa", fontSize: 13, lineHeight: 1.8 }}>
+                  <li style={{ marginBottom: 6 }}>Look for Tour Guide listings - locals sharing their city.</li>
+                  <li style={{ marginBottom: 6 }}>Join virtual events to meet people before you arrive.</li>
+                  <li style={{ marginBottom: 6 }}>Use trip dates to keep your planning organized.</li>
+                  <li>Share your profile with trusted contacts for safety.</li>
+                </ul>
+              </div>
+
+              {savedSearches.length > 0 && (
+                <div className="travel-panel">
+                  <h4 style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 800, color: "#F69D11", textTransform: "uppercase", letterSpacing: 1 }}>
+                    Saved Searches
+                  </h4>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {savedSearches.map((search, index) => (
+                      <div
+                        key={search.id || `${search.city}-${search.eventType}-${index}`}
+                        style={{
+                          border: "1px solid rgba(246,157,17,0.2)",
+                          background: "rgba(246,157,17,0.08)",
+                          color: "#F69D11",
+                          borderRadius: 18,
+                          padding: "12px 14px",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          minWidth: 200,
+                          flex: "1 1 220px",
+                        }}
+                      >
+                        <button
+                          onClick={() => handleSelectSavedSearch(search.city, search.eventType as "all" | "virtual" | "physical")}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#F69D11",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            padding: 0,
+                          }}
+                        >
+                          {search.label || `${search.city} · ${search.eventType}`}
+                        </button>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => beginRenameSavedSearch(search)}
+                            style={{
+                              background: "rgba(255,255,255,0.06)",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              color: "#fff",
+                              borderRadius: 999,
+                              padding: "6px 10px",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            onClick={() => deleteSavedSearch(search.id)}
+                            style={{
+                              background: "rgba(239,68,68,0.12)",
+                              border: "1px solid rgba(239,68,68,0.18)",
+                              color: "#fca5a5",
+                              borderRadius: 999,
+                              padding: "6px 10px",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {editingSearchId && (
+                    <div style={{
+                      marginTop: 14,
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}>
+                      <input
+                        value={editingSearchLabel}
+                        onChange={(e) => setEditingSearchLabel(e.target.value)}
+                        placeholder="Rename saved search"
+                        style={{
+                          flex: 1,
+                          minWidth: 220,
+                          padding: "12px 14px",
+                          borderRadius: 14,
+                          border: isLightMode ? "1px solid rgba(36,27,16,0.1)" : "1px solid rgba(255,255,255,0.08)",
+                          background: isLightMode ? "#fffaf2" : "rgba(255,255,255,0.04)",
+                          color: isLightMode ? "#241b10" : "#fff",
+                          fontSize: 13,
+                        }}
+                      />
+                      <button
+                        onClick={saveRenamedSearch}
+                        style={{
+                          padding: "12px 14px",
+                          background: "#F69D11",
+                          color: "#000",
+                          border: "none",
+                          borderRadius: 14,
+                          fontSize: 12,
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingSearchId(null);
+                          setEditingSearchLabel('');
+                        }}
+                        style={{
+                          padding: "12px 14px",
+                          background: "transparent",
+                          color: isLightMode ? "#7a674f" : "#aaa",
+                          border: `1px solid ${isLightMode ? 'rgba(36,27,16,0.1)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: 14,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
         </div>
 
         {/* Toast Notifications */}
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50 }}>
+        <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 50, left: "auto", maxWidth: "calc(100vw - 32px)" }}>
           <AnimatePresence>
             {toasts.map((toast, index) => {
               const typeStyles = {
@@ -1024,7 +1174,7 @@ export const TravelMode = ({ initialCity }: TravelModeProps) => {
                   style={{
                     background: style.bg,
                     border: style.border,
-                    borderRadius: 8,
+                    borderRadius: 14,
                     padding: '12px 16px',
                     marginBottom: 8,
                     display: 'flex',
@@ -1044,7 +1194,9 @@ export const TravelMode = ({ initialCity }: TravelModeProps) => {
             })}
           </AnimatePresence>
         </div>
+        </div>
       </main>
+      <Sidebar activeNav="Travel" />
     </div>
   );
 };

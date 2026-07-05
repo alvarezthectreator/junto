@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ChevronLeft,
@@ -43,6 +42,14 @@ type NearbyPerson = {
 type FeedToast = {
   message: string;
   tone: 'like' | 'pass' | 'chat' | 'share' | 'save' | 'follow' | 'info';
+};
+
+type EventRequestDraft = {
+  person: NearbyPerson | null;
+  title: string;
+  date: string;
+  location: string;
+  note: string;
 };
 
 const PHOTO_DURATION_MS = 3500;
@@ -326,9 +333,7 @@ function PersonCard({
   onPass,
   onChat,
   onProfile,
-  onFollow,
-  onShare,
-  onBookmark,
+  onCreateEvent,
   onOpenMedia,
 }: {
   person: NearbyPerson;
@@ -339,15 +344,11 @@ function PersonCard({
   onChat: (person: NearbyPerson) => void;
   onProfile: (person: NearbyPerson) => void;
   onCreateEvent: (person: NearbyPerson) => void;
-  onShare: (person: NearbyPerson) => void;
-  onBookmark: (person: NearbyPerson) => void;
   onOpenMedia: (person: NearbyPerson, index: number) => void;
 }) {
   const [mediaIndex, setMediaIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [following, setFollowing] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
@@ -579,62 +580,62 @@ function PersonCard({
       </div>
       
 
-      <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+84px)] sm:px-6 lg:px-8">
+      <div className="absolute inset-x-0 bottom-0 z-20 px-3 pb-[calc(env(safe-area-inset-bottom)+60px)] sm:px-6 lg:px-8">
         <div className="pointer-events-auto mx-auto max-w-7xl">
           <div className="max-w-3xl">
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-2 flex flex-wrap gap-1.5">
               {person.hobbies.map((hobby) => (
                 <span
                   key={hobby}
-                  className="rounded-full border border-[#FFD700]/20 bg-[#FFD700]/12 px-3 py-1 text-[11px] font-semibold text-[#FFD700]"
+                  className="rounded-full border border-[#FFD700]/20 bg-[#FFD700]/12 px-2 py-0.5 text-[9px] font-semibold text-[#FFD700]"
                 >
                   {hobby}
                 </span>
               ))}
             </div>
 
-            <p className="text-sm leading-6 text-white/88 sm:text-[15px]">
+            <p className="text-xs leading-5 text-white/88 sm:text-sm">
               {person.bio}
             </p>
 
-           <div className="mt-4 mb-3 flex flex-wrap gap-3">
+           <div className="mt-2.5 mb-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={handlePass}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/8 px-4 py-4 text-sm font-bold text-white transition hover:bg-white/12 sm:flex-none sm:min-w-[120px]"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/12 sm:flex-none sm:min-w-[100px]"
               >
-                <X size={16} />
+                <X size={14} />
                 Pass
               </button>
 
               <button
                 type="button"
                 onClick={() => onProfile(person)}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/35 px-4 py-4 text-sm font-bold text-white transition hover:bg-black/50 sm:flex-none sm:min-w-[150px]"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs font-bold text-white transition hover:bg-black/50 sm:flex-none sm:min-w-[130px]"
               >
-                <Play size={16} />
+                <Play size={14} />
                 Profile
               </button>
 
               <button
                 type="button"
                 onClick={() => onChat(person)}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[#FFD700]/30 bg-[#FFD700]/15 px-4 py-4 text-sm font-bold text-[#111] transition hover:bg-[#FFD700]/20 sm:flex-none sm:min-w-[150px]"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/15 px-3 py-2 text-xs font-bold text-[#111] transition hover:bg-[#FFD700]/20 sm:flex-none sm:min-w-[130px]"
               >
-                <MessageCircle size={16} />
+                <MessageCircle size={14} />
                 Message
               </button>
 
               <button
                 type="button"
                 onClick={handleLike}
-                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-sm font-extrabold transition sm:flex-none sm:min-w-[160px] ${
+                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-extrabold transition sm:flex-none sm:min-w-[140px] ${
                   liked
                     ? 'border-[#FFD700]/50 bg-[#FFD700] text-black'
                     : 'border-[#FFD700]/30 bg-gradient-to-r from-[#FFD700] to-[#FFB800] text-black shadow-[0_16px_34px_rgba(255,215,0,0.22)]'
                 }`}
               >
-                <Heart size={16} fill="currentColor" />
+                <Heart size={14} fill="currentColor" />
                 Like
               </button>
             </div>
@@ -642,12 +643,12 @@ function PersonCard({
             <button
               type="button"
               onClick={() => onChat(person)}
-              className="mt-3 flex w-full items-center justify-between rounded-2xl border border-[#FFD700]/25 bg-[#FFD700]/12 px-4 py-4 text-left transition hover:bg-[#FFD700]/16"
+              className="mt-2 flex w-full items-center justify-between rounded-xl border border-[#FFD700]/25 bg-[#FFD700]/12 px-3 py-2.5 text-left transition hover:bg-[#FFD700]/16"
             >
-              <span className="text-sm font-semibold text-white/85">
+              <span className="text-xs font-semibold text-white/85">
                 Start a chat with {person.name}
               </span>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD700] text-sm font-black text-black">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FFD700] text-xs font-black text-black">
                 +
               </span>
             </button>
@@ -663,39 +664,6 @@ function PersonCard({
         </div>
       )}
     </section>
-  );
-}
-
-function ActionRailButton({
-  icon,
-  label,
-  active = false,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-1"
-    >
-      <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur transition ${
-          active
-            ? 'border-[#FFD700]/45 bg-[#FFD700]/20 text-[#FFD700]'
-            : 'border-white/10 bg-black/35 text-white hover:bg-black/55'
-        }`}
-      >
-        {icon}
-      </span>
-      {label ? (
-        <span className="text-[11px] font-bold text-white/90">{label}</span>
-      ) : null}
-    </button>
   );
 }
 
@@ -715,6 +683,14 @@ export function Nearby({
   const [usingFallback, setUsingFallback] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<FeedToast | null>(null);
+  const [eventRequestDraft, setEventRequestDraft] = useState<EventRequestDraft>({
+    person: null,
+    title: '',
+    date: '',
+    location: '',
+    note: '',
+  });
+  const [submittingEventRequest, setSubmittingEventRequest] = useState(false);
   const [viewer, setViewer] = useState<{
     open: boolean;
     person: NearbyPerson | null;
@@ -1019,38 +995,55 @@ useEffect(() => {
   );
 
   const handleFollow = useCallback((person: NearbyPerson) => {
-    showToast(`Opening event creation for ${person.name}`, 'follow');
-    onNavigate?.('dashboard');
-  }, [onNavigate, showToast]);
-
-  const handleBookmark = useCallback((person: NearbyPerson) => {
-    showToast(`Saved ${person.name} for later`, 'save');
+    setEventRequestDraft({
+      person,
+      title: '',
+      date: '',
+      location: '',
+      note: '',
+    });
+    showToast(`Create an event invite for ${person.name}`, 'info');
   }, [showToast]);
 
-  const handleShare = useCallback(
-    async (person: NearbyPerson) => {
-      const shareText = `Check out ${person.name}'s profile on Nearby`;
-      const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/profile` : '/profile';
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: `${person.name} on Nearby`,
-            text: shareText,
-            url: shareUrl,
-          });
-        } else if (navigator.clipboard) {
-          await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-          showToast('Profile link copied', 'share');
-          return;
-        }
-        showToast('Profile shared', 'share');
-      } catch (error) {
-        console.error('Failed to share profile:', error);
-        showToast('Could not share profile', 'info');
-      }
-    },
-    [showToast]
-  );
+  const submitEventRequest = useCallback(async () => {
+    if (!eventRequestDraft.person || !currentUser?.id) {
+      showToast('Please log in to send an invite', 'info');
+      return;
+    }
+
+    const title = eventRequestDraft.title.trim();
+    const date = eventRequestDraft.date.trim();
+    const location = eventRequestDraft.location.trim();
+    const note = eventRequestDraft.note.trim();
+
+    if (!title) {
+      showToast('Please add a short event title', 'info');
+      return;
+    }
+
+    setSubmittingEventRequest(true);
+    try {
+      const payload = {
+        __event_request__: true,
+        title,
+        date,
+        location,
+        note,
+        senderName: currentUser.display_name || currentUser.username || currentUser.name || 'Someone',
+        recipientName: eventRequestDraft.person.name,
+        createdAt: new Date().toISOString(),
+      };
+
+      await API.sendMessage(null, eventRequestDraft.person.id, JSON.stringify(payload), 'text');
+      showToast(`Invite request sent to ${eventRequestDraft.person.name}`, 'info');
+      setEventRequestDraft({ person: null, title: '', date: '', location: '', note: '' });
+    } catch (error) {
+      console.error('Failed to send event request:', error);
+      showToast('Could not send the invite request', 'info');
+    } finally {
+      setSubmittingEventRequest(false);
+    }
+  }, [currentUser?.id, currentUser?.display_name, currentUser?.name, currentUser?.username, eventRequestDraft, showToast]);
 
   const openMediaViewer = useCallback(
     (person: NearbyPerson, index: number) => {
@@ -1140,8 +1133,6 @@ useEffect(() => {
               onChat={handleChat}
               onProfile={openProfile}
               onCreateEvent={handleFollow}
-              onShare={handleShare}
-              onBookmark={handleBookmark}
               onOpenMedia={openMediaViewer}
             />
           </div>
@@ -1167,6 +1158,88 @@ useEffect(() => {
         )}
       </div>
       </div>
+
+      {eventRequestDraft.person && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4 py-6">
+          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#11131A] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#FBBF24]">Invite request</p>
+                <h3 className="mt-1 text-xl font-black text-white">Plan a mini hangout with {eventRequestDraft.person.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEventRequestDraft({ person: null, title: '', date: '', location: '', note: '' })}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+                aria-label="Close invite request"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <label className="block text-sm text-gray-300">
+                <span className="mb-1 block text-[11px] uppercase tracking-[0.2em] text-gray-500">Event title</span>
+                <input
+                  value={eventRequestDraft.title}
+                  onChange={(event) => setEventRequestDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Coffee and a walk"
+                  className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none focus:border-[#FBBF24]"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-300">
+                <span className="mb-1 block text-[11px] uppercase tracking-[0.2em] text-gray-500">Date</span>
+                <input
+                  type="date"
+                  value={eventRequestDraft.date}
+                  onChange={(event) => setEventRequestDraft((current) => ({ ...current, date: event.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none focus:border-[#FBBF24]"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-300">
+                <span className="mb-1 block text-[11px] uppercase tracking-[0.2em] text-gray-500">Location</span>
+                <input
+                  value={eventRequestDraft.location}
+                  onChange={(event) => setEventRequestDraft((current) => ({ ...current, location: event.target.value }))}
+                  placeholder="Lagos, Ikoyi"
+                  className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none focus:border-[#FBBF24]"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-300">
+                <span className="mb-1 block text-[11px] uppercase tracking-[0.2em] text-gray-500">Short note</span>
+                <textarea
+                  value={eventRequestDraft.note}
+                  onChange={(event) => setEventRequestDraft((current) => ({ ...current, note: event.target.value }))}
+                  placeholder="Keep it casual and low pressure"
+                  rows={3}
+                  className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white outline-none focus:border-[#FBBF24]"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEventRequestDraft({ person: null, title: '', date: '', location: '', note: '' })}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitEventRequest}
+                disabled={submittingEventRequest}
+                className="rounded-full bg-[#FBBF24] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#F59E0B] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {submittingEventRequest ? 'Sending...' : 'Send request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Sidebar activeNav="Nearby" onNavigate={onNavigate} setActiveNav={setActiveNav} />
 

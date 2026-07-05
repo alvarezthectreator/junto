@@ -24,29 +24,30 @@ export function TopHeader({ showHamburger, onHamburgerClick, hambugerOpen }: Top
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 py-3 sm:py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           
-          {/* Left: Search, Post, Logo & Branding */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                onClick={() => handleNavigate('/discover')}
-                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-                title="Search"
-              >
-                <Search size={16} />
-              </button>
+          {/* Left: Create Button (Far Left) */}
+          <div className="flex-shrink-0">
+            <button
+              onClick={() => handleNavigate('/myhost')}
+              className="flex items-center gap-1 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-3 sm:px-4 py-2 rounded-full font-semibold text-xs sm:text-sm transition-colors"
+              title="Create a post"
+            >
+              <Plus size={14} />
+              <span>Create</span>
+            </button>
+          </div>
 
-              <button
-                onClick={() => handleNavigate('/myhost')}
-                className="flex items-center gap-1 bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black px-2 py-1 rounded-full font-semibold text-[10px] sm:text-[11px] transition-colors"
-                title="Create a post"
-              >
-                <Plus size={12} />
-                <span className="hidden xs:inline">Create</span>
-              </button>
-            </div>
+          {/* Center: Search, Logo & Branding */}
+          <div className="flex items-center gap-3 sm:gap-4 flex-1 mx-4 sm:mx-6 min-w-0">
+            <button
+              onClick={() => handleNavigate('/discover')}
+              className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors flex-shrink-0"
+              title="Search"
+            >
+              <Search size={16} />
+            </button>
 
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] flex items-center justify-center font-bold text-white">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FB923C] flex items-center justify-center font-bold text-white flex-shrink-0">
                 J
               </div>
               <div className="hidden xs:flex flex-col gap-0">

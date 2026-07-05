@@ -74,6 +74,10 @@ function summarizeMessage(message?: MessageRecord) {
   if (message.type === 'image') return '📷 Photo';
   if (message.type === 'video') return '🎥 Video';
   if (message.type === 'voice') return `🎤 Voice note${message.duration ? ` · ${message.duration}` : ''}`;
+  if (message.type === 'event_request') {
+    const payload = parseEventRequestMessage(text);
+    return payload?.title ? `Event request: ${payload.title}` : 'Event request';
+  }
   if (message.type === 'system') return text || 'System message';
   return text;
 }
@@ -112,6 +116,28 @@ function parseWebRTCSignal(content?: string): ParsedWebRTCSignal | null {
   try {
     const parsed = JSON.parse(content) as ParsedWebRTCSignal;
     return parsed?.__webrtc_signal__ ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+type ParsedEventRequest = {
+  __event_request__?: boolean;
+  title?: string;
+  date?: string;
+  location?: string;
+  note?: string;
+  senderName?: string;
+  recipientName?: string;
+  createdAt?: string;
+};
+
+function parseEventRequestMessage(content?: string): ParsedEventRequest | null {
+  if (!content) return null;
+
+  try {
+    const parsed = JSON.parse(content) as ParsedEventRequest;
+    return parsed?.__event_request__ ? parsed : null;
   } catch {
     return null;
   }
@@ -246,10 +272,6 @@ function mergeMessageThreads(baseMessages: MessageRecord[], incomingMessages: Me
   return merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
-function isSameUser(valueA?: string | null, valueB?: string | null) {
-  return Boolean(valueA && valueB && String(valueA).trim().toLowerCase() === String(valueB).trim().toLowerCase());
-}
-
 function formatDateDivider(isoString: string): string {
   const date = new Date(isoString);
   const now = new Date();
@@ -290,6 +312,8 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
+  const [eventRequestViewer, setEventRequestViewer] = useState<ParsedEventRequest | null>(null);
+  const [dismissedRequestIds, setDismissedRequestIds] = useState<string[]>([]);
   const [emojiBurst, setEmojiBurst] = useState('');
   const [schedulePreset, setSchedulePreset] = useState<SchedulePreset>('now');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -397,6 +421,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             const mappedMessages: MessageRecord[] = backendMessages.map((message: any, index: number) => {
               const signal = parsedSignals[index];
               const previousSignals = parsedSignals.slice(0, index).filter(Boolean) as ParsedWebRTCSignal[];
+              const parsedEventRequest = parseEventRequestMessage(String(message.content || ''));
               const senderIsCurrent = String(message.sender_id) === String(currentUser.id);
               const senderName = friendlyName(
                 message.sender_display_name,
@@ -423,7 +448,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                 id: String(message.id),
                 from: senderName,
                 mine: senderIsCurrent,
-                type: (message.message_type || 'text') as MessageRecord['type'],
+                type: parsedEventRequest ? 'event_request' : ((message.message_type || 'text') as MessageRecord['type']),
                 text: message.content || '',
                 url: message.media_url || undefined,
                 time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -642,12 +667,14 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
     if (conversation?.backendConversationId) {
       void (async () => {
         try {
-          const response = await API.getConversation(conversation.backendConversationId);
+          const backendConversationId = conversation.backendConversationId ?? String(conversation.id);
+          const response = await API.getConversation(backendConversationId);
           const backendMessages = Array.isArray(response?.messages) ? response.messages : [];
           const parsedSignals = backendMessages.map((message: any) => parseWebRTCSignal(message.content));
           const normalizedMessages: MessageRecord[] = backendMessages.map((message: any, index: number) => {
             const signal = parsedSignals[index];
             const previousSignals = parsedSignals.slice(0, index).filter(Boolean) as ParsedWebRTCSignal[];
+            const parsedEventRequest = parseEventRequestMessage(String(message.content || ''));
             const senderIsCurrent = String(message.sender_id) === String(currentUser?.id);
             const senderName = friendlyName(
               message.sender_display_name,
@@ -677,7 +704,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
               id: String(message.id),
               from: senderName,
               mine: senderIsCurrent,
-              type: (message.message_type || 'text') as MessageRecord['type'],
+              type: parsedEventRequest ? 'event_request' : ((message.message_type || 'text') as MessageRecord['type']),
               text: message.content || '',
               url: message.media_url || undefined,
               time: new Date(message.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -711,7 +738,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             );
           });
 
-          await API.markMessagesAsRead(conversation.backendConversationId).catch((error) => {
+          await API.markMessagesAsRead(backendConversationId).catch((error) => {
             console.error('Failed to mark conversation as read:', error);
           });
         } catch (error) {
@@ -925,6 +952,54 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
         </div>
       </div>
 
+      {eventRequestViewer && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4 py-6">
+          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#11131A] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#FBBF24]">Event request</p>
+                <h3 className="mt-1 text-xl font-black text-white">{eventRequestViewer.title || 'Mini hangout invite'}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEventRequestViewer(null)}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+                aria-label="Close event request"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm text-gray-300">
+              <p><span className="text-gray-500">From:</span> {eventRequestViewer.senderName || 'Someone'}</p>
+              <p><span className="text-gray-500">Date:</span> {eventRequestViewer.date || 'TBD'}</p>
+              <p><span className="text-gray-500">Location:</span> {eventRequestViewer.location || 'TBD'}</p>
+              {eventRequestViewer.note ? <p><span className="text-gray-500">Note:</span> {eventRequestViewer.note}</p> : null}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEventRequestViewer(null)}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:bg-white/10"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEventRequestViewer(null);
+                  navigate('/myhost');
+                }}
+                className="rounded-full bg-[#FBBF24] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#F59E0B]"
+              >
+                Create event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1096,6 +1171,7 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                   ? friendlyName(currentUser?.display_name, currentUser?.username, currentUser?.name, 'You')
                   : friendlyName(message.from, activeConversationData?.name, 'Sender');
                 const messageText = coerceMessageText(message.text);
+                const parsedEventRequest = parseEventRequestMessage(messageText);
                 const callTone = message.type === 'system' ? getCallSummaryTone(messageText) : 'neutral';
                 const CallIcon = message.type === 'system' ? getCallSummaryIcon(messageText) : undefined;
                 const isCallSummary = message.type === 'system' && /call/i.test(messageText);
@@ -1123,6 +1199,38 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
                             : 'rounded-tl-sm bg-[#0F0F13] text-gray-200'
                         }`}
                       >
+                        {message.type === 'event_request' && parsedEventRequest && !dismissedRequestIds.includes(message.id) && (
+                          <div className="space-y-3">
+                            <div className="rounded-2xl border border-[#FBBF24]/25 bg-[#FBBF24]/10 p-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#FBBF24]">Event request</p>
+                              <p className="mt-2 text-sm font-semibold text-white">{parsedEventRequest.title || 'Mini hangout invite'}</p>
+                              <p className="mt-1 text-xs text-gray-300">{parsedEventRequest.senderName || 'Someone'} wants to create an event with you.</p>
+                              <div className="mt-3 space-y-1 text-xs text-gray-300">
+                                <p>{parsedEventRequest.date ? `Date: ${parsedEventRequest.date}` : 'Date: TBD'}</p>
+                                <p>{parsedEventRequest.location ? `Location: ${parsedEventRequest.location}` : 'Location: TBD'}</p>
+                                {parsedEventRequest.note ? <p>Note: {parsedEventRequest.note}</p> : null}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEventRequestViewer(parsedEventRequest)}
+                                className="rounded-full bg-[#FBBF24] px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-[#F59E0B]"
+                              >
+                                View event
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDismissedRequestIds((current) => current.includes(message.id) ? current : [...current, message.id])}
+                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-gray-200 transition hover:bg-white/10"
+                              >
+                                X
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {message.type === 'text' && <p className="whitespace-pre-wrap leading-6">{messageText}</p>}
 
                         {message.type === 'image' && (

@@ -63,7 +63,7 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
             isActive={activeNav === 'Nearby'}
             onClick={() => handleNavigate('nearby', 'Nearby')}
           />
-          
+
           <NavItem
             icon={<ClipboardList size={18} />}
             label="Requests"
