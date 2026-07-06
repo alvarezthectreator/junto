@@ -525,8 +525,6 @@ function PersonCard({
             </div>
 
             <div className="mt-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.24em] text-[#FFD700]/80">
-              <span>{person.profileId}</span>
-              <span className="h-1 w-1 rounded-full bg-white/50" />
               <span>{person.proximityLabel}</span>
             </div>
 
@@ -625,19 +623,6 @@ function PersonCard({
                 <MessageCircle size={14} />
                 Message
               </button>
-
-              <button
-                type="button"
-                onClick={handleLike}
-                className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-extrabold transition sm:flex-none sm:min-w-[140px] ${
-                  liked
-                    ? 'border-[#FFD700]/50 bg-[#FFD700] text-black'
-                    : 'border-[#FFD700]/30 bg-gradient-to-r from-[#FFD700] to-[#FFB800] text-black shadow-[0_16px_34px_rgba(255,215,0,0.22)]'
-                }`}
-              >
-                <Heart size={14} fill="currentColor" />
-                Like
-              </button>
             </div>
 
             <button
@@ -680,6 +665,7 @@ export function Nearby({
   const [people, setPeople] = useState<NearbyPerson[]>(normalizeFallbackPeople());
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showBottomNav, setShowBottomNav] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toast, setToast] = useState<FeedToast | null>(null);
@@ -705,6 +691,7 @@ export function Nearby({
   const feedRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLElement | null>>([]);
   const toastTimerRef = useRef<number | null>(null);
+  const bottomNavHideTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((message: string, tone: FeedToast['tone'] = 'info') => {
     if (toastTimerRef.current) {
@@ -925,6 +912,42 @@ useEffect(() => {
     };
   }, []);
 
+  useEffect(() => {
+    const container = feedRef.current;
+    if (!container) {
+      return;
+    }
+
+    const clearBottomNavTimer = () => {
+      if (bottomNavHideTimerRef.current) {
+        window.clearTimeout(bottomNavHideTimerRef.current);
+        bottomNavHideTimerRef.current = null;
+      }
+    };
+
+    const handleScroll = () => {
+      const shouldShow = container.scrollTop > 80;
+      setShowBottomNav(shouldShow);
+
+      if (!shouldShow) {
+        clearBottomNavTimer();
+        return;
+      }
+
+      clearBottomNavTimer();
+      bottomNavHideTimerRef.current = window.setTimeout(() => {
+        setShowBottomNav(false);
+      }, 3000);
+    };
+
+    handleScroll();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      clearBottomNavTimer();
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   const handleLike = useCallback(
     (person: NearbyPerson) => {
       showToast(`Liked ${person.name}`, 'like');
@@ -954,18 +977,35 @@ useEffect(() => {
   const handleChat = useCallback(
     (person: NearbyPerson) => {
       showToast(`Opening chat with ${person.name}`, 'chat');
+
+      const messageTarget = {
+        id: String(person.id),
+        name: person.name,
+        display_name: person.name,
+        profile_id: person.profileId || person.id,
+        avatarImage: person.avatarImage,
+        avatar_image: person.avatarImage,
+        city: person.city,
+        source: 'nearby',
+      };
+
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('junto-message-target', JSON.stringify(messageTarget));
+      }
+
       if (setSelectedUser) {
         void API.getUserProfile(person.id)
           .then((profile) => {
             setSelectedUser({
               ...person,
               ...profile,
+              ...messageTarget,
               profile_photos: profile.profile_photos || person.media.filter((item) => item.type === 'image').map((item) => item.src),
               intro_video_url: profile.intro_video_url || person.media.find((item) => item.type === 'video')?.src || null,
             });
           })
           .catch(() => {
-            setSelectedUser(person);
+            setSelectedUser({ ...person, ...messageTarget });
           });
       }
       onNavigate?.('messages');
@@ -1241,7 +1281,7 @@ useEffect(() => {
         </div>
       )}
 
-      <Sidebar activeNav="Nearby" onNavigate={onNavigate} setActiveNav={setActiveNav} />
+      <Sidebar activeNav="Nearby" onNavigate={onNavigate} setActiveNav={setActiveNav} isVisible={showBottomNav} />
 
       <MediaViewer
         open={viewer.open}

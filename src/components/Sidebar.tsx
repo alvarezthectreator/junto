@@ -18,9 +18,10 @@ interface SidebarProps {
   setActiveNav?: (nav: string) => void;
   onCloseSidebar?: () => void;
   onClearSelectedUser?: () => void;
+  isVisible?: boolean;
 }
 
-export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar, onClearSelectedUser }: SidebarProps) {
+export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActiveNav, onCloseSidebar, onClearSelectedUser, isVisible = true }: SidebarProps) {
   const navigate = useNavigate();
 
   const handleNavigate = (page: string, navLabel: string) => {
@@ -42,9 +43,10 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
   return (
     <motion.div 
       className="fixed inset-x-0 bottom-0 z-[9999] border-t border-white/10 bg-gradient-to-t from-[#0F0F13]/99 to-[#0F0F13]/95 px-2 md:px-4 py-2 md:py-3 rounded-t-3xl shadow-[0_-12px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
-      initial={{ y: 0 }}
-      animate={{ y: 0 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: isVisible ? 0 : 100, opacity: isVisible ? 1 : 0 }}
+      transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+      style={{ pointerEvents: isVisible ? 'auto' : 'none' }}
     >
       {/* Bottom Navbar */}
       <nav className="flex items-center justify-between gap-0.5 md:gap-3 max-w-7xl mx-auto">

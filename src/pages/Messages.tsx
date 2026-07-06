@@ -480,11 +480,12 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           })
         );
 
-        if (cancelled || backendConversations.length === 0) return;
+        if (cancelled) return;
 
         setStore((current) => {
           const nextConversations = [...current.conversations];
           const nextThreads = { ...current.threads };
+          const activeBackendIds = new Set(backendConversations.map(({ conversation }) => String(conversation.backendConversationId || '')));
 
           backendConversations.forEach(({ conversationId, conversation, messages }) => {
             const existingIndex = nextConversations.findIndex((item) => item.id === conversationId);
@@ -500,7 +501,14 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
             }
           });
 
-          const sortedConversations = [...nextConversations].sort((a, b) => {
+          const filteredConversations = nextConversations.filter((conversation) => {
+            if (!conversation.backendConversationId) {
+              return true;
+            }
+            return activeBackendIds.has(String(conversation.backendConversationId));
+          });
+
+          const sortedConversations = [...filteredConversations].sort((a, b) => {
             const aThread = nextThreads[a.id] ?? [];
             const bThread = nextThreads[b.id] ?? [];
             const aLast = aThread[aThread.length - 1]?.createdAt ?? '';
@@ -1038,6 +1046,9 @@ export function Messages({ currentUser: currentUserProp, onNavigate = () => {} }
           </div>
 
           <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <div className="mx-4 mt-3 rounded-2xl border border-[#FBBF24]/25 bg-[#FBBF24]/12 px-3 py-2 text-[11px] leading-5 text-[#FDE68A]">
+              Inactive chats are removed automatically after 14 days of no activity.
+            </div>
             {filteredConversations.map((chat) => {
               const conversationThread = store.threads[chat.id] ?? [];
               const lastMessage = conversationThread[conversationThread.length - 1];

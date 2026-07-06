@@ -64,8 +64,11 @@ export function EventCard({
   status = 'active',
   location = ''
 }: EventCardProps) {
-  const narration = (status !== 'expired' && userName && actionText)
-    ? `${userName} wantuu have ${actionText}`
+  const topLine = (status !== 'expired' && userName && actionText)
+    ? `${userName} wantuu ${actionText}`
+    : '';
+  const lowerNarration = (status !== 'expired' && description)
+    ? `Narration: ${description}`
     : '';
   
   // Check if event is expired
@@ -220,10 +223,10 @@ export function EventCard({
           </div>
         </div>
 
-        {/* Top Narration (user wants to action) */}
-        {narration && (
-          <p className="text-sm sm:text-base text-gray-300 mb-2">
-            <span className="font-semibold text-white">{userName}</span> wants to <span className="italic text-amber-300">{actionText}</span>
+        {/* Top narration line */}
+        {topLine && (
+          <p className="mb-2 text-sm text-gray-300 sm:text-base">
+            <span className="font-semibold text-white">{topLine}</span>
           </p>
         )}
 
@@ -254,10 +257,10 @@ export function EventCard({
           </div>
         </div>
 
-        {/* Narration */}
-        {narration && (
-          <p className="text-sm text-gray-300 mb-3 sm:mb-4 md:mb-6 leading-relaxed">
-            {narration}
+        {/* Lower narration line */}
+        {lowerNarration && (
+          <p className="mb-3 text-sm leading-relaxed text-gray-300 sm:mb-4 md:mb-6">
+            {lowerNarration}
           </p>
         )}
 

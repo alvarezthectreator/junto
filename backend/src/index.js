@@ -9,6 +9,7 @@ import { initializeDatabase } from './db/init.js';
 import { seedDatabase } from './db/seed.js';
 import { initWebSocket } from './websocket.js';
 import { startExpiryCleanupScheduler } from './utils/expiryCleanup.js';
+import { deleteInactiveConversations } from './api/controllers/messages.js';
 import { initializeReminderScheduler } from './services/eventReminderScheduler.js';
 import { initializeFollowupScheduler } from './services/followupScheduler.js';
 import { initializeNotificationDeliveryScheduler } from './services/notificationDeliveryScheduler.js';
@@ -151,6 +152,13 @@ async function startServer() {
       await seedDatabase();
     }
     
+    await deleteInactiveConversations();
+    setInterval(() => {
+      deleteInactiveConversations().catch((error) => {
+        console.error('Failed to prune inactive conversations:', error);
+      });
+    }, 60 * 60 * 1000);
+
     // Start event expiry cleanup scheduler
     startExpiryCleanupScheduler();
 

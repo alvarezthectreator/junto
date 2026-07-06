@@ -3,6 +3,31 @@ import { v4 as uuidv4 } from 'uuid';
 import { broadcastConversationUpdated, broadcastMessageCreated } from '../../websocket.js';
 import { createNotification } from '../../services/notificationService.js';
 
+const INACTIVE_CHAT_RETENTION_DAYS = 14;
+
+export async function deleteInactiveConversations(now = new Date()) {
+  const cutoff = new Date(now.getTime() - INACTIVE_CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const staleResult = await query(
+    `SELECT c.id
+     FROM conversations c
+     LEFT JOIN messages m ON m.conversation_id = c.id
+     GROUP BY c.id
+     HAVING COALESCE(MAX(m.created_at), c.last_message_at, c.updated_at, c.created_at) < ?`,
+    [cutoff]
+  );
+
+  if (!staleResult.rows.length) {
+    return 0;
+  }
+
+  for (const row of staleResult.rows) {
+    await query('DELETE FROM messages WHERE conversation_id = ?', [row.id]);
+    await query('DELETE FROM conversations WHERE id = ?', [row.id]);
+  }
+
+  return staleResult.rows.length;
+}
+
 async function getConversationById(conversationId) {
   const result = await query(
     'SELECT id, user1_id, user2_id, last_message_id, last_message_at FROM conversations WHERE id = ?',
@@ -22,6 +47,8 @@ function isParticipant(conversation, userId) {
 
 export async function sendMessage(req, res) {
   try {
+    await deleteInactiveConversations();
+
     const actorId = req.user?.id;
     const {
       sender_id,
@@ -138,6 +165,8 @@ export async function sendMessage(req, res) {
 
 export async function getConversations(req, res) {
   try {
+    await deleteInactiveConversations();
+
     const viewerId = req.user?.id;
     const { userId } = req.params;
     const { limit = 20 } = req.query;
@@ -170,6 +199,8 @@ export async function getConversations(req, res) {
 
 export async function getConversation(req, res) {
   try {
+    await deleteInactiveConversations();
+
     const viewerId = req.user?.id;
     const { conversationId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
@@ -205,6 +236,8 @@ export async function getConversation(req, res) {
 
 export async function markAsRead(req, res) {
   try {
+    await deleteInactiveConversations();
+
     const viewerId = req.user?.id;
     const { conversationId } = req.params;
 
@@ -244,6 +277,8 @@ export async function markAsRead(req, res) {
 
 export async function deleteMessage(req, res) {
   try {
+    await deleteInactiveConversations();
+
     const viewerId = req.user?.id;
     const { messageId } = req.params;
 
