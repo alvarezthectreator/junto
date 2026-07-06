@@ -395,9 +395,13 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     });
 
     return Array.from(deduped.values())
-   return Array.from(deduped.values())
       .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
-      .filter((event) => !isEventExpired(event.event_date, event.event_time, event.status));
+      .sort((a, b) => {
+        const aExpired = isEventExpired(a.event_date, a.event_time, a.status);
+        const bExpired = isEventExpired(b.event_date, b.event_time, b.status);
+        if (aExpired === bExpired) return 0;
+        return aExpired ? 1 : -1;
+      });
   }, [apiEvents, localEvents, useBackend, currentUser?.id, currentUser?.name, currentUser?.username]);
   // Filter events based on active filter and search
   let filteredEvents = events.filter((event: any) => {
@@ -419,14 +423,24 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
     return matchesFilter && matchesSearch && matchesSaved && matchesCity;
   });
 
-  // Sort events
-  if (sortBy === 'trending') {
-    filteredEvents = [...filteredEvents].sort((a: any, b: any) => (b.max_guests || 0) - (a.max_guests || 0));
-  } else if (sortBy === 'nearest') {
-    // This would use actual location data in production
-    filteredEvents = [...filteredEvents].sort((a: any, b: any) => (a.title?.charCodeAt(0) || 0) - (b.title?.charCodeAt(0) || 0));
-  }
-  // 'recent' is default array order
+  // Sort events, keeping active events ahead of expired ones
+  filteredEvents = [...filteredEvents].sort((a: any, b: any) => {
+    const aExpired = isEventExpired(a.event_date, a.event_time, a.status);
+    const bExpired = isEventExpired(b.event_date, b.event_time, b.status);
+    if (aExpired !== bExpired) {
+      return aExpired ? 1 : -1;
+    }
+
+    if (sortBy === 'trending') {
+      return (b.max_guests || 0) - (a.max_guests || 0);
+    }
+
+    if (sortBy === 'nearest') {
+      return (a.title?.charCodeAt(0) || 0) - (b.title?.charCodeAt(0) || 0);
+    }
+
+    return 0;
+  });
 
   useEffect(() => {
     setDisplayLimit(12);
@@ -621,19 +635,19 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
       {/* Filters */}
       <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
-        <div className="flex items-center gap-2 min-w-max">
+        <div className="flex items-center gap-2.5 min-w-max">
           {filters.map((filter) => {
             const isActive = activeFilter === filter;
             return (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`relative px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white bg-[#1A1A21] border border-white/5 hover:border-white/10'}`}>
+                className={`relative px-4 sm:px-5 py-2.5 rounded-full text-[11px] sm:text-sm font-semibold transition-all duration-200 flex-shrink-0 shadow-sm backdrop-blur-sm ${isActive ? 'text-white' : 'text-gray-300 hover:text-white bg-[#16161C] border border-white/10 hover:border-white/20 hover:bg-white/10'}`}>
                 
                 {isActive &&
                 <motion.div
                   layoutId="activeFilterBg"
-                  className="absolute inset-0 bg-[#F59E0B] rounded-full"
+                  className="absolute inset-0 rounded-full bg-gradient-to-r from-[#F59E0B] via-[#FB923C] to-[#FCD34D] shadow-[0_8px_24px_rgba(245,158,11,0.25)]"
                   initial={false}
                   transition={{
                     type: 'spring',
@@ -709,6 +723,7 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             actionText={event.actionText}
             emoji={event.emoji}
             description={event.description}
+            location={event.location_city || event.location || ''}
             date={event.date}
             eventTime={event.event_time}
             audience={event.audience}

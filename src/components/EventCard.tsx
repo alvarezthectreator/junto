@@ -61,9 +61,12 @@ export function EventCard({
   eventTime = '',
   maxCapacity,
   currentAttendees = 0,
-  status = 'active'
+  status = 'active',
+  location = ''
 }: EventCardProps) {
-  const narration = (status !== 'expired') ? `${userName} ${actionText}` : '';
+  const narration = (status !== 'expired' && userName && actionText)
+    ? `${userName} wantuu have ${actionText}`
+    : '';
   
   // Check if event is expired
   const eventExpired = isEventExpired(date, eventTime) || status === 'expired';
@@ -217,10 +220,18 @@ export function EventCard({
           </div>
         </div>
 
-        {/* Description */}
-        <p className="text-xs sm:text-sm text-gray-300 mb-3 sm:mb-4 md:mb-6 leading-relaxed flex-1 line-clamp-2 sm:line-clamp-3">
-          <span className="font-semibold text-white">Narration:</span> {description}
-        </p>
+        {/* Top Narration (user wants to action) */}
+        {narration && (
+          <p className="text-sm sm:text-base text-gray-300 mb-2">
+            <span className="font-semibold text-white">{userName}</span> wants to <span className="italic text-amber-300">{actionText}</span>
+          </p>
+        )}
+
+        {/* Location (replaces old narration/description area) */}
+        <div className="flex items-center gap-2 text-sm text-gray-300 mb-3 sm:mb-4">
+          <span className="text-amber-300">📍</span>
+          <span className="line-clamp-1">{location || description || 'Nearby'}</span>
+        </div>
 
         {/* Tags */}
         <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3 mb-3 sm:mb-4 md:mb-6 w-full">
@@ -282,13 +293,13 @@ export function EventCard({
               onInterested?.();
             }}
             disabled={eventExpired || isAtCapacity}
-            className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-opacity ${
+            className={`flex-1 py-2 sm:py-2.5 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl font-semibold text-xs sm:text-sm transition-all duration-200 ${
               eventExpired 
                 ? 'bg-gray-600 text-gray-300 cursor-not-allowed opacity-50'
                 : isAtCapacity
                 ? 'bg-red-600/50 text-red-100 cursor-not-allowed opacity-75'
-                : `${accentColor || 'bg-[#F59E0B]'} ${accentColor?.includes('text-gray-900') ? 'text-gray-900' : 'text-white'} hover:opacity-90`
-            } shadow-sm`}>
+                : 'bg-gradient-to-r from-[#F59E0B] via-[#FB923C] to-[#FCD34D] text-white hover:opacity-90 shadow-[0_8px_24px_rgba(245,158,11,0.25)]'
+            }`}>
             
             {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : onInterested ? 'Interested' : 'View event →'}
           </button>
