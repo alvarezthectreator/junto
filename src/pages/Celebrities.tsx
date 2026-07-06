@@ -77,8 +77,7 @@ export function Celebrities() {
         ) : celebrities.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-4xl mb-3">🌟</p>
-            <p className="text-gray-400 text-sm">No celebrities listed yet.</p>
-            <p className="text-gray-600 text-xs mt-1">Check back soon!</p>
+            <p className="text-gray-400 text-sm">Too coming soon</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">

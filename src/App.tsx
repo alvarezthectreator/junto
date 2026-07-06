@@ -887,13 +887,14 @@ export function App() {
                     navigate('/myhost');
                     setOpenCreateModal(true);
                   }}
-                  className="mt-4 flex h-10 w-10 flex-col items-center justify-center rounded-full bg-[#F59E0B]/15 text-[#F59E0B] transition-colors hover:bg-[#F59E0B]/25 hover:text-[#FBBF24] sm:mt-5 sm:h-11 sm:w-11"
+                  className="mt-4 flex flex-col items-center gap-1 text-white transition-colors hover:text-[#FBBF24] sm:mt-5"
                   title="Create a post"
                 >
-                  <Plus size={14} className="sm:hidden" />
-                  <Plus size={16} className="hidden sm:block" />
-                  <span className="mt-0.5 whitespace-nowrap text-[7px] font-semibold leading-none text-[#F69D11]">
-                    Create Event
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:bg-white/10 sm:h-11 sm:w-11">
+                    <Plus size={15} />
+                  </span>
+                  <span className="whitespace-nowrap text-[9px] font-medium tracking-[0.02em] text-white/90">
+                    Create event
                   </span>
                 </button>
               </div>
