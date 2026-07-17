@@ -132,35 +132,20 @@ export const requestOTP = async (req, res) => {
     const otp = generateOTP();
     const displayName = getDisplayNameFromEmail(normalizedEmail);
 
-    // Send email
-    const emailResult = await sendOTPEmail(normalizedEmail, otp, displayName);
-    if (!emailResult.success) {
-      console.error('Email send failed:', emailResult.error);
-      const { status, body } = buildOtpErrorResponse(emailResult);
-      return res.status(status).json(body);
-    }
-
-    // Store OTP in database
+    // Store OTP in database first so expiry endpoints and retries can find it
+    const database = getDatabase(req);
     try {
-      const database = getDatabase(req);
       await storeOTP(database, normalizedEmail, otp);
 
       // Track request for rate limiting
       recentRequests.push(now);
       requestLimits.set(normalizedEmail, recentRequests);
 
-      console.log(`✅ OTP successfully stored for ${normalizedEmail}`);
-      res.json({
-        success: true,
-        message: 'OTP sent to your email',
-        email: normalizedEmail,
-        expiresIn: 300, // 5 minutes in seconds
-        messageId: emailResult.messageId,
-      });
+      console.log(`✓ OTP stored for ${normalizedEmail} (before send)`);
     } catch (dbError) {
       console.error('❌ Database error storing OTP:', dbError.message);
       console.warn('Attempting memory fallback for:', normalizedEmail);
-      
+
       // Fallback to in-memory storage if database fails
       try {
         storeOTPInMemory(normalizedEmail, otp);
@@ -168,14 +153,7 @@ export const requestOTP = async (req, res) => {
         recentRequests.push(now);
         requestLimits.set(normalizedEmail, recentRequests);
 
-        return res.json({
-          success: true,
-          message: 'OTP sent to your email',
-          email: normalizedEmail,
-          expiresIn: 300,
-          messageId: emailResult.messageId,
-          _debug: 'OTP stored in memory fallback mode',
-        });
+        console.log(`✓ OTP stored in memory for ${normalizedEmail}`);
       } catch (fallbackError) {
         console.error('❌ Both database and memory storage failed:', fallbackError);
         return res.status(500).json({
@@ -184,6 +162,24 @@ export const requestOTP = async (req, res) => {
         });
       }
     }
+
+    // Now attempt to send email
+    const emailResult = await sendOTPEmail(normalizedEmail, otp, displayName);
+    if (!emailResult.success) {
+      console.error('Email send failed:', emailResult.error);
+      const { status, body } = buildOtpErrorResponse(emailResult);
+      // OTP remains stored — frontend can still show expiry info, but user won't receive email
+      return res.status(status).json(body);
+    }
+
+    console.log(`✅ OTP email sent to ${normalizedEmail}`);
+    res.json({
+      success: true,
+      message: 'OTP sent to your email',
+      email: normalizedEmail,
+      expiresIn: 300, // 5 minutes in seconds
+      messageId: emailResult.messageId,
+    });
   } catch (error) {
     console.error('Error in requestOTP:', error);
     res.status(500).json({ error: 'Server error' });
@@ -292,30 +288,41 @@ export const verifyOTPCode = async (req, res) => {
             
             console.log(`✅ New OTP user created: ${normalizedEmail} (${username})`);
 
-            // Generate token for new user
-            const token = generateToken({
-              id: userId,
-              email: normalizedEmail,
-              profile_id: profileId,
-            });
+            // Create initial user_profiles row to satisfy foreign key constraints
+            const insertProfileSql = `INSERT INTO user_profiles (id, user_id, last_active, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`;
+            database.run(insertProfileSql, [profileId, userId], (profileErr) => {
+              if (profileErr) {
+                console.error('⚠️ Failed to create user_profiles row for new user:', profileErr.message);
+                // Not fatal - continue, but log for debugging
+              } else {
+                console.log('✓ user_profiles row created for user:', userId);
+              }
 
-            // Clear rate limits on successful verification
-            verifyLimits.delete(normalizedEmail);
-            requestLimits.delete(normalizedEmail);
-
-            res.json({
-              success: true,
-              message: 'OTP verified. Welcome to Wantuu!',
-              token,
-              user: {
+              // Generate token for new user
+              const token = generateToken({
                 id: userId,
                 email: normalizedEmail,
-                display_name: displayName,
                 profile_id: profileId,
-                avatar_image: null,
-                profile_photos: [],
-              },
-              isNewUser: true,
+              });
+
+              // Clear rate limits on successful verification
+              verifyLimits.delete(normalizedEmail);
+              requestLimits.delete(normalizedEmail);
+
+              res.json({
+                success: true,
+                message: 'OTP verified. Welcome to Wantuu!',
+                token,
+                user: {
+                  id: userId,
+                  email: normalizedEmail,
+                  display_name: displayName,
+                  profile_id: profileId,
+                  avatar_image: null,
+                  profile_photos: [],
+                },
+                isNewUser: true,
+              });
             });
           }
         );
