@@ -27,27 +27,20 @@ function readSMTPConfig() {
   const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
 
   const host =
-    process.env.ZEPTOMAIL_HOST ||
-    process.env.ZEPTO_MAIL_HOST ||
-    'smtp.zeptomail.com';
+    process.env.ZEPTOMAIL_HOST || 'smtp.zeptomail.com';
 
   const portValue =
-    process.env.ZEPTOMAIL_PORT ||
-    process.env.ZEPTO_MAIL_PORT ||
-    '465';
+    process.env.ZEPTOMAIL_PORT || '465';
 
   const port = Number.parseInt(portValue, 10);
   const user =
     process.env.ZEPTOMAIL_USER ||
-    process.env.ZEPTO_MAIL_USER ||
     (useDevelopmentFallbacks ? 'emailapikey' : '');
   const pass =
     process.env.ZEPTOMAIL_PASSWORD ||
-    process.env.ZEPTO_MAIL_PASSWORD ||
     (useDevelopmentFallbacks ? '' : '');
   const from =
     process.env.ZEPTOMAIL_FROM ||
-    process.env.ZEPTO_MAIL_FROM ||
     user ||
     'no-reply@wantuu.com';
 
