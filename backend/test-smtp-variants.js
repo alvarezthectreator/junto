@@ -1,41 +1,46 @@
 import nodemailer from 'nodemailer';
 
-// Test different cPanel SMTP configurations
+const smtpHost = process.env.ZEPTOMAIL_HOST || 'smtp.zeptomail.com';
+const smtpUser = process.env.ZEPTOMAIL_USER || 'emailapikey';
+const smtpPass = process.env.ZEPTOMAIL_PASSWORD || '';
+const smtpFrom = process.env.ZEPTOMAIL_FROM || 'no-reply@wantuu.com';
+
+// Test different ZeptoMail SMTP configurations
 const configs = [
   {
     name: 'Current: Port 465 (SSL)',
-    host: 'mail.orquex.com',
+    host: smtpHost,
     port: 465,
     secure: true,
-    auth: { user: 'testmail@orquex.com', pass: '100000000' }
+    auth: { user: smtpUser, pass: smtpPass }
   },
   {
     name: 'Alt 1: Port 587 (TLS)',
-    host: 'mail.orquex.com',
+    host: smtpHost,
     port: 587,
     secure: false,
-    auth: { user: 'testmail@orquex.com', pass: '100000000' }
+    auth: { user: smtpUser, pass: smtpPass }
   },
   {
     name: 'Alt 2: Port 25 (No SSL)',
-    host: 'mail.orquex.com',
+    host: smtpHost,
     port: 25,
     secure: false,
-    auth: { user: 'testmail@orquex.com', pass: '100000000' }
+    auth: { user: smtpUser, pass: smtpPass }
   },
   {
-    name: 'Alt 3: Hostname without "mail." prefix',
-    host: 'orquex.com',
+    name: 'Alt 3: Hostname without "smtp." prefix',
+    host: 'zeptomail.com',
     port: 465,
     secure: true,
-    auth: { user: 'testmail@orquex.com', pass: '100000000' }
+    auth: { user: smtpUser, pass: smtpPass }
   }
 ];
 
 let tested = 0;
 let working = null;
 
-console.log('🔍 Testing cPanel SMTP Configurations\n');
+console.log('🔍 Testing ZeptoMail SMTP Configurations\n');
 console.log('This will test 4 different configurations...\n');
 
 configs.forEach((config, index) => {
@@ -69,24 +74,21 @@ function printResults() {
   if (working) {
     console.log('✅ WORKING CONFIGURATION FOUND!\n');
     console.log('Use these settings in backend/.env:\n');
-    console.log(`CPANEL_EMAIL_HOST=${working.host}`);
-    console.log(`CPANEL_EMAIL_PORT=${working.port}`);
-    console.log(`CPANEL_EMAIL_USER=testmail@orquex.com`);
-    console.log(`CPANEL_EMAIL_PASSWORD=100000000`);
-    console.log(`CPANEL_EMAIL_FROM=testmail@orquex.com\n`);
+    console.log(`ZEPTOMAIL_HOST=${working.host}`);
+    console.log(`ZEPTOMAIL_PORT=${working.port}`);
+    console.log(`ZEPTOMAIL_USER=emailapikey`);
+    console.log(`ZEPTOMAIL_PASSWORD=your-zeptomail-password`);
+    console.log(`ZEPTOMAIL_FROM=${smtpFrom}\n`);
     
     console.log('Then restart the backend:');
     console.log('  npm run dev\n');
   } else {
     console.log('❌ NO WORKING CONFIGURATION FOUND\n');
     console.log('This usually means:\n');
-    console.log('1. ❌ Email account not created in cPanel');
-    console.log('2. ❌ Wrong password (verify in cPanel > Email Accounts)');
+    console.log('1. ❌ Sender email/domain not verified in ZeptoMail');
+    console.log('2. ❌ Wrong SMTP password or username');
     console.log('3. ❌ Network/firewall blocking SMTP ports\n');
-    console.log('💡 Recommendation: Use Gmail SMTP instead for testing:\n');
-    console.log('  - Easier to set up');
-    console.log('  - More reliable');
-    console.log('  - Can test immediately\n');
+    console.log('💡 Recommendation: Double-check the verified sender and SMTP token in ZeptoMail.\n');
   }
   
   process.exit(0);

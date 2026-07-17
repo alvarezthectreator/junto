@@ -57,37 +57,34 @@ function readSMTPConfig() {
   const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
 
   const host =
-    process.env.CPANEL_EMAIL_HOST ||
-    process.env.SMTP_HOST ||
-    process.env.MAIL_HOST ||
-    (useDevelopmentFallbacks ? 'mail.orquex.com' : '');
+    process.env.ZEPTOMAIL_HOST ||
+    process.env.ZEPTO_MAIL_HOST ||
+    'smtp.zeptomail.com';
 
   const portValue =
-    process.env.CPANEL_EMAIL_PORT ||
-    process.env.SMTP_PORT ||
-    (useDevelopmentFallbacks ? '465' : '');
+    process.env.ZEPTOMAIL_PORT ||
+    process.env.ZEPTO_MAIL_PORT ||
+    '465';
 
   const port = Number.parseInt(portValue, 10);
   const user =
-    process.env.CPANEL_EMAIL_USER ||
-    process.env.SMTP_USER ||
-    (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
+    process.env.ZEPTOMAIL_USER ||
+    process.env.ZEPTO_MAIL_USER ||
+    (useDevelopmentFallbacks ? 'emailapikey' : '');
   const pass =
-    process.env.CPANEL_EMAIL_PASSWORD ||
-    process.env.SMTP_PASSWORD ||
-    (useDevelopmentFallbacks ? '100000000' : '');
+    process.env.ZEPTOMAIL_PASSWORD ||
+    process.env.ZEPTO_MAIL_PASSWORD ||
+    (useDevelopmentFallbacks ? '' : '');
   const from =
-    process.env.CPANEL_EMAIL_FROM ||
-    process.env.SMTP_FROM ||
+    process.env.ZEPTOMAIL_FROM ||
+    process.env.ZEPTO_MAIL_FROM ||
     user ||
-    (useDevelopmentFallbacks ? 'testmail@orquex.com' : '');
+    'no-reply@wantuu.com';
 
   const missing = [
-    !host ? 'CPANEL_EMAIL_HOST or SMTP_HOST' : null,
-    !portValue ? 'CPANEL_EMAIL_PORT or SMTP_PORT' : null,
-    !user ? 'CPANEL_EMAIL_USER or SMTP_USER' : null,
-    !pass ? 'CPANEL_EMAIL_PASSWORD or SMTP_PASSWORD' : null,
-    !from ? 'CPANEL_EMAIL_FROM or SMTP_FROM' : null,
+    !user ? 'ZEPTOMAIL_USER' : null,
+    !pass ? 'ZEPTOMAIL_PASSWORD' : null,
+    !from ? 'ZEPTOMAIL_FROM' : null,
   ].filter(Boolean);
 
   return {
@@ -112,11 +109,6 @@ function readSMTPConfig() {
 }
 
 function getEmailProvider() {
-  const gmailConfig = readGmailApiConfig();
-  if (gmailConfig.missing.length === 0) {
-    return { provider: 'gmail-api', config: gmailConfig };
-  }
-
   const smtpConfig = readSMTPConfig();
   if (smtpConfig.missing.length === 0) {
     return { provider: 'smtp', config: smtpConfig };
@@ -125,7 +117,7 @@ function getEmailProvider() {
   return {
     provider: null,
     config: {
-      missing: [...gmailConfig.missing, ...smtpConfig.missing],
+      missing: smtpConfig.missing,
     },
   };
 }
@@ -254,14 +246,6 @@ async function sendViaGmailApi(email, otp, displayName = 'User') {
 export const initializeEmailTransporter = () => {
   if (transporter || emailProvider) return transporter || { provider: emailProvider };
 
-  const gmailConfig = readGmailApiConfig();
-  if (gmailConfig.missing.length === 0) {
-    emailProvider = 'gmail-api';
-    console.log('✓ Gmail API email sender initialized');
-    console.log(`  Sender: ${gmailConfig.senderEmail}`);
-    return { provider: emailProvider };
-  }
-
   const smtpConfig = readSMTPConfig();
   if (smtpConfig.missing.length === 0) {
     transporter = nodemailer.createTransport({
@@ -279,15 +263,15 @@ export const initializeEmailTransporter = () => {
     });
 
     emailProvider = 'smtp';
-    console.log('✓ Email transporter initialized');
+    console.log('✓ SMTP email sender initialized');
     console.log(`  Host: ${smtpConfig.host}:${smtpConfig.port} (${smtpConfig.secure ? 'secure' : 'tls'})`);
     console.log(`  Sender: ${smtpConfig.from}`);
     return transporter;
   }
 
-  const missing = [...gmailConfig.missing, ...smtpConfig.missing];
+  const missing = smtpConfig.missing;
   console.warn(
-    `⚠️ Email is not configured. Missing: ${missing.join(', ')}. OTP requests will fail until Gmail API or SMTP variables are set.`
+    `⚠️ Email is not configured. Missing: ${missing.join(', ')}. OTP requests will fail until ZeptoMail SMTP variables are set.`
   );
   return null;
 };
@@ -300,8 +284,8 @@ export const generateOTP = () => {
 };
 
 /**
- * Send OTP via email through cPanel SMTP
- * FROM: testmail@orquex.com (cPanel)
+ * Send OTP via email through SMTP
+ * FROM: verified ZeptoMail sender address
  * TO: user's email (Gmail, Yahoo, etc.)
  */
 export const sendOTPEmail = async (email, otp, displayName = 'User') => {
@@ -588,26 +572,6 @@ export const testEmailConnection = async () => {
       }
     }
 
-    if (emailProvider === 'gmail-api') {
-      const gmailConfig = readGmailApiConfig();
-      const accessToken = await getGmailAccessToken(gmailConfig);
-
-      const profileResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!profileResponse.ok) {
-        const payload = await profileResponse.json().catch(() => ({}));
-        throw new Error(payload.error?.message || payload.error || `Gmail API profile failed (${profileResponse.status})`);
-      }
-
-      transporterVerified = true;
-      console.log('✅ Gmail API connection verified');
-      return { success: true, provider: 'gmail-api' };
-    }
-
     await transporter.verify();
     transporterVerified = true;
     console.log('✅ Email connection verified');
@@ -621,24 +585,18 @@ export const testEmailConnection = async () => {
 
 export const getEmailTransportStatus = () => {
   try {
-    const gmailConfig = readGmailApiConfig();
     const config = readSMTPConfig();
-    const provider = gmailConfig.missing.length === 0 ? 'gmail-api' : config.missing.length === 0 ? 'smtp' : null;
+    const provider = config.missing.length === 0 ? 'smtp' : null;
 
     return {
       configured: provider !== null,
       provider,
       verified: transporterVerified,
-      host: provider === 'smtp' ? config.host : provider === 'gmail-api' ? 'gmail.googleapis.com' : '',
-      port: provider === 'smtp' ? config.port : provider === 'gmail-api' ? 443 : null,
-      secure: provider === 'smtp' ? config.secure : provider === 'gmail-api' ? true : false,
-      sender: provider === 'gmail-api' ? gmailConfig.senderEmail : provider === 'smtp' ? config.from : '',
-      missing:
-        provider === 'gmail-api'
-          ? gmailConfig.missing
-          : provider === 'smtp'
-            ? config.missing
-            : [...gmailConfig.missing, ...config.missing],
+      host: provider === 'smtp' ? config.host : '',
+      port: provider === 'smtp' ? config.port : null,
+      secure: provider === 'smtp' ? config.secure : false,
+      sender: provider === 'smtp' ? config.from : '',
+      missing: provider === 'smtp' ? config.missing : config.missing,
     };
   } catch (error) {
     return {
@@ -646,10 +604,11 @@ export const getEmailTransportStatus = () => {
       verified: false,
       error: error.message,
       missing: [
-        'GMAIL_CLIENT_ID',
-        'GMAIL_CLIENT_SECRET',
-        'GMAIL_REFRESH_TOKEN',
-        'GMAIL_SENDER_EMAIL',
+        'ZEPTOMAIL_HOST',
+        'ZEPTOMAIL_PORT',
+        'ZEPTOMAIL_USER',
+        'ZEPTOMAIL_PASSWORD',
+        'ZEPTOMAIL_FROM',
       ],
     };
   }

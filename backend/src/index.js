@@ -141,10 +141,10 @@ async function startServer() {
       const emailStatus = await testEmailConnection();
       if (!emailStatus.success) {
         console.warn('⚠️  OTP email delivery is not ready:', emailStatus.error);
-        console.warn('   Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, and GMAIL_SENDER_EMAIL on Railway.');
+        console.warn('   Set ZEPTOMAIL_HOST, ZEPTOMAIL_PORT, ZEPTOMAIL_USER, ZEPTOMAIL_PASSWORD, and ZEPTOMAIL_FROM on Railway.');
       }
     } else {
-      console.warn('⚠️  OTP email transport is disabled until Gmail API or SMTP env vars are configured.');
+      console.warn('⚠️  OTP email transport is disabled until ZeptoMail SMTP or Gmail API env vars are configured.');
     }
     
     if (process.env.MOCK_DATA === 'true') {

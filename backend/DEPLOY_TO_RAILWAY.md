@@ -30,7 +30,7 @@ NODE_ENV="production"
 DB_PATH="/data/junto.db"
 ```
 
-Add any other env values you need, such as Gmail or SMTP credentials.
+Add any other env values you need, such as ZeptoMail SMTP or Gmail API credentials.
 
 If you keep SQLite, attach a Railway volume and mount it at `/data` so the database survives deploys.
 

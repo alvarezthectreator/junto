@@ -57,8 +57,14 @@ GMAIL_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GMAIL_CLIENT_SECRET=your-google-client-secret
 GMAIL_REFRESH_TOKEN=your-google-refresh-token
 GMAIL_SENDER_EMAIL=yourgmailaddress@gmail.com
+ZEPTOMAIL_HOST=smtp.zeptomail.com
+ZEPTOMAIL_PORT=465
+ZEPTOMAIL_USER=emailapikey
+ZEPTOMAIL_PASSWORD=your-zeptomail-password
+ZEPTOMAIL_FROM=no-reply@wantuu.com
 ```
 
+For ZeptoMail, verify the sender address or domain in your ZeptoMail account before sending OTPs.
 For Gmail API, make sure the refresh token has the `https://www.googleapis.com/auth/gmail.send` scope.
 
 ---
