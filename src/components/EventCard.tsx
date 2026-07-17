@@ -65,7 +65,7 @@ export function EventCard({
   location = ''
 }: EventCardProps) {
   const topLine = (status !== 'expired' && userName && actionText)
-    ? `${userName} wantuu ${actionText}`
+    ? `${userName} wantuu have ${actionText}`
     : '';
   const lowerNarration = (status !== 'expired' && description)
     ? `Narration: ${description}`

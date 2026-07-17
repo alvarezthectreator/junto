@@ -144,7 +144,7 @@ async function startServer() {
         console.warn('   Set ZEPTOMAIL_HOST, ZEPTOMAIL_PORT, ZEPTOMAIL_USER, ZEPTOMAIL_PASSWORD, and ZEPTOMAIL_FROM on Railway.');
       }
     } else {
-      console.warn('⚠️  OTP email transport is disabled until ZeptoMail SMTP or Gmail API env vars are configured.');
+      console.warn('⚠️  OTP email transport is disabled until ZeptoMail SMTP env vars are configured.');
     }
     
     if (process.env.MOCK_DATA === 'true') {
