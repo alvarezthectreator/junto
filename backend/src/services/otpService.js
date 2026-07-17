@@ -29,7 +29,7 @@ function readZeptoMailConfig() {
     process.env.ZEPTOMAIL_PASSWORD ||
     '';
   const fromAddress = process.env.ZEPTOMAIL_FROM || '';
-  const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Junto';
+  const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Wantuu';
 
   const missing = [
     !isNonEmpty(sendMailToken) ? 'ZEPTOMAIL_SEND_MAIL_TOKEN' : null,
@@ -51,7 +51,7 @@ function buildOtpEmailBody(otp, displayName) {
       <html>
         <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
           <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
-            <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
+            <h2 style="color: #333; margin-bottom: 20px;">Wantuu Verification Code</h2>
             <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Hi ${displayName},</p>
             <p style="color: #555; font-size: 14px; margin-bottom: 30px;">Your verification code is:</p>
             <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
@@ -60,7 +60,7 @@ function buildOtpEmailBody(otp, displayName) {
             <p style="color: #777; font-size: 13px; margin-bottom: 10px;">This code will expire in 5 minutes.</p>
             <p style="color: #777; font-size: 13px; margin-bottom: 20px;">If you did not request this code, please ignore this email.</p>
             <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-            <p style="color: #999; font-size: 12px;">Junto - Social Companionship Platform</p>
+            <p style="color: #999; font-size: 12px;">Wantuu - Social Companionship Platform</p>
           </div>
         </body>
       </html>
@@ -157,7 +157,7 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
           },
         },
       ],
-      subject: 'Your Junto Verification Code',
+      subject: 'Your Wantuu Verification Code',
       ...buildOtpEmailBody(otp, displayName),
       track_clicks: false,
       track_opens: false,

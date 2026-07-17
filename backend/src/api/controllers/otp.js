@@ -305,7 +305,7 @@ export const verifyOTPCode = async (req, res) => {
 
             res.json({
               success: true,
-              message: 'OTP verified. Welcome to Junto!',
+              message: 'OTP verified. Welcome to Wantuu!',
               token,
               user: {
                 id: userId,
