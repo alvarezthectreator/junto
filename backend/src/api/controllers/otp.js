@@ -45,7 +45,7 @@ function buildOtpErrorResponse(emailResult) {
     return {
       status: 503,
       body: {
-        error: 'Email delivery is not configured on the server. Set the ZEPTOMAIL_* SMTP variables.',
+        error: 'Email delivery is not configured on the server. Set the ZEPTOMAIL_* API variables.',
         details: emailResult?.error || status.error || 'Missing email configuration',
       },
     };
@@ -54,8 +54,8 @@ function buildOtpErrorResponse(emailResult) {
   return {
     status: 502,
     body: {
-      error: 'Failed to send OTP email through the configured ZeptoMail SMTP server.',
-      details: emailResult?.error || 'SMTP send failure',
+      error: 'Failed to send OTP email through the configured ZeptoMail API.',
+      details: emailResult?.error || 'ZeptoMail API send failure',
     },
   };
 }

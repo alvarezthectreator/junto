@@ -53,14 +53,13 @@ DB_PASSWORD=junto_password_dev
 PORT=5000
 FRONTEND_URL=http://localhost:5173
 DB_PATH=./junto.db
-ZEPTOMAIL_HOST=smtp.zeptomail.com
-ZEPTOMAIL_PORT=465
-ZEPTOMAIL_USER=emailapikey
-ZEPTOMAIL_PASSWORD=your-zeptomail-password
+ZEPTOMAIL_HOST=api.zeptomail.com
+ZEPTOMAIL_SEND_MAIL_TOKEN=your-zeptomail-send-mail-token
 ZEPTOMAIL_FROM=no-reply@wantuu.com
+ZEPTOMAIL_FROM_NAME=Junto
 ```
 
-For ZeptoMail, verify the sender address or domain in your ZeptoMail account before sending OTPs.
+For ZeptoMail API, verify the sender address or domain in your ZeptoMail account before sending OTPs.
 
 ---
 

@@ -3,7 +3,6 @@
  * Handles OTP generation, storage, and email delivery.
  */
 
-import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 
 let transporter = null;
@@ -23,52 +22,71 @@ function isNonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function readSMTPConfig() {
-  const useDevelopmentFallbacks = process.env.NODE_ENV !== 'production';
-
-  const host =
-    process.env.ZEPTOMAIL_HOST || 'smtp.zeptomail.com';
-
-  const portValue =
-    process.env.ZEPTOMAIL_PORT || '465';
-
-  const port = Number.parseInt(portValue, 10);
-  const user =
-    process.env.ZEPTOMAIL_USER ||
-    (useDevelopmentFallbacks ? 'emailapikey' : '');
-  const pass =
+function readZeptoMailConfig() {
+  const host = process.env.ZEPTOMAIL_HOST || 'api.zeptomail.com';
+  const sendMailToken =
+    process.env.ZEPTOMAIL_SEND_MAIL_TOKEN ||
     process.env.ZEPTOMAIL_PASSWORD ||
-    (useDevelopmentFallbacks ? '' : '');
-  const from =
-    process.env.ZEPTOMAIL_FROM ||
-    user ||
-    'no-reply@wantuu.com';
+    '';
+  const fromAddress = process.env.ZEPTOMAIL_FROM || '';
+  const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'Junto';
 
   const missing = [
-    !user ? 'ZEPTOMAIL_USER' : null,
-    !pass ? 'ZEPTOMAIL_PASSWORD' : null,
-    !from ? 'ZEPTOMAIL_FROM' : null,
+    !isNonEmpty(sendMailToken) ? 'ZEPTOMAIL_SEND_MAIL_TOKEN' : null,
+    !isNonEmpty(fromAddress) ? 'ZEPTOMAIL_FROM' : null,
   ].filter(Boolean);
 
   return {
     host,
-    port,
-    user,
-    pass,
-    from,
-    secure:
-      process.env.SMTP_SECURE !== undefined
-        ? readBooleanEnv(process.env.SMTP_SECURE)
-        : port === 465,
-    requireTLS:
-      process.env.SMTP_REQUIRE_TLS !== undefined
-        ? readBooleanEnv(process.env.SMTP_REQUIRE_TLS)
-        : port === 587,
-    connectionTimeout: Number.parseInt(process.env.SMTP_CONNECTION_TIMEOUT || '10000', 10),
-    greetingTimeout: Number.parseInt(process.env.SMTP_GREETING_TIMEOUT || '10000', 10),
-    socketTimeout: Number.parseInt(process.env.SMTP_SOCKET_TIMEOUT || '15000', 10),
+    sendMailToken,
+    fromAddress,
+    fromName,
     missing,
   };
+}
+
+function buildOtpEmailBody(otp, displayName) {
+  return {
+    htmlbody: `
+      <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+          <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
+            <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Hi ${displayName},</p>
+            <p style="color: #555; font-size: 14px; margin-bottom: 30px;">Your verification code is:</p>
+            <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
+              <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #333; margin: 0;">${otp}</p>
+            </div>
+            <p style="color: #777; font-size: 13px; margin-bottom: 10px;">This code will expire in 5 minutes.</p>
+            <p style="color: #777; font-size: 13px; margin-bottom: 20px;">If you did not request this code, please ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            <p style="color: #999; font-size: 12px;">Junto - Social Companionship Platform</p>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+}
+
+function extractZeptoMailError(payload, responseStatus) {
+  const details = payload?.error?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    const detailMessage = details
+      .map((item) => item?.message)
+      .filter(Boolean)
+      .join(', ');
+    if (detailMessage) {
+      return detailMessage;
+    }
+  }
+
+  return (
+    payload?.error?.message ||
+    payload?.error?.details?.message ||
+    payload?.message ||
+    payload?.error ||
+    `ZeptoMail API send failed (${responseStatus})`
+  );
 }
 
 /**
@@ -77,32 +95,19 @@ function readSMTPConfig() {
 export const initializeEmailTransporter = () => {
   if (transporter || emailProvider) return transporter || { provider: emailProvider };
 
-  const smtpConfig = readSMTPConfig();
-  if (smtpConfig.missing.length === 0) {
-    transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.secure,
-      requireTLS: smtpConfig.requireTLS,
-      connectionTimeout: smtpConfig.connectionTimeout,
-      greetingTimeout: smtpConfig.greetingTimeout,
-      socketTimeout: smtpConfig.socketTimeout,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    });
-
-    emailProvider = 'smtp';
-    console.log('✓ SMTP email sender initialized');
-    console.log(`  Host: ${smtpConfig.host}:${smtpConfig.port} (${smtpConfig.secure ? 'secure' : 'tls'})`);
-    console.log(`  Sender: ${smtpConfig.from}`);
+  const zeptoConfig = readZeptoMailConfig();
+  if (zeptoConfig.missing.length === 0) {
+    transporter = { provider: 'zeptomail-api', config: zeptoConfig };
+    emailProvider = 'zeptomail-api';
+    console.log('✓ ZeptoMail API sender initialized');
+    console.log(`  Host: ${zeptoConfig.host}`);
+    console.log(`  Sender: ${zeptoConfig.fromAddress}`);
     return transporter;
   }
 
-  const missing = smtpConfig.missing;
+  const missing = zeptoConfig.missing;
   console.warn(
-    `⚠️ Email is not configured. Missing: ${missing.join(', ')}. OTP requests will fail until ZeptoMail SMTP variables are set.`
+    `⚠️ Email is not configured. Missing: ${missing.join(', ')}. OTP requests will fail until ZeptoMail API variables are set.`
   );
   return null;
 };
@@ -115,9 +120,7 @@ export const generateOTP = () => {
 };
 
 /**
- * Send OTP via email through SMTP
- * FROM: verified ZeptoMail sender address
- * TO: user's email (Gmail, Yahoo, etc.)
+ * Send OTP via ZeptoMail REST API.
  */
 export const sendOTPEmail = async (email, otp, displayName = 'User') => {
   try {
@@ -132,36 +135,59 @@ export const sendOTPEmail = async (email, otp, displayName = 'User') => {
       }
     }
 
-    const config = readSMTPConfig();
-    const mailOptions = {
-      from: config.from,
-      replyTo: config.from,
-      to: email,
+    const config = transporter?.config || readZeptoMailConfig();
+    if (config.missing.length > 0) {
+      return {
+        success: false,
+        error: `Missing ZeptoMail API config: ${config.missing.join(', ')}`,
+        code: 'ZEPTOMAIL_API_NOT_CONFIGURED',
+      };
+    }
+
+    const payload = {
+      from: {
+        address: config.fromAddress,
+        name: config.fromName,
+      },
+      to: [
+        {
+          email_address: {
+            address: email,
+            name: displayName,
+          },
+        },
+      ],
       subject: 'Your Junto Verification Code',
-      html: `
-        <html>
-          <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
-            <div style="background-color: white; max-width: 600px; margin: 0 auto; padding: 20px; border-radius: 8px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Junto Verification Code</h2>
-              <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Hi ${displayName},</p>
-              <p style="color: #555; font-size: 14px; margin-bottom: 30px;">Your verification code is:</p>
-              <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-radius: 5px; margin-bottom: 20px;">
-                <p style="font-size: 32px; font-weight: bold; letter-spacing: 2px; color: #333; margin: 0;">${otp}</p>
-              </div>
-              <p style="color: #777; font-size: 13px; margin-bottom: 10px;">This code will expire in 5 minutes.</p>
-              <p style="color: #777; font-size: 13px; margin-bottom: 20px;">If you did not request this code, please ignore this email.</p>
-              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-              <p style="color: #999; font-size: 12px;">Junto - Social Companionship Platform</p>
-            </div>
-          </body>
-        </html>
-      `,
-      text: `Your Junto verification code is: ${otp}\n\nThis code will expire in 5 minutes.\n\nIf you did not request this code, please ignore this email.`,
+      ...buildOtpEmailBody(otp, displayName),
+      track_clicks: false,
+      track_opens: false,
+      client_reference: `otp-${Date.now()}`,
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ OTP email sent to ${email}:`, info.messageId);
-    return { success: true, messageId: info.messageId, provider: 'smtp' };
+    const response = await fetch(`https://${config.host}/v1.1/email`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Zoho-enczapikey ${config.sendMailToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responsePayload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(extractZeptoMailError(responsePayload, response.status));
+    }
+
+    const messageId =
+      responsePayload?.request_id ||
+      responsePayload?.data?.[0]?.request_id ||
+      responsePayload?.data?.request_id ||
+      null;
+
+    console.log(`✅ OTP email sent to ${email} via ZeptoMail API:`, messageId || 'no-request-id');
+    return { success: true, messageId, provider: 'zeptomail-api' };
   } catch (error) {
     console.error('❌ Error sending OTP email:', error.message);
 
@@ -400,10 +426,14 @@ export const testEmailConnection = async () => {
       }
     }
 
-    await transporter.verify();
+    const zeptoConfig = transporter?.config || readZeptoMailConfig();
+    if (zeptoConfig.missing.length > 0) {
+      return { success: false, error: `Missing ZeptoMail API config: ${zeptoConfig.missing.join(', ')}` };
+    }
+
     transporterVerified = true;
-    console.log('✅ Email connection verified');
-    return { success: true, provider: 'smtp' };
+    console.log('✅ ZeptoMail API configuration verified');
+    return { success: true, provider: 'zeptomail-api' };
   } catch (error) {
     transporterVerified = false;
     console.error('❌ Email connection failed:', error.message);
@@ -413,18 +443,16 @@ export const testEmailConnection = async () => {
 
 export const getEmailTransportStatus = () => {
   try {
-    const smtpConfig = readSMTPConfig();
-    const provider = smtpConfig.missing.length === 0 ? 'smtp' : null;
+    const zeptoConfig = readZeptoMailConfig();
+    const provider = zeptoConfig.missing.length === 0 ? 'zeptomail-api' : null;
 
     return {
       configured: provider !== null,
       provider,
       verified: transporterVerified,
-      host: provider === 'smtp' ? smtpConfig.host : '',
-      port: provider === 'smtp' ? smtpConfig.port : null,
-      secure: provider === 'smtp' ? smtpConfig.secure : false,
-      sender: provider === 'smtp' ? smtpConfig.from : '',
-      missing: smtpConfig.missing,
+      host: provider === 'zeptomail-api' ? zeptoConfig.host : '',
+      sender: provider === 'zeptomail-api' ? zeptoConfig.fromAddress : '',
+      missing: zeptoConfig.missing,
     };
   } catch (error) {
     return {
@@ -433,9 +461,7 @@ export const getEmailTransportStatus = () => {
       error: error.message,
       missing: [
         'ZEPTOMAIL_HOST',
-        'ZEPTOMAIL_PORT',
-        'ZEPTOMAIL_USER',
-        'ZEPTOMAIL_PASSWORD',
+        'ZEPTOMAIL_SEND_MAIL_TOKEN',
         'ZEPTOMAIL_FROM',
       ],
     };
