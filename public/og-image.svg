@@ -1,0 +1,49 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F0F13" />
+      <stop offset="55%" stop-color="#151A24" />
+      <stop offset="100%" stop-color="#1D2432" />
+    </linearGradient>
+    <linearGradient id="accent" x1="160" y1="110" x2="1040" y2="530" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F4D28D" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#EBC18E" stop-opacity="0.85" />
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="40" />
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)" />
+
+  <circle cx="1020" cy="120" r="150" fill="#F4D28D" opacity="0.14" filter="url(#blur)" />
+  <circle cx="180" cy="520" r="180" fill="#8BA9FF" opacity="0.16" filter="url(#blur)" />
+  <circle cx="980" cy="500" r="120" fill="#EBC18E" opacity="0.12" filter="url(#blur)" />
+
+  <rect x="78" y="78" width="1044" height="474" rx="36" fill="white" fill-opacity="0.05" stroke="white" stroke-opacity="0.08" />
+
+  <path d="M154 170C154 146.804 172.804 128 196 128H250C273.196 128 292 146.804 292 170V224C292 247.196 273.196 266 250 266H196C172.804 266 154 247.196 154 224V170Z" fill="url(#accent)" />
+  <path d="M189 220V173H205.5L225 203.5L244.5 173H261V220H248V194L231 220H219L202 194V220H189Z" fill="#0F0F13" />
+
+  <text x="335" y="210" fill="#FFFFFF" font-size="88" font-weight="700" font-family="Inter, Arial, sans-serif" letter-spacing="-2">
+    Wantuu
+  </text>
+  <text x="335" y="290" fill="#F0F3F8" font-size="34" font-weight="500" font-family="Inter, Arial, sans-serif">
+    Discover events, meet nearby people, and plan meaningful outings.
+  </text>
+
+  <g fill="#F4D28D" opacity="0.95" font-family="Inter, Arial, sans-serif">
+    <rect x="336" y="354" width="164" height="52" rx="26" fill="white" fill-opacity="0.08" />
+    <text x="368" y="388" font-size="22" font-weight="600">Events</text>
+
+    <rect x="514" y="354" width="186" height="52" rx="26" fill="white" fill-opacity="0.08" />
+    <text x="544" y="388" font-size="22" font-weight="600">Nearby people</text>
+
+    <rect x="714" y="354" width="170" height="52" rx="26" fill="white" fill-opacity="0.08" />
+    <text x="746" y="388" font-size="22" font-weight="600">Messages</text>
+  </g>
+
+  <text x="336" y="470" fill="#B8C0CE" font-size="22" font-weight="500" font-family="Inter, Arial, sans-serif">
+    A social platform for real-world connection, discovery, and planning.
+  </text>
+</svg>

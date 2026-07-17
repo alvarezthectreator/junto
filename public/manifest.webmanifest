@@ -1,7 +1,7 @@
 {
-  "name": "Junto",
-  "short_name": "Junto",
-  "description": "Discover events, nearby people, messages, and travel plans in one place.",
+  "name": "Wantuu",
+  "short_name": "Wantuu",
+  "description": "Discover events, meet nearby people, chat, and plan meaningful outings in one place.",
   "start_url": "/discover",
   "scope": "/",
   "display": "standalone",
