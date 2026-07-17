@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Shield, MapPin, Loader, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { DottedSurface } from '../components/ui/dotted-surface';
 import * as API from '../services/api';
 
@@ -741,6 +742,22 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
                   {loading && <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />}
                   {loading ? 'Processing...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
                 </button>
+
+                {authMode === 'login' && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                    <Link
+                      to="/forgot-password"
+                      style={{
+                        color: '#F59E0B',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                )}
 
                 {/* Toggle Auth Mode */}
                 <p style={{

@@ -1,7 +1,9 @@
 import { query } from '../../db/connection.js';
+import db from '../../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { generateToken } from '../middleware/auth.js';
+import { verifyOTP } from '../../services/otpService.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -641,6 +643,91 @@ export async function recoverAccount(req, res) {
     });
   } catch (error) {
     console.error('Account recovery error:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function resetPassword(req, res) {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, code, and new password are required' });
+    }
+
+    if (!email.includes('@')) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+
+    if (code.length !== 6 || isNaN(Number(code))) {
+      return res.status(400).json({ error: 'Invalid OTP code format' });
+    }
+
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const verifyResult = await verifyOTP(db, normalizedEmail, code);
+
+    if (!verifyResult.valid) {
+      return res.status(401).json({ error: verifyResult.reason || 'Invalid or expired verification code' });
+    }
+
+    const userResult = await query(
+      'SELECT id, username, display_name, session_version FROM users WHERE email = ?',
+      [normalizedEmail]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userData = userResult.rows[0];
+    const nextSessionVersion = Number(userData.session_version || 0) + 1;
+    const passwordHash = hashPassword(newPassword);
+
+    await query(
+      `UPDATE users
+       SET password_hash = ?, session_version = ?, password_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [passwordHash, nextSessionVersion, userData.id]
+    );
+
+    await query('UPDATE user_sessions SET is_active = 0, revoked_at = CURRENT_TIMESTAMP WHERE user_id = ?', [userData.id]);
+
+    const session = await createAuthSession(
+      {
+        id: userData.id,
+        username: userData.username,
+        display_name: userData.display_name,
+        email: normalizedEmail,
+        session_version: nextSessionVersion,
+      },
+      req,
+      'password_reset'
+    );
+
+    await recordSecurityEvent(
+      userData.id,
+      'password_reset',
+      'Password reset via email OTP',
+      { session_version: nextSessionVersion },
+      req
+    );
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      session_token: session.token,
+      user: {
+        id: userData.id,
+        username: userData.username,
+        display_name: userData.display_name,
+      },
+    });
+  } catch (error) {
+    console.error('Password reset error:', error);
     res.status(500).json({ error: error.message });
   }
 }

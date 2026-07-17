@@ -9,6 +9,7 @@ import {
   revokeOtherSessions,
   generateRecoveryCodes,
   recoverAccount,
+  resetPassword,
   getSecurityActivity,
 } from '../controllers/auth.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -32,5 +33,6 @@ router.post('/:userId/sessions/revoke-others', authenticateToken, revokeOtherSes
 router.post('/recovery-codes', authenticateToken, generateRecoveryCodes);
 router.get('/:userId/activity', authenticateToken, getSecurityActivity);
 router.post('/recover', recoverAccount);
+router.post('/reset-password', resetPassword);
 
 export default router;

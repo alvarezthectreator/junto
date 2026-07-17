@@ -928,6 +928,14 @@ export async function recoverAccount(
   return apiCall('/auth/recover', 'POST', { username, backupCode, newPassword });
 }
 
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string; session_token?: string; user?: User }> {
+  return apiCall('/auth/reset-password', 'POST', { email, code, newPassword });
+}
+
 export async function getSecurityActivity(userId: string): Promise<{
   activity: SecurityActivityEntry[];
   sessions: SecuritySession[];

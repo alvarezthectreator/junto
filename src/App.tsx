@@ -35,6 +35,7 @@ import { SafetyPlansPage } from './admin/SafetyPlansPage';
 import { VenueCelebrityControl } from './admin/VenueCelebrityControl';
 import { SystemStatusPage } from './admin/SystemStatusPage';
 import { OTPSignup } from './pages/OTPSignup';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { OnboardingInterests } from './pages/OnboardingInterests';
 import { OnboardingLocation } from './pages/OnboardingLocation';
 import { ToastProvider } from './components/Toast';
@@ -60,6 +61,7 @@ function getPageFromPath(pathname: string) {
 
   if (cleanPath === '/' || cleanPath === '') return 'landing';
   if (cleanPath === '/signup-otp') return 'signup-otp';
+  if (cleanPath === '/forgot-password') return 'forgot-password';
   if (cleanPath === '/onboarding/interests') return 'onboarding-interests';
   if (cleanPath === '/onboarding/location') return 'onboarding-location';
   if (cleanPath.startsWith('/event/')) return 'event';
@@ -104,6 +106,8 @@ function getPagePath(page: string, eventId?: string | null) {
       return '/discover';
     case 'signup-otp':
       return '/signup-otp';
+    case 'forgot-password':
+      return '/forgot-password';
     case 'onboarding-interests':
       return '/onboarding/interests';
     case 'onboarding-location':
@@ -297,6 +301,11 @@ export function App() {
         return {
           title: 'Admin Login',
           description: 'Enter the admin dashboard.',
+        };
+      case 'forgot-password':
+        return {
+          title: 'Reset Password',
+          description: 'Reset your account password using your email.',
         };
       case 'admin-users':
         return {
@@ -790,6 +799,18 @@ export function App() {
             navigate('/onboarding/interests', { replace: true });
           }}
           onBack={() => navigate('/discover')}
+        />
+      );
+    }
+
+    if (currentPage === 'forgot-password' && !isAuthenticated) {
+      return (
+        <ForgotPassword
+          onBack={() => navigate('/')}
+          onSuccess={(token, user) => {
+            applyAuthenticatedSession(user, token);
+            navigate('/discover', { replace: true });
+          }}
         />
       );
     }
