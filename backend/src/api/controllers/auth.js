@@ -272,16 +272,27 @@ export async function signup(req, res) {
     }
 
     await query(
-      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, referred_by_user_id, gender, occupation, session_version, password_updated_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, datetime('now'), datetime('now'))`,
-      [userId, username.toLowerCase(), fullName, fullName.split(' ')[0], profileId, passwordHash, referredByUserId, gender || null, null]
+      `INSERT INTO users (id, username, full_name, display_name, profile_id, password_hash, referred_by_user_id, gender, occupation, date_of_birth, session_version, password_updated_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, datetime('now'), datetime('now'))`,
+      [
+        userId,
+        username.toLowerCase(),
+        fullName,
+        fullName.split(' ')[0],
+        profileId,
+        passwordHash,
+        referredByUserId,
+        gender || null,
+        null,
+        dateOfBirth || null,
+      ]
     );
 
     // Create profile
     await query(
-      `INSERT INTO user_profiles (id, user_id, date_of_birth, last_active, created_at, updated_at)
-       VALUES (?, ?, ?, datetime('now'), datetime('now'), datetime('now'))`,
-      [uuidv4(), userId, dateOfBirth || null]
+      `INSERT INTO user_profiles (id, user_id, last_active, created_at, updated_at)
+       VALUES (?, ?, datetime('now'), datetime('now'), datetime('now'))`,
+      [uuidv4(), userId]
     );
 
     const session = await createAuthSession({
