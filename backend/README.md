@@ -57,6 +57,7 @@ ZEPTOMAIL_HOST=api.zeptomail.com
 ZEPTOMAIL_SEND_MAIL_TOKEN=your-zeptomail-send-mail-token
 ZEPTOMAIL_FROM=no-reply@wantuu.com
 ZEPTOMAIL_FROM_NAME=Wantuu
+UPLOAD_STORAGE_DIR=/data/uploads
 ```
 
 For ZeptoMail API, verify the sender address or domain in your ZeptoMail account before sending OTPs.

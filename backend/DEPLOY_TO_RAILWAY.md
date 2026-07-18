@@ -32,16 +32,19 @@ ZEPTOMAIL_HOST="api.zeptomail.com"
 ZEPTOMAIL_SEND_MAIL_TOKEN="<your-send-mail-token>"
 ZEPTOMAIL_FROM="no-reply@wantuu.com"
 ZEPTOMAIL_FROM_NAME="Wantuu"
+UPLOAD_STORAGE_DIR="/data/uploads"
 ```
 
 Add the ZeptoMail API variables needed by the OTP service.
 
 If you keep SQLite, attach a Railway volume and mount it at `/data` so the database survives deploys.
+Mount the same volume for uploads by using `UPLOAD_STORAGE_DIR=/data/uploads`.
 
 5. Add a Railway volume for SQLite persistence:
 
 - Mount path: `/data`
 - Use the existing `DB_PATH=/data/junto.db`
+- Use `UPLOAD_STORAGE_DIR=/data/uploads`
 
 6. Deploy the backend:
 

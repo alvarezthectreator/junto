@@ -10,7 +10,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Ensure uploads directory exists
-RUN mkdir -p ./uploads
+RUN mkdir -p ./uploads /data/uploads
 
 EXPOSE 5000
 

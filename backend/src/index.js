@@ -16,6 +16,7 @@ import { initializeNotificationDeliveryScheduler } from './services/notification
 import { initializeFraudEnforcementScheduler } from './services/fraudEnforcementScheduler.js';
 import { initializeEmailTransporter, testEmailConnection } from './services/otpService.js';
 import db from './db/connection.js';
+import { getUploadStorageDir } from './utils/uploadStorage.js';
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
@@ -52,7 +53,7 @@ const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const uploadsDir = join(__dirname, '..', process.env.UPLOAD_STORAGE_DIR || 'uploads');
+const uploadsDir = join(__dirname, '..', getUploadStorageDir());
 
 mkdirSync(uploadsDir, { recursive: true });
 

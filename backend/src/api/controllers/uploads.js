@@ -2,10 +2,11 @@ import { promises as fs } from 'fs';
 import { dirname, join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import { getUploadStorageDir } from '../../utils/uploadStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const uploadsRoot = join(__dirname, '..', '..', '..', process.env.UPLOAD_STORAGE_DIR || 'uploads');
+const uploadsRoot = join(__dirname, '..', '..', '..', getUploadStorageDir());
 const mediaRoot = join(uploadsRoot, 'media');
 
 function inferExtension(mimeType = '') {
