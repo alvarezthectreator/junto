@@ -349,7 +349,9 @@ function PersonCard({
   const [mediaIndex, setMediaIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [mediaUnavailable, setMediaUnavailable] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const failedMediaRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<number | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
 
@@ -368,22 +370,55 @@ function PersonCard({
     }
   }, []);
 
-  const advanceMedia = useCallback(() => {
-    if (person.media.length <= 1) {
-      setMediaIndex(0);
-      return;
-    }
+  const findNextPlayableMediaIndex = useCallback(
+    (startIndex: number) => {
+      if (person.media.length === 0) {
+        return -1;
+      }
 
-    setTransitioning(true);
-    transitionTimerRef.current = window.setTimeout(() => {
-      setMediaIndex((current) => (current + 1) % person.media.length);
-      setTransitioning(false);
-    }, 220);
-  }, [person.media.length]);
+      for (let offset = 1; offset <= person.media.length; offset += 1) {
+        const nextIndex = (startIndex + offset) % person.media.length;
+        const nextMedia = person.media[nextIndex];
+        if (nextMedia && !failedMediaRef.current.has(nextMedia.src)) {
+          return nextIndex;
+        }
+      }
+
+      return -1;
+    },
+    [person.media]
+  );
+
+  const advanceMedia = useCallback(
+    (fromIndex = mediaIndex) => {
+      if (person.media.length <= 1) {
+        setMediaIndex(0);
+        return;
+      }
+
+      const nextIndex = findNextPlayableMediaIndex(fromIndex);
+      if (nextIndex === -1) {
+        setMediaUnavailable(true);
+        clearTimers();
+        setTransitioning(false);
+        return;
+      }
+
+      setMediaUnavailable(false);
+      setTransitioning(true);
+      transitionTimerRef.current = window.setTimeout(() => {
+        setMediaIndex(nextIndex);
+        setTransitioning(false);
+      }, 220);
+    },
+    [clearTimers, findNextPlayableMediaIndex, mediaIndex, person.media.length]
+  );
 
   useEffect(() => {
     setMediaIndex(0);
     setTransitioning(false);
+    setMediaUnavailable(false);
+    failedMediaRef.current = new Set();
     clearTimers();
     if (videoRef.current) {
       videoRef.current.pause();
@@ -470,7 +505,15 @@ function PersonCard({
         style={{ touchAction: 'pan-y' }}
         aria-label={`Open ${person.name}'s media`}
       >
-        {currentMedia?.type === 'video' ? (
+        {mediaUnavailable ? (
+          <div className="flex h-full w-full items-center justify-center bg-slate-900">
+            <div className="flex flex-col items-center gap-3 text-center text-white/75">
+              <UserPlus className="h-16 w-16" />
+              <span className="text-sm font-semibold">Media unavailable</span>
+              <span className="text-xs text-white/45">This profile media could not be loaded.</span>
+            </div>
+          </div>
+        ) : currentMedia?.type === 'video' ? (
           <video
             ref={videoRef}
             key={`${person.id}-video-${mediaIndex}`}
@@ -483,7 +526,8 @@ function PersonCard({
             onEnded={advanceMedia}
             onError={() => {
               console.warn('[Nearby] preview video failed to load:', currentMedia.src);
-              advanceMedia();
+              failedMediaRef.current.add(currentMedia.src);
+              advanceMedia(mediaIndex);
             }}
           />
         ) : currentMedia?.type === 'image' ? (
