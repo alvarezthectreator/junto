@@ -36,9 +36,15 @@ function parseDataUrl(dataUrl) {
 }
 
 function getPublicOrigin(req) {
-  const configuredOrigin = String(process.env.UPLOAD_PUBLIC_ORIGIN || process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
-  if (configuredOrigin) {
-    return configuredOrigin;
+  const configuredOrigin = String(process.env.UPLOAD_PUBLIC_ORIGIN || process.env.PUBLIC_URL || '').trim();
+
+  if (/^https?:\/\//i.test(configuredOrigin)) {
+    try {
+      const parsed = new URL(configuredOrigin);
+      return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      return configuredOrigin.replace(/\/+$/, '');
+    }
   }
 
   const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();

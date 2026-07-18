@@ -1,6 +1,29 @@
 import { appConfig } from '../config/appConfig';
 
-const API_SERVER_ORIGIN = appConfig.apiBaseUrl.replace(/\/api\/?$/, '');
+function getApiServerOrigin() {
+  const configuredApiBaseUrl = appConfig.apiBaseUrl?.trim();
+
+  if (!configuredApiBaseUrl) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(configuredApiBaseUrl)) {
+    try {
+      const url = new URL(configuredApiBaseUrl);
+      return `${url.protocol}//${url.host}`;
+    } catch {
+      return configuredApiBaseUrl.replace(/\/api\/?$/, '');
+    }
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${configuredApiBaseUrl.replace(/\/api\/?$/, '')}`;
+  }
+
+  return configuredApiBaseUrl.replace(/\/api\/?$/, '');
+}
+
+const API_SERVER_ORIGIN = getApiServerOrigin();
 const DEFAULT_UPLOAD_FOLDER = 'profiles';
 
 function isDataUrl(value?: string) {

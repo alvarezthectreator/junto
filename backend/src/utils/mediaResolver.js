@@ -3,14 +3,40 @@
  * Mirrors the frontend resolveMediaUrl utility for consistency
  */
 
-function getPublicOrigin(req = null) {
-  // First, try environment variable
-  const configuredOrigin = String(process.env.UPLOAD_PUBLIC_ORIGIN || process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
-  if (configuredOrigin) {
-    return configuredOrigin;
+function getRequestOrigin(req = null) {
+  if (!req || !req.headers) {
+    return '';
   }
 
-  // Fall back to localhost for development
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const host = forwardedHost || String(req.headers.host || '').split(',')[0].trim();
+
+  if (!host) {
+    return '';
+  }
+
+  const protocol = forwardedProto || (req.secure ? 'https' : 'http');
+  return `${protocol}://${host}`;
+}
+
+function getPublicOrigin(req = null) {
+  const configuredOrigin = String(process.env.UPLOAD_PUBLIC_ORIGIN || process.env.PUBLIC_URL || '').trim();
+
+  if (/^https?:\/\//i.test(configuredOrigin)) {
+    try {
+      const parsed = new URL(configuredOrigin);
+      return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      return configuredOrigin.replace(/\/+$/, '');
+    }
+  }
+
+  const requestOrigin = getRequestOrigin(req);
+  if (requestOrigin) {
+    return requestOrigin;
+  }
+
   return 'http://localhost:5000';
 }
 
