@@ -100,6 +100,7 @@ export async function listUsers(req, res) {
     const sql = `
       SELECT
         u.*,
+        COALESCE(u.city, up.travel_destination_city) AS city,
         u.avatar_image AS user_avatar_image,
         up.interests,
         up.avatar_image,
@@ -222,7 +223,7 @@ export async function updateUserAdminStatus(req, res) {
     }
 
     const refreshed = await query(
-      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
+      `SELECT u.*, COALESCE(u.city, up.travel_destination_city) AS city, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
               COALESCE(fs.risk_score, 0) AS risk_score,
               COALESCE(fs.behavior_score, 0) AS behavior_score,
               COALESCE(fs.identity_score, 0) AS identity_score,
@@ -254,7 +255,7 @@ export async function getUserById(req, res) {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city,
+      `SELECT u.*, COALESCE(u.city, up.travel_destination_city) AS city, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city,
               COALESCE(fs.risk_score, 0) AS risk_score,
               COALESCE(fs.behavior_score, 0) AS behavior_score,
               COALESCE(fs.identity_score, 0) AS identity_score,
@@ -282,7 +283,7 @@ export async function getUserProfile(req, res) {
     const { userId } = req.params;
 
     const result = await query(
-      `SELECT u.*, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
+      `SELECT u.*, COALESCE(u.city, up.travel_destination_city) AS city, u.avatar_image AS user_avatar_image, up.interests, up.avatar_image, up.profile_photos, up.travel_mode_enabled, up.travel_destination_city, up.last_active,
               COALESCE(fs.risk_score, 0) AS risk_score,
               COALESCE(fs.behavior_score, 0) AS behavior_score,
               COALESCE(fs.identity_score, 0) AS identity_score,

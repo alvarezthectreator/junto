@@ -794,8 +794,20 @@ export function App() {
       return (
         <OTPSignup
           onSuccess={(token, user) => {
-            window.sessionStorage.setItem(ONBOARDING_FLOW_KEY, 'true');
             applyAuthenticatedSession(user, token);
+            const pendingRedirect =
+              typeof window !== 'undefined'
+                ? window.sessionStorage.getItem('junto-post-auth-redirect')
+                : null;
+
+            if (pendingRedirect) {
+              window.sessionStorage.removeItem('junto-post-auth-redirect');
+              window.sessionStorage.removeItem('junto-pending-event-join');
+              navigate(pendingRedirect, { replace: true });
+              return;
+            }
+
+            window.sessionStorage.setItem(ONBOARDING_FLOW_KEY, 'true');
             navigate('/onboarding/interests', { replace: true });
           }}
           onBack={() => navigate('/discover')}
@@ -811,6 +823,17 @@ export function App() {
             applyAuthenticatedSession(user, token);
             navigate('/discover', { replace: true });
           }}
+        />
+      );
+    }
+
+    if (currentPage === 'event') {
+      return (
+        <EventDetail
+          eventId={routeEventId || selectedEvent?.id || undefined}
+          eventData={routeState.event || selectedEvent || undefined}
+          onNavigate={navigateToPage}
+          setActiveNav={setActiveNav}
         />
       );
     }
@@ -847,8 +870,6 @@ export function App() {
       );
     }
 
-    // Full-screen pages (no sidebar)
-    if (currentPage === 'event') return <EventDetail eventId={routeEventId || selectedEvent?.id || undefined} eventData={routeState.event || selectedEvent || undefined} onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'notifications') return <Notifications onNavigate={navigateToPage} setActiveNav={setActiveNav} />;
     if (currentPage === 'nearby') {
       return (

@@ -803,9 +803,11 @@ function normalizeUserProfile(profile: any): UserProfile {
   const profilePhotos = parseMaybeJsonArray(profile.profile_photos) || profile.profile_photos;
   const avatarImage = profile.avatar_image || profile.avatar_url || (Array.isArray(profilePhotos) ? profilePhotos[0] : undefined);
   const introVideoUrl = profile.intro_video_url || profile.introVideoUrl || profile.introVideo || null;
+  const city = profile.city || profile.location || profile.travel_destination_city || '';
 
   return {
     ...profile,
+    city,
     name: profile.name || profile.display_name || profile.full_name || '',
     interests: parseMaybeJsonArray(profile.interests) || profile.interests,
     profile_photos: profilePhotos,

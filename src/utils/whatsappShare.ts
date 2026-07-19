@@ -23,23 +23,58 @@ export interface EventShareData {
   eventLink?: string;
 }
 
+function resolveShareUrl(url?: string): string {
+  const fallbackUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const candidate = String(url || fallbackUrl || '').trim();
+
+  if (!candidate) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(candidate)) {
+    return candidate;
+  }
+
+  if (typeof window !== 'undefined') {
+    return new URL(candidate.startsWith('/') ? candidate : `/${candidate}`, window.location.origin).href;
+  }
+
+  return candidate.startsWith('/') ? candidate : `/${candidate}`;
+}
+
+function buildNarratedMessage(headline: string, narration: string, link?: string, closing?: string): string {
+  const resolvedLink = resolveShareUrl(link);
+  const segments = [
+    headline.trim(),
+    narration.trim(),
+    resolvedLink ? `🔗 ${resolvedLink}` : '',
+    closing?.trim() || '',
+  ].filter(Boolean);
+
+  return segments.join('\n\n');
+}
+
 /**
  * Generate WhatsApp message for event sharing
  */
 export const generateEventShareMessage = (event: EventShareData): string => {
-  const message = `🎉 *${event.eventTitle}* 🎉
+  const details = [
+    `📅 ${event.eventDate}`,
+    `🕐 ${event.eventTime}`,
+    `📍 ${event.eventLocation}`,
+    event.eventDescription ? `📝 ${event.eventDescription}` : '',
+    `👤 Hosted by: ${event.hostName}`,
+    event.interestedCount ? `❤️ ${event.interestedCount} people interested` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
-📅 ${event.eventDate}
-🕐 ${event.eventTime}
-📍 ${event.eventLocation}
-
-${event.eventDescription ? `📝 ${event.eventDescription}\n\n` : ''}👤 Hosted by: ${event.hostName}
-${event.interestedCount ? `❤️ ${event.interestedCount} people interested\n` : ''}
-${event.eventLink ? `🔗 Join Junto to RSVP: ${event.eventLink}` : ''}
-
-See you there! 🚀`;
-
-  return message;
+  return buildNarratedMessage(
+    `🎉 *${event.eventTitle}*`,
+    `Wantuu makes it easy to discover moments worth showing up for.\n\n${details}`,
+    event.eventLink,
+    'Open the link to RSVP or share it with a friend.'
+  );
 };
 
 /**
@@ -50,13 +85,27 @@ export const generateProfileShareMessage = (
   profileBio?: string,
   profileLink?: string
 ): string => {
-  const message = `👋 Check out ${profileName}'s profile on Junto!
+  const bioBlock = profileBio ? `📝 ${profileBio}` : 'Open the profile to see more details, photos, and intro media.';
 
-${profileBio ? `Bio: ${profileBio}\n\n` : ''}${profileLink ? `🔗 ${profileLink}` : ''}
+  return buildNarratedMessage(
+    `👋 *${profileName}* on Wantuu`,
+    `Discover people, events, and real-world plans with Wantuu.\n\n${bioBlock}`,
+    profileLink,
+    'Open the profile to view the full story.'
+  );
+};
 
-Let's hangout! 🎊`;
-
-  return message;
+/**
+ * Generate WhatsApp message for sharing the Wantuu homepage
+ */
+export const generateWantuuShareMessage = (link?: string, customMessage?: string): string => {
+  return buildNarratedMessage(
+    'Wantuu',
+    customMessage ||
+      'Discover nearby people, browse events, and plan your next hangout with Wantuu.',
+    link,
+    'Tap the link to explore Wantuu.'
+  );
 };
 
 /**
@@ -109,6 +158,17 @@ export const shareProfileToWhatsApp = (
   profileLink?: string
 ): void => {
   const message = generateProfileShareMessage(profileName, profileBio, profileLink);
+  const encodedMessage = encodeURIComponent(message);
+  const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+
+  window.open(whatsappUrl, '_blank');
+};
+
+/**
+ * Share the Wantuu homepage via WhatsApp
+ */
+export const shareWantuuToWhatsApp = (link?: string, customMessage?: string): void => {
+  const message = generateWantuuShareMessage(link, customMessage);
   const encodedMessage = encodeURIComponent(message);
   const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
 

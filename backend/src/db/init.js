@@ -91,12 +91,14 @@ export async function initializeDatabase() {
 // Ensure notifications table exists (for production databases that were created without it)
 function ensureProductionTables() {
   const addReferralColumns = [
+    `ALTER TABLE users ADD COLUMN city VARCHAR(100);`,
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
     `ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0;`,
     `ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP;`,
     `ALTER TABLE users ADD COLUMN avatar_image TEXT;`,
     `ALTER TABLE users ADD COLUMN reliability_score NUMERIC DEFAULT 100;`,
     `ALTER TABLE user_profiles ADD COLUMN avatar_image TEXT;`,
+    `ALTER TABLE user_profiles ADD COLUMN travel_destination_city VARCHAR(100);`,
     `ALTER TABLE events ADD COLUMN is_squad_event BOOLEAN DEFAULT false;`,
     `ALTER TABLE reports ADD COLUMN evidence_urls TEXT;`,
     `ALTER TABLE reports ADD COLUMN escalation_level VARCHAR(20) DEFAULT 'standard';`,

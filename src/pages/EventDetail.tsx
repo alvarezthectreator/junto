@@ -179,6 +179,9 @@ const BILLING_TIER_DETAILS = {
   },
 } as const;
 
+const POST_AUTH_REDIRECT_KEY = 'junto-post-auth-redirect';
+const PENDING_EVENT_JOIN_KEY = 'junto-pending-event-join';
+
 function getBillingTierDetails(event: any) {
   const tier = Number(event?.billing_tier || event?.billingTier || 1) as 1 | 2 | 3 | 4;
   return BILLING_TIER_DETAILS[tier] || BILLING_TIER_DETAILS[1];
@@ -443,6 +446,31 @@ const resolvedHostAvatar = hostAvatarImage || event.host.avatar;
       },
     ];
   }, [applicationNote, applicationStatus, applicationUpdatedAt]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUserId) {
+      return;
+    }
+
+    const pendingEventJoin = window.sessionStorage.getItem(PENDING_EVENT_JOIN_KEY);
+    const pendingRedirect = window.sessionStorage.getItem(POST_AUTH_REDIRECT_KEY);
+    const eventPath = `/event/${encodeURIComponent(String(event.id))}`;
+    const isReturningToThisEvent =
+      pendingEventJoin === String(event.id) ||
+      (pendingRedirect ? pendingRedirect.includes(eventPath) : false);
+
+    if (!isReturningToThisEvent) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(PENDING_EVENT_JOIN_KEY);
+    window.sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
+
+    if (applicationStatus === 'none' && !showFinancialModal && !showApplicationModal) {
+      setFinancialAgreed(false);
+      setShowFinancialModal(true);
+    }
+  }, [applicationStatus, currentUserId, event.id, showApplicationModal, showFinancialModal]);
 
   useEffect(() => {
     setEvent(baseEvent);
@@ -727,6 +755,24 @@ setGuestList(realAttendees.length > 0 ? realAttendees : currentAttendees);
 
 const handleJoin = () => {
   if (isJoined || applicationStatus === 'pending' || eventExpired || atCapacity) return;
+
+  if (!currentUserId) {
+    if (typeof window !== 'undefined') {
+      const returnUrl = `${window.location.pathname}${window.location.search || ''}`;
+      window.sessionStorage.setItem(POST_AUTH_REDIRECT_KEY, returnUrl);
+      window.sessionStorage.setItem(PENDING_EVENT_JOIN_KEY, String(event.id));
+    }
+
+    setShareState('Sign up to join');
+    if (onNavigate) {
+      onNavigate('signup-otp');
+    } else {
+      navigate('/signup-otp');
+    }
+    window.setTimeout(() => setShareState(''), 2200);
+    return;
+  }
+
   setFinancialAgreed(false);
   setShowFinancialModal(true);
 };

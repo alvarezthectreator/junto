@@ -7,8 +7,10 @@ import {
   ShieldAlert,
   User,
   Heart,
+  Share2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { shareWantuuToWhatsApp } from '../utils/whatsappShare';
 
 interface SidebarProps {
   activeNav: string;
@@ -38,6 +40,18 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
     } else {
       navigate(`/${page}`);
     }
+  };
+
+  const handleShareWantuu = () => {
+    const homepageUrl =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://wantuu.com';
+
+    shareWantuuToWhatsApp(
+      homepageUrl,
+      'Discover nearby people, browse events, and plan your next hangout with Wantuu.'
+    );
   };
 
   return (
@@ -98,6 +112,19 @@ export function Sidebar({ activeNav, onLogout, handleLogout, onNavigate, setActi
 
         </div>
       </nav>
+
+      <div className="mt-2 flex justify-center">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleShareWantuu}
+          className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-[11px] font-semibold text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.12)] transition hover:bg-emerald-500/20 md:text-xs"
+          aria-label="Share Wantuu on WhatsApp"
+        >
+          <Share2 size={14} />
+          Share Wantuu
+        </motion.button>
+      </div>
     </motion.div>
   );
 }
