@@ -66,8 +66,9 @@ export function EventCard({
   status = 'active',
   location = ''
 }: EventCardProps) {
-  const topLine = (status !== 'expired' && userName && actionText)
-    ? `${userName} is inviting you to ${actionText}`
+  const firstName = (userName || '').trim().split(/\s+/)[0] || userName || 'Host';
+  const topLine = (status !== 'expired' && firstName && actionText)
+    ? `${firstName} is inviting you to ${actionText}`
     : '';
   const lowerNarration = (status !== 'expired' && description)
     ? description
@@ -267,9 +268,14 @@ export function EventCard({
 
         {/* Lower narration line */}
         {lowerNarration && (
-          <p className="mb-3 text-sm leading-relaxed text-gray-300/90 font-light tracking-[0.01em] sm:mb-4 md:mb-6">
-            {lowerNarration}
-          </p>
+          <div className="mb-3 sm:mb-4 md:mb-6">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
+              Narration
+            </p>
+            <p className="text-sm leading-relaxed text-gray-300/90 font-light tracking-[0.01em]">
+              {lowerNarration}
+            </p>
+          </div>
         )}
 
         {/* Capacity Bar (if max capacity is set) */}
