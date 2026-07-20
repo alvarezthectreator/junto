@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MessageCircle, Share2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { isEventExpired, getRemainingCapacity, getCapacityPercentage } from '../utils/eventUtils';
 import { resolveMediaUrl } from '../utils/avatar';
+import { WhatsAppShareButton } from './WhatsAppShareButton';
 
 interface EventCardProps {
   userInitial: string;
@@ -81,28 +82,7 @@ export function EventCard({
     // placeholder for future side-effects
   }, [eventId, currentUserId]);
 
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const url = eventId ? `${window.location.origin}/event/${eventId}` : window.location.href;
-    const shareData = {
-      title: `${userName} — ${actionText}`,
-      text: `${userName} is ${actionText} — join in!`,
-      url,
-    };
-    try {
-      if ((navigator as any).share) {
-        await (navigator as any).share(shareData);
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-        // small, visible fallback for now
-        alert('Event link copied to clipboard');
-      } else {
-        window.prompt('Copy this link', url);
-      }
-    } catch (err) {
-      console.error('Share failed', err);
-    }
-  };
+  // Sharing is handled by the WhatsAppShareButton component below
 
   const resolvedCoverImage = resolveMediaUrl(coverImage);
   return (
@@ -306,14 +286,22 @@ export function EventCard({
             
             {eventExpired ? 'Expired' : isAtCapacity ? 'Full' : onInterested ? 'Interested' : 'View event →'}
           </button>
-          <button
-            onClick={handleShare}
-            className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
-            <Share2 size={16} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
-          </button>
-          <button className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors">
-            <MessageCircle size={16} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
-          </button>
+          <WhatsAppShareButton
+            type="event"
+            data={{
+              eventTitle: `${userName} — ${actionText}`,
+              eventDate: date,
+              eventTime: eventTime,
+              eventLocation: location || description || '',
+              eventDescription: description,
+              hostName: userName,
+              interestedCount: interestedCount,
+              eventLink: eventId ? `${window.location.origin}/event/${eventId}` : undefined,
+            }}
+            variant="icon"
+            size="md"
+            className="p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+          />
         </div>
       </div>
     </motion.div>);
