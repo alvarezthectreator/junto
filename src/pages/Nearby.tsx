@@ -489,6 +489,7 @@ function PersonCard({
   };
 
   const mediaCount = person.media.length;
+  const displayInitial = (person.name || 'Nearby').trim().split(/\s+/)[0]?.charAt(0)?.toUpperCase() || 'U';
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-black">
@@ -537,10 +538,15 @@ function PersonCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-slate-900">
-            <div className="flex flex-col items-center gap-3 text-center text-white/75">
-              <UserPlus className="h-16 w-16" />
-              <span className="text-sm font-semibold">No media available</span>
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950">
+            <div className="flex flex-col items-center gap-4 text-center text-white/80">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/20 bg-white/10 text-3xl font-semibold text-white shadow-lg">
+                {displayInitial}
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-semibold">No photos yet</span>
+                <span className="block text-xs text-white/55">This person is still visible in Nearby.</span>
+              </div>
             </div>
           </div>
         )}

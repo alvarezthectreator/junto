@@ -123,14 +123,11 @@ export async function getNearbyUsers(req, res) {
        FROM users u
        LEFT JOIN user_profiles up ON u.id = up.user_id
        LEFT JOIN fraud_scores fs ON u.id = fs.user_id
-       LEFT JOIN swipes s ON u.id = s.swiped_user_id AND s.swiper_id = ?
-       LEFT JOIN blocked_users b ON (u.id = b.blocked_user_id AND b.blocker_id = ?)
-              OR (u.id = b.blocker_id AND b.blocked_user_id = ?)
        WHERE (${locationClauses})
-       AND u.id != ? AND s.id IS NULL AND b.id IS NULL
+       AND u.id != ?
        ORDER BY COALESCE(fs.risk_score, 0) ASC, u.created_at DESC
        LIMIT ?`,
-      [userId, userId, userId, ...locationPatterns, userId, limit]
+      [userId, ...locationPatterns, userId, limit]
     );
 
     res.json({ nearby_users: (result.rows || []).map(enrichNearbyUser) });
