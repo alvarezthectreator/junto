@@ -66,7 +66,8 @@ export function EventCard({
   status = 'active',
   location = ''
 }: EventCardProps) {
-  const firstName = (userName || '').trim().split(/\s+/)[0] || userName || 'Host';
+  const rawFirstName = (userName || '').trim().split(/\s+/)[0] || userName || 'Host';
+  const firstName = rawFirstName.charAt(0).toUpperCase() + rawFirstName.slice(1).toLowerCase();
   const topLine = (status !== 'expired' && firstName && actionText)
     ? `${firstName} is inviting you to ${actionText}`
     : '';
