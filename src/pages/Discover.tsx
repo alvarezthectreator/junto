@@ -11,6 +11,7 @@ import { DiscoverSocket } from '../services/discoverSocket';
 import { getExperimentVariant, getFeatureFlag } from '../config/appConfig';
 import { trackEvent } from '../services/analytics';
 import type { DiscoverEventSeed } from '../data/discoverEvents';
+import { dedupeFeedEvents } from '../utils/eventFeed';
 
 interface DiscoverProps {
   onNavigate?: (page: string) => void;
@@ -278,10 +279,8 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
             setApiEvents((prev) => {
               const exists = prev.some((event) => event.id === eventId);
               if (!exists) {
-                // Event doesn't exist yet, add it
                 return [response.event, ...prev];
               }
-              // Event exists, update it
               return prev.map((event) => (event.id === eventId ? response.event : event));
             });
           })
@@ -293,11 +292,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
         API.getEventById(eventId)
           .then((response) => {
             setApiEvents((prev) => {
-              // Check if event already exists to prevent duplicates
               const exists = prev.some((event) => event.id === eventId);
               if (exists) {
-                console.log('⚠️ Event already exists, skipping duplicate');
-                return prev;
+                return prev.map((event) => (event.id === eventId ? response.event : event));
               }
               return [response.event, ...prev];
             });
@@ -389,12 +386,9 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       : discoverEvents.map(toFeedEventFromSeed);
 
     const merged = [...backendEvents, ...localEvents];
-    const deduped = new Map<string, FeedEvent>();
-    merged.forEach((event) => {
-      deduped.set(String(event.id), event);
-    });
+    const deduped = dedupeFeedEvents(merged, deletedSignatures);
 
-    return Array.from(deduped.values())
+    return deduped
       .filter((event) => !deletedSignatures.has(String(event.id)) && !deletedSignatures.has(normalizeEventSignature(event)))
       .sort((a, b) => {
         const aExpired = isEventExpired(a.event_date, a.event_time, a.status);
