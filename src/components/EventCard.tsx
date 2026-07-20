@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Share2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Share2, AlertCircle, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { isEventExpired, getRemainingCapacity, getCapacityPercentage } from '../utils/eventUtils';
 import { resolveMediaUrl } from '../utils/avatar';
@@ -238,7 +238,9 @@ export function EventCard({
 
         {/* Location / vibe line */}
         <div className="flex items-center gap-2 text-sm font-medium text-gray-300/90 mb-3 sm:mb-4">
-          <span className="text-amber-300">📍</span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/20">
+            <MapPin size={14} strokeWidth={2.2} />
+          </span>
           <span className="line-clamp-1">{location || description || 'Nearby'}</span>
         </div>
 
