@@ -33,6 +33,7 @@ interface EventCardProps {
   maxCapacity?: number;
   currentAttendees?: number;
   status?: string;
+  location?: string;
 }
 
 export function EventCard({
@@ -66,10 +67,10 @@ export function EventCard({
   location = ''
 }: EventCardProps) {
   const topLine = (status !== 'expired' && userName && actionText)
-    ? `${userName} wantuu have ${actionText}`
+    ? `${userName} is inviting you to ${actionText}`
     : '';
   const lowerNarration = (status !== 'expired' && description)
-    ? `Narration: ${description}`
+    ? description
     : '';
   
   // Check if event is expired
@@ -203,7 +204,7 @@ export function EventCard({
             }
           }}>
           <div
-            className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm sm:text-base md:text-lg font-serif text-white shadow-sm shrink-0 ${accentColor}`}>
+            className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-sm sm:text-base md:text-lg font-semibold tracking-[0.02em] text-white shadow-sm shrink-0 ${accentColor}`}>
             
             {userInitial}
           </div>
@@ -230,13 +231,13 @@ export function EventCard({
 
         {/* Top narration line */}
         {topLine && (
-          <p className="mb-2 text-sm text-gray-300 sm:text-base">
-            <span className="font-semibold text-white">{topLine}</span>
+          <p className="mb-2 text-[15px] leading-snug font-semibold tracking-[-0.01em] text-white/95 sm:text-base">
+            <span>{topLine}</span>
           </p>
         )}
 
-        {/* Location (replaces old narration/description area) */}
-        <div className="flex items-center gap-2 text-sm text-gray-300 mb-3 sm:mb-4">
+        {/* Location / vibe line */}
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-300/90 mb-3 sm:mb-4">
           <span className="text-amber-300">📍</span>
           <span className="line-clamp-1">{location || description || 'Nearby'}</span>
         </div>
@@ -264,7 +265,7 @@ export function EventCard({
 
         {/* Lower narration line */}
         {lowerNarration && (
-          <p className="mb-3 text-sm leading-relaxed text-gray-300 sm:mb-4 md:mb-6">
+          <p className="mb-3 text-sm leading-relaxed text-gray-300/90 font-light tracking-[0.01em] sm:mb-4 md:mb-6">
             {lowerNarration}
           </p>
         )}
