@@ -646,6 +646,13 @@ import React, { useState, useEffect, useRef } from 'react';
     const [photoEditorBusy, setPhotoEditorBusy] = useState(false);
     const [profileCompletionProgress, setProfileCompletionProgress] = useState(0);
     const [photoUploadTarget, setPhotoUploadTarget] = useState<'avatar' | { type: 'gallery'; index: number } | null>(null);
+    const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
+    const [pendingVideoUrl, setPendingVideoUrl] = useState('');
+    const [pendingVideoDuration, setPendingVideoDuration] = useState(0);
+    const [pendingVideoStart, setPendingVideoStart] = useState(0);
+    const [pendingVideoError, setPendingVideoError] = useState('');
+    const [showVideoTrimModal, setShowVideoTrimModal] = useState(false);
+    const [pendingVideoProcessing, setPendingVideoProcessing] = useState(false);
     const [hostedEventsCount, setHostedEventsCount] = useState<number | null>(null);
     const [mediaViewer, setMediaViewer] = useState<{
       open: boolean;
@@ -1264,6 +1271,86 @@ import React, { useState, useEffect, useRef } from 'react';
       setPhotoUploadTarget(null);
     };
 
+    const resetPendingVideo = () => {
+      if (pendingVideoUrl) {
+        URL.revokeObjectURL(pendingVideoUrl);
+      }
+      setPendingVideoFile(null);
+      setPendingVideoUrl('');
+      setPendingVideoDuration(0);
+      setPendingVideoStart(0);
+      setPendingVideoError('');
+      setPendingVideoProcessing(false);
+      setShowVideoTrimModal(false);
+    };
+
+    const blobToDataUrl = (blob: Blob) => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const formatTime = (seconds: number) => {
+      const rounded = Math.max(0, Math.min(seconds, seconds));
+      const minutes = Math.floor(rounded / 60);
+      const secs = Math.floor(rounded % 60);
+      return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const trimVideoFile = async (file: File, startTime: number) => {
+      const tempVideoUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.src = tempVideoUrl;
+      video.muted = true;
+      video.playsInline = true;
+
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Failed to load video for trimming.'));
+      });
+
+      const duration = video.duration || 0;
+      const clipStart = Math.min(Math.max(0, startTime), Math.max(0, duration - 5));
+      const clipEnd = Math.min(duration, clipStart + 5);
+      video.currentTime = clipStart;
+
+      await new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error('Failed to seek video for trimming.'));
+      });
+
+      const stream = (video as any).captureStream?.();
+      if (!stream) {
+        URL.revokeObjectURL(tempVideoUrl);
+        throw new Error('Your browser does not support video trimming via captureStream.');
+      }
+
+      const recordedChunks: BlobPart[] = [];
+      const mimeType = 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      const stopPromise = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(recordedChunks, { type: mimeType }));
+      });
+
+      recorder.start();
+      await video.play().catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, (clipEnd - clipStart) * 1000));
+      recorder.stop();
+      video.pause();
+      URL.revokeObjectURL(tempVideoUrl);
+
+      return stopPromise;
+    };
+
     const openPhotoEditorWithFile = (dataUrl: string, target: 'avatar' | { type: 'gallery'; index: number }) => {
       setPhotoEditorSource(dataUrl);
       setPhotoEditorRotation(0);
@@ -1334,19 +1421,29 @@ import React, { useState, useEffect, useRef } from 'react';
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const source = String(event.target?.result || '');
-        if (!source) {
-          setProfileValidationError('Could not read that video. Please try again.');
-          return;
-        }
+      const url = URL.createObjectURL(file);
+      setPendingVideoFile(file);
+      setPendingVideoUrl(url);
+      setPendingVideoError('');
+      setPendingVideoProcessing(false);
+      setShowVideoTrimModal(true);
+    };
 
-        let storedUrl = source;
+    const confirmVideoSelection = async () => {
+      if (!pendingVideoFile) {
+        setPendingVideoError('No video selected.');
+        return;
+      }
+
+      setPendingVideoProcessing(true);
+      try {
+        const uploadFile = pendingVideoDuration > 5 ? await trimVideoFile(pendingVideoFile, pendingVideoStart) : pendingVideoFile;
+        const dataUrl = await blobToDataUrl(uploadFile instanceof File ? uploadFile : uploadFile);
+        let storedUrl = dataUrl;
         try {
-          const uploaded = await API.uploadMedia(source, {
-            fileName: `profile-video-${Date.now()}.${file.type.includes('webm') ? 'webm' : file.type.includes('quicktime') ? 'mov' : 'mp4'}`,
-            mimeType: file.type,
+          const uploaded = await API.uploadMedia(dataUrl, {
+            fileName: `profile-video-${Date.now()}.${uploadFile instanceof File ? (pendingVideoFile.type.includes('webm') ? 'webm' : pendingVideoFile.type.includes('quicktime') ? 'mov' : 'mp4') : 'webm'}`,
+            mimeType: uploadFile instanceof File ? pendingVideoFile.type : 'video/webm',
             folder: 'profiles',
           });
           storedUrl = uploaded.url;
@@ -1395,8 +1492,23 @@ import React, { useState, useEffect, useRef } from 'react';
             console.error('[handleVideoUpload] Failed to persist intro video on the backend:', error);
           }
         }
-      };
-      reader.readAsDataURL(file);
+
+        resetPendingVideo();
+      } catch (error) {
+        console.error('[confirmVideoSelection] error:', error);
+        setPendingVideoError((error as Error).message || 'Failed to process this video.');
+      } finally {
+        setPendingVideoProcessing(false);
+      }
+    };
+
+    const cancelVideoSelection = () => {
+      resetPendingVideo();
+    };
+
+    const handlePendingVideoMetadata = (duration: number) => {
+      setPendingVideoDuration(duration || 0);
+      setPendingVideoStart(0);
     };
 
     const handleApplyPhotoEdit = async () => {
@@ -2977,6 +3089,107 @@ import React, { useState, useEffect, useRef } from 'react';
             </div>
 
             {renderMediaViewer()}
+
+            <AnimatePresence>
+              {showVideoTrimModal && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={cancelVideoSelection}
+                    className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm"
+                  />
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                    className={`fixed left-1/2 top-1/2 z-[80] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-3xl border p-6 shadow-2xl ${isLightMode ? 'border-amber-900/10 bg-white' : 'border-white/[0.05] bg-[#0B0B0E]'}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold">Select your 5-second clip</h3>
+                        <p className="text-sm opacity-60">Choose the best 5 seconds of your intro video.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={cancelVideoSelection}
+                        className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-4">
+                        {pendingVideoUrl ? (
+                          <video
+                            src={pendingVideoUrl}
+                            className="w-full rounded-3xl bg-black"
+                            controls
+                            muted
+                            playsInline
+                            onLoadedMetadata={(event) => handlePendingVideoMetadata((event.target as HTMLVideoElement).duration)}
+                          />
+                        ) : (
+                          <div className="flex h-40 items-center justify-center text-sm text-gray-400">Loading video preview...</div>
+                        )}
+                      </div>
+
+                      {pendingVideoDuration > 0 && (
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-4">
+                          <div className="flex items-center justify-between text-sm text-gray-300 mb-3">
+                            <span>Start at</span>
+                            <span>{formatTime(pendingVideoStart)} - {formatTime(Math.min(pendingVideoStart + 5, pendingVideoDuration))}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={Math.max(0, pendingVideoDuration - 5)}
+                            step={0.1}
+                            value={pendingVideoStart}
+                            onChange={(event) => setPendingVideoStart(Number(event.target.value))}
+                            disabled={pendingVideoDuration <= 5}
+                            className="w-full"
+                          />
+                          <div className="mt-2 text-xs text-gray-400">
+                            {pendingVideoDuration <= 5
+                              ? 'Video is less than 5 seconds, no trimming is required.'
+                              : `Select a 5-second range from the ${formatTime(pendingVideoDuration)} video.`}
+                          </div>
+                        </div>
+                      )}
+
+                      {pendingVideoError && (
+                        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                          {pendingVideoError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={cancelVideoSelection}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmVideoSelection}
+                        disabled={pendingVideoProcessing || !pendingVideoUrl}
+                        className="rounded-lg bg-yellow-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {pendingVideoProcessing ? 'Processing...' : 'Use clip'}
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* Sidebar widgets */}
             <aside className="space-y-6">
