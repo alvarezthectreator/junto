@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Flame, Loader2, Sparkles } from 'lucide-react';
+import { ChevronDown, Flame, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { EventCard } from '../components/EventCard';
 import { EventsMap } from '../components/EventsMap';
@@ -233,8 +233,10 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
   const [displayLimit, setDisplayLimit] = useState(12);
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
   const [selectedCity, setSelectedCity] = useState(selectedLocation || currentUser?.city || 'All cities');
+  const [showCityMenu, setShowCityMenu] = useState(false);
   const [feedNotice, setFeedNotice] = useState('');
   const [applyingEventId, setApplyingEventId] = useState<string | null>(null);
+  const cityMenuRef = useRef<HTMLDivElement | null>(null);
 
   const filters = [
   'All vibes',
@@ -359,6 +361,17 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
       localStorage.removeItem('junto-profile-completion-prompt');
     }
   }, [location.state]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (cityMenuRef.current && !cityMenuRef.current.contains(event.target as Node)) {
+        setShowCityMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Auto-clear filters on every load so all events show immediately
   useEffect(() => {
@@ -627,8 +640,44 @@ export function Discover({ onNavigate = () => {}, onOpenEvent, currentUser, sele
 
 
 
+      <div className="mb-4 flex items-center justify-between gap-3 relative z-40">
+        <div ref={cityMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowCityMenu((prev) => !prev)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#16161C]/90 px-3.5 py-2 text-sm font-medium text-gray-200 shadow-sm backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/10"
+          >
+            <span className="text-gray-400">City</span>
+            <span className="text-white">{selectedCity}</span>
+            <ChevronDown size={16} className={`transition-transform ${showCityMenu ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showCityMenu && (
+            <div className="absolute left-0 top-full z-[60] mt-2 w-44 overflow-hidden rounded-2xl border border-white/10 bg-[#121218]/95 shadow-[0_16px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+              {cityOptions.map((option) => {
+                const isActive = selectedCity === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCity(option);
+                      setShowCityMenu(false);
+                    }}
+                    className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-sm transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <span>{option}</span>
+                    {isActive && <span className="text-[#F59E0B]">●</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Filters */}
-      <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0">
+      <div className="mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 md:mx-0 px-4 sm:px-6 md:px-0 relative z-10">
         <div className="flex items-center gap-2.5 min-w-max">
           {filters.map((filter) => {
             const isActive = activeFilter === filter;
