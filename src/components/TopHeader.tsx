@@ -86,7 +86,7 @@ export function TopHeader({ showHamburger, onHamburgerClick, hambugerOpen }: Top
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-48 rounded-xl bg-[#1A1A21] border border-white/10 shadow-lg overflow-hidden"
+                  className="absolute right-0 mt-2 w-48 rounded-xl bg-[#1A1A21] border border-white/10 shadow-lg overflow-hidden z-[90]"
                 >
                   <button
                     onClick={() => {
