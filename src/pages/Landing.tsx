@@ -165,33 +165,6 @@ export function Landing({ onLogin, onSignupWithOTP }: { onLogin: (user: any, tok
           }}>
             Wantuu
           </div>
-          {mode !== 'landing' && (
-            <button
-              onClick={() => {
-                setMode('landing');
-                setError('');
-              }}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '12px',
-                border: 'none',
-                background: 'transparent',
-                color: '#F59E0B',
-                fontWeight: '700',
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => {
-                (e.target as HTMLButtonElement).style.opacity = '0.8';
-              }}
-              onMouseOut={(e) => {
-                (e.target as HTMLButtonElement).style.opacity = '1';
-              }}
-            >
-              Back
-            </button>
-          )}
         </nav>
 
         {/* Content */}
