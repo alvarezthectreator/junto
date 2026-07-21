@@ -211,6 +211,17 @@ import React, { useState, useEffect, useRef } from 'react';
     return resolveFraudVerificationStatus(source) || 'unverified';
   }
 
+  function resolveEmailAddress(...sources: Array<any>) {
+    for (const source of sources) {
+      const email = String(source?.email || source?.contact_email || '').trim();
+      if (email) {
+        return email;
+      }
+    }
+
+    return '';
+  }
+
   function isDataUrl(value?: string) {
     return typeof value === 'string' && value.startsWith('data:');
   }
@@ -814,6 +825,7 @@ import React, { useState, useEffect, useRef } from 'react';
       let initialDob = '';
       let initialGender = '';
       let initialOccupation = '';
+      let initialEmail = '';
       let initialAvatar = DEFAULT_AVATAR;
       let initialPhotos: string[] = [];
       
@@ -825,6 +837,7 @@ import React, { useState, useEffect, useRef } from 'react';
           initialDob = userData.date_of_birth || '';
           initialGender = userData.gender || '';
           initialOccupation = userData.occupation || '';
+          initialEmail = resolveEmailAddress(userData);
           initialAvatar = getAvatarSrc(
             userData.avatar_image ||
             userData.avatar_url ||
@@ -849,6 +862,7 @@ import React, { useState, useEffect, useRef } from 'react';
         reliabilityScore: 0,
         verificationStatus: getProfileVerificationStatus(currentUser) || getProfileVerificationStatus(storedUserSnapshot),
         isVerified: getProfileVerificationStatus(currentUser) === 'verified' || getProfileVerificationStatus(storedUserSnapshot) === 'verified',
+        email: resolveEmailAddress(currentUser, storedUserSnapshot) || initialEmail,
         location: 'Lagos, Nigeria',
         profileId: currentUser?.profile_id || initialProfileId,
         avatarImage: getAvatarSrc(
@@ -988,16 +1002,17 @@ import React, { useState, useEffect, useRef } from 'react';
             const userProfile = await API.getUserProfile(currentUser.id);
             const serverPhotos = Array.isArray(userProfile.profile_photos) ? userProfile.profile_photos : [];
             const nextServerReliabilityScore = pickServerReliabilityScore(userProfile);
-            setProfile(prev => ({
-              ...prev,
-              name: currentUser?.username || userProfile.username || userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
-              age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : null,
-              dob: userProfile.date_of_birth || prev.dob,
-              bio: userProfile.bio || prev.bio,
-              interests: userProfile.interests || prev.interests,
-              genderIdentity: userProfile.gender || prev.genderIdentity,
-              avatarImage: getAvatarSrc(
-                userProfile.avatar_image ||
+          setProfile(prev => ({
+            ...prev,
+            name: currentUser?.username || userProfile.username || userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
+            age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : null,
+            dob: userProfile.date_of_birth || prev.dob,
+            email: resolveEmailAddress(userProfile, currentUser, storedUserSnapshot) || prev.email || '',
+            bio: userProfile.bio || prev.bio,
+            interests: userProfile.interests || prev.interests,
+            genderIdentity: userProfile.gender || prev.genderIdentity,
+            avatarImage: getAvatarSrc(
+              userProfile.avatar_image ||
                 userProfile.avatar_url ||
                 userProfile.profile_photo ||
                 storedUserSnapshot.avatar_image ||
@@ -1058,6 +1073,7 @@ import React, { useState, useEffect, useRef } from 'react';
             ...prev,
           name: selectedUser.name || prev.name,
           age: selectedUser.age ?? null,
+          email: resolveEmailAddress(selectedUser) || prev.email || '',
           bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
           interests: selectedUser.interests || prev.interests,
           location: selectedUser.location || 'Lagos, Nigeria',
@@ -1105,6 +1121,7 @@ import React, { useState, useEffect, useRef } from 'react';
             name: publicProfile.display_name || publicProfile.username || publicProfile.name || selectedUser.name || prev.name,
             age: publicProfile.date_of_birth ? getAgeFromDob(publicProfile.date_of_birth) : selectedUser.age ?? null,
             dob: publicProfile.date_of_birth || prev.dob,
+            email: resolveEmailAddress(publicProfile, selectedUser) || prev.email || '',
             bio: publicProfile.bio || selectedUser.bio || prev.bio,
             interests: publicProfile.interests || selectedUser.interests || prev.interests,
             genderIdentity: publicProfile.gender || selectedUser.gender || prev.genderIdentity,
@@ -1240,6 +1257,8 @@ import React, { useState, useEffect, useRef } from 'react';
       rating: 4.7,
     };
     const phoneVerified = Boolean(verificationState?.phone?.verified);
+    const emailAddress = resolveEmailAddress(profile, currentUser, storedUserSnapshot);
+    const emailVerified = Boolean(emailAddress) || Boolean(verificationState?.email?.verified);
     const idVerified = identityVerified;
     const computedReliabilityScore = calculateReliabilityScore(profile);
     const displayReliabilityScore = serverReliabilityScore ?? computedReliabilityScore;
@@ -1581,11 +1600,12 @@ import React, { useState, useEffect, useRef } from 'react';
           (typeof API.getUserId === 'function' ? API.getUserId() : undefined);
 
         try {
-          sessionStorage.setItem(
+            sessionStorage.setItem(
             'junto-current-user',
             JSON.stringify({
               ...storedUser,
               id: storedUser.id || currentUser?.id,
+              email: storedUser.email || currentUser?.email || profile.email || null,
               name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
               username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
               profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
@@ -1598,6 +1618,7 @@ import React, { useState, useEffect, useRef } from 'react';
           setCurrentUser?.({
             ...storedUser,
             id: storedUser.id || currentUser?.id,
+            email: storedUser.email || currentUser?.email || profile.email || null,
             name: storedUser.name || currentUser?.name || currentUser?.username || profile.name,
             username: storedUser.username || currentUser?.username || currentUser?.name || profile.name,
             profile_id: storedUser.profile_id || currentUser?.profile_id || profile.profileId,
@@ -1864,7 +1885,7 @@ import React, { useState, useEffect, useRef } from 'react';
             date_of_birth: updatedProfile.date_of_birth || normalizedProfile.dob || storedUser.date_of_birth || null,
             gender: normalizedProfile.genderIdentity || storedUser.gender || null,
             occupation: normalizedProfile.occupation || storedUser.occupation || null,
-            email: storedUser.email || currentUser.email || null,
+            email: storedUser.email || currentUser.email || profile.email || null,
             phone: storedUser.phone || currentUser.phone || null,
           };
             sessionStorage.setItem('junto-current-user', JSON.stringify(nextStoredUser));
@@ -2925,9 +2946,9 @@ import React, { useState, useEffect, useRef } from 'react';
                       key: 'email',
                       label: 'Email Verification',
                       icon: <Mail size={16} />,
-                      verified: Boolean(verificationState.email?.verified),
-                      value: currentUser?.email || storedUserSnapshot.email || storedUserSnapshot.contact_email || 'No email on file',
-                      actionLabel: Boolean(verificationState.email?.verified) ? 'Resend email code' : 'Verify email',
+                      verified: emailVerified,
+                      value: emailAddress || 'No email on file',
+                      actionLabel: emailVerified ? 'Resend email code' : 'Verify email',
                       action: () => void openVerificationModal('email'),
                     },
                     {
