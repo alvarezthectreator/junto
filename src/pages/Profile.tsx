@@ -1193,7 +1193,11 @@ import React, { useState, useEffect, useRef } from 'react';
 
           setVerificationState({
             email: {
-              verified: Boolean(emailStatus?.is_verified),
+              verified:
+                Boolean(emailStatus?.is_verified) ||
+                Boolean(currentUser?.email) ||
+                Boolean(storedUserSnapshot?.email) ||
+                Boolean(storedUserSnapshot?.contact_email),
               verifiedAt: emailStatus?.verified_at || null,
               code: null,
               loading: false,

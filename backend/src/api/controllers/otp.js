@@ -269,14 +269,27 @@ export const verifyOTPCode = async (req, res) => {
 
         const createUserSql = `
           INSERT INTO users (
-            id, email, phone_number, display_name, 
-            username, password_hash, profile_id, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            id, email, email_verified, phone_verified, verification_status,
+            phone_number, display_name, username, password_hash, profile_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         database.run(
           createUserSql,
-          [userId, normalizedEmail, null, displayName, username, passwordHash, profileId, now],
+          [
+            userId,
+            normalizedEmail,
+            true,
+            false,
+            'verified',
+            null,
+            displayName,
+            username,
+            passwordHash,
+            profileId,
+            now,
+            now,
+          ],
           (err) => {
             if (err) {
               console.error('❌ Error creating OTP user:', err.message);
@@ -327,6 +340,21 @@ export const verifyOTPCode = async (req, res) => {
           }
         );
       } else {
+        // Mark the existing user email as verified if this OTP matched
+        database.run(
+          `UPDATE users
+           SET email_verified = 1,
+               verification_status = 'verified',
+               updated_at = ?
+           WHERE id = ?`,
+          [new Date().toISOString(), user.id],
+          (updateErr) => {
+            if (updateErr) {
+              console.error('⚠️ Failed to update email verification flags for user:', updateErr.message);
+            }
+          }
+        );
+
         // User exists - generate token
         const token = generateToken({
           id: user.id,

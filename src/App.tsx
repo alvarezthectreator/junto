@@ -201,6 +201,7 @@ export function App() {
   const [currentPage, setCurrentPage] = useState<string>(() => getPageFromPath(typeof window === 'undefined' ? '/' : window.location.pathname));
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [prefetchedNearbyUsers, setPrefetchedNearbyUsers] = useState<any[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -489,6 +490,76 @@ export function App() {
     navigate('/discover', { replace: true });
     setActiveNav('Discover');
   }, [applyAuthenticatedSession, navigate]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      return;
+    }
+
+    let cancelled = false;
+    const preloadLinks: HTMLLinkElement[] = [];
+
+    const preloadResource = (src: string, as: 'image' | 'video') => {
+      if (!src) {
+        return;
+      }
+
+      try {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = as;
+        link.href = src;
+        link.crossOrigin = 'anonymous';
+        document.head.appendChild(link);
+        preloadLinks.push(link);
+      } catch {
+        // ignore preload failure
+      }
+    };
+
+    const preloadNearbyMedia = (people: any[]) => {
+      people.slice(0, 5).forEach((person) => {
+        const video = person.intro_video_url || person.introVideo || null;
+        const photos = Array.isArray(person.profile_photos) ? person.profile_photos : [];
+
+        if (video) {
+          preloadResource(video, 'video');
+        }
+
+        photos.slice(0, 2).forEach((photo: string) => {
+          preloadResource(photo, 'image');
+        });
+      });
+    };
+
+    const prefetchNearby = async () => {
+      try {
+        const response = await API.getNearbyUsers(currentUser.id, 0, 0);
+        if (cancelled) {
+          return;
+        }
+
+        const nearbyUsers = Array.isArray(response?.nearby_users) ? response.nearby_users.slice(0, 5) : [];
+        setPrefetchedNearbyUsers(nearbyUsers);
+        preloadNearbyMedia(nearbyUsers);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[App] Failed to prefetch nearby users:', error);
+        }
+      }
+    };
+
+    void prefetchNearby();
+
+    return () => {
+      cancelled = true;
+      preloadLinks.forEach((link) => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+      });
+    };
+  }, [currentUser?.id, isAuthenticated]);
 
   const handleLogout = useCallback(() => {
     setHasEntered(false);
@@ -878,6 +949,7 @@ export function App() {
           setActiveNav={setActiveNav}
           isLightMode={isLightMode}
           currentUser={currentUser}
+          initialNearbyUsers={prefetchedNearbyUsers}
         />
       );
     }

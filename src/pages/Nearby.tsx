@@ -706,12 +706,19 @@ export function Nearby({
   onNavigate,
   setActiveNav,
   currentUser,
+  initialNearbyUsers = [],
 }: {
   onNavigate?: (page: string) => void;
   setActiveNav?: (nav: string) => void;
   currentUser?: any;
+  initialNearbyUsers?: any[];
 }) {
   const { setSelectedUser } = useAppContext();
+  const initialNearbyNormalized = useMemo(
+    () => initialNearbyUsers.map((person, index) => normalizeNearbyPerson(person, index)),
+    [initialNearbyUsers]
+  );
+
   const [people, setPeople] = useState<NearbyPerson[]>(normalizeFallbackPeople());
   const [activeIdx, setActiveIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -834,6 +841,12 @@ useEffect(() => {
       }
     };
 
+    if (initialNearbyNormalized.length > 0 && currentUser?.id) {
+      setPeople(initialNearbyNormalized);
+      setLoading(false);
+      setUsingFallback(false);
+    }
+
     loadNearby();
 
     return () => {
@@ -842,7 +855,7 @@ useEffect(() => {
         window.clearTimeout(toastTimerRef.current);
       }
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, initialNearbyNormalized]);
 
   useEffect(() => {
     const container = feedRef.current;

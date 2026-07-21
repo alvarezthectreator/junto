@@ -92,6 +92,9 @@ export async function initializeDatabase() {
 function ensureProductionTables() {
   const addReferralColumns = [
     `ALTER TABLE users ADD COLUMN city VARCHAR(100);`,
+    `ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT false;`,
+    `ALTER TABLE users ADD COLUMN phone_verified BOOLEAN DEFAULT false;`,
+    `ALTER TABLE users ADD COLUMN verification_status VARCHAR(50) DEFAULT 'unverified';`,
     `ALTER TABLE users ADD COLUMN referred_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;`,
     `ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 0;`,
     `ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP;`,

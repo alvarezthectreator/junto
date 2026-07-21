@@ -161,15 +161,25 @@ export async function verifyCode(req, res) {
       [now, verification.id]
     );
 
-    // Update user's email or phone based on verification type
+    // Update user's email or phone and canonical verification status
     if (verification_type === 'email' && verification.email) {
       await query(
-        `UPDATE users SET email = $1, updated_at = $2 WHERE id = $3`,
+        `UPDATE users
+         SET email = $1,
+             email_verified = true,
+             verification_status = 'verified',
+             updated_at = $2
+         WHERE id = $3`,
         [verification.email, now, user_id]
       );
     } else if (verification_type === 'phone' && verification.phone_number) {
       await query(
-        `UPDATE users SET phone_number = $1, updated_at = $2 WHERE id = $3`,
+        `UPDATE users
+         SET phone_number = $1,
+             phone_verified = true,
+             verification_status = 'verified',
+             updated_at = $2
+         WHERE id = $3`,
         [verification.phone_number, now, user_id]
       );
     }
