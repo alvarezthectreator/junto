@@ -23,4 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 backend/uploads/
+backend/junto.db
 .vercel
