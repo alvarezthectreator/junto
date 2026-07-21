@@ -1195,15 +1195,19 @@ import React, { useState, useEffect, useRef } from 'react';
             email: {
               verified:
                 Boolean(emailStatus?.is_verified) ||
-                Boolean(currentUser?.email) ||
-                Boolean(storedUserSnapshot?.email) ||
-                Boolean(storedUserSnapshot?.contact_email),
+                Boolean(currentUser?.email_verified) ||
+                currentUser?.verification_status === 'verified' ||
+                Boolean(storedUserSnapshot?.email_verified) ||
+                storedUserSnapshot?.verification_status === 'verified',
               verifiedAt: emailStatus?.verified_at || null,
               code: null,
               loading: false,
             },
             phone: {
-              verified: Boolean(phoneStatus?.is_verified),
+              verified:
+                Boolean(phoneStatus?.is_verified) ||
+                Boolean(currentUser?.phone_verified) ||
+                currentUser?.verification_status === 'verified',
               verifiedAt: phoneStatus?.verified_at || null,
               code: null,
               loading: false,

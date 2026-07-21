@@ -50,6 +50,12 @@ function buildAuthUserPayload(userRow, profileRow = {}) {
     avatar_image: avatarImage,
     avatar_url: avatarImage,
     profile_photos: profilePhotos,
+    email: userRow.email || null,
+    phone_number: userRow.phone_number || userRow.phone || null,
+    email_verified: Boolean(userRow.email_verified),
+    phone_verified: Boolean(userRow.phone_verified),
+    verification_status: userRow.verification_status || null,
+    fraud_verification_status: userRow.fraud_verification_status || null,
   };
 }
 
