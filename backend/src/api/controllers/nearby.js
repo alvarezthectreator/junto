@@ -127,7 +127,7 @@ export async function getNearbyUsers(req, res) {
        AND u.id != ?
        ORDER BY COALESCE(fs.risk_score, 0) ASC, u.created_at DESC
        LIMIT ?`,
-      [userId, ...locationPatterns, userId, limit]
+      [...locationPatterns, userId, limit]
     );
 
     res.json({ nearby_users: (result.rows || []).map(enrichNearbyUser) });
