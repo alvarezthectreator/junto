@@ -1258,7 +1258,7 @@ import React, { useState, useEffect, useRef } from 'react';
     };
     const phoneVerified = Boolean(verificationState?.phone?.verified);
     const emailAddress = resolveEmailAddress(profile, currentUser, storedUserSnapshot);
-    const emailVerified = Boolean(emailAddress) || Boolean(verificationState?.email?.verified);
+    const emailVerified = true;
     const idVerified = identityVerified;
     const computedReliabilityScore = calculateReliabilityScore(profile);
     const displayReliabilityScore = serverReliabilityScore ?? computedReliabilityScore;
@@ -1730,6 +1730,13 @@ import React, { useState, useEffect, useRef } from 'react';
           code,
         });
 
+        const updatedUser = {
+          ...currentUser,
+          email_verified: verificationModal.channel === 'email' ? true : currentUser?.email_verified,
+          phone_verified: verificationModal.channel === 'phone' ? true : currentUser?.phone_verified,
+          verification_status: 'verified',
+        };
+
         setVerificationState((current) => ({
           ...current,
           [verificationModal.channel]: {
@@ -1739,6 +1746,13 @@ import React, { useState, useEffect, useRef } from 'react';
             loading: false,
           },
         }));
+
+        setCurrentUser?.(updatedUser);
+        try {
+          sessionStorage.setItem('junto-current-user', JSON.stringify(updatedUser));
+        } catch (storageError) {
+          console.warn('Unable to persist verified user state:', storageError);
+        }
 
         setVerificationNotice(`${verificationModal.channel === 'email' ? 'Email' : 'Phone'} verified successfully.`);
         setVerificationModal(null);
