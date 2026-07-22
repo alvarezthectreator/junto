@@ -21,8 +21,12 @@ export interface User {
   display_name?: string;
   full_name?: string;
   email?: string;
+  email_verified?: boolean;
   phone_number?: string;
   phone?: string;
+  phone_verified?: boolean;
+  verification_status?: string;
+  fraud_verification_status?: string;
   profile_id: string;
   date_of_birth?: string;
   gender?: string;
@@ -49,6 +53,8 @@ export interface UserProfile {
   name: string;
   display_name?: string;
   full_name?: string;
+  email?: string;
+  contact_email?: string;
   bio?: string;
   profile_photo?: string;
   profile_photos?: string[];
@@ -804,10 +810,12 @@ function normalizeUserProfile(profile: any): UserProfile {
   const avatarImage = profile.avatar_image || profile.avatar_url || (Array.isArray(profilePhotos) ? profilePhotos[0] : undefined);
   const introVideoUrl = profile.intro_video_url || profile.introVideoUrl || profile.introVideo || null;
   const city = profile.city || profile.location || profile.travel_destination_city || '';
+  const email = profile.email || profile.contact_email || profile.email_address || null;
 
   return {
     ...profile,
     city,
+    email,
     name: profile.name || profile.display_name || profile.full_name || '',
     interests: parseMaybeJsonArray(profile.interests) || profile.interests,
     profile_photos: profilePhotos,

@@ -213,7 +213,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
   function resolveEmailAddress(...sources: Array<any>) {
     for (const source of sources) {
-      const email = String(source?.email || source?.contact_email || '').trim();
+      const email = String(source?.email || source?.contact_email || source?.email_address || '').trim();
       if (email) {
         return email;
       }

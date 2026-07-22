@@ -42,6 +42,7 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppProvider } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
+import * as API from './services/api';
 import { logout as clearApiSession, getLastSessionActivity, markSessionActivity, getSessionToken, getStoredCurrentUser, getUserProfile, verifySession } from './services/api';
 import { appConfig } from './config/appConfig';
 import { trackEvent, trackPageView } from './services/analytics';
@@ -464,6 +465,12 @@ export function App() {
         : Array.isArray(storedSnapshot.profile_photos)
           ? storedSnapshot.profile_photos
           : [],
+      email: user.email || storedSnapshot.email || storedSnapshot.contact_email || null,
+      phone_number: user.phone_number || user.phone || storedSnapshot.phone_number || storedSnapshot.phone || null,
+      email_verified: typeof user.email_verified === 'boolean' ? user.email_verified : Boolean(storedSnapshot.email_verified),
+      phone_verified: typeof user.phone_verified === 'boolean' ? user.phone_verified : Boolean(storedSnapshot.phone_verified),
+      verification_status: user.verification_status || storedSnapshot.verification_status || null,
+      fraud_verification_status: user.fraud_verification_status || storedSnapshot.fraud_verification_status || null,
     };
     setCurrentUser(userData);
     setSelectedUser(null);
