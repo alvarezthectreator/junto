@@ -424,6 +424,34 @@ import React, { useState, useEffect, useRef } from 'react';
     return typeof candidate === 'number' ? clampScore(candidate) : null;
   }
 
+  function pickProfileRating(profile: any): number | null {
+    const candidate = [
+      profile?.average_rating,
+      profile?.avg_rating,
+      profile?.rating,
+      profile?.host_rating,
+      profile?.profile_rating,
+    ].find((value) => typeof value === 'number' && Number.isFinite(value));
+
+    return typeof candidate === 'number' ? Math.max(0, Math.round(candidate * 10) / 10) : null;
+  }
+
+  function pickProfileReviewCount(profile: any): number | null {
+    const candidate = [
+      profile?.review_count,
+      profile?.reviews,
+      profile?.total_reviews,
+      profile?.total_ratings,
+      profile?.rating_count,
+    ].find((value) => typeof value === 'number' && Number.isFinite(value));
+
+    return typeof candidate === 'number' ? Math.max(0, Math.round(candidate)) : null;
+  }
+
+  function formatProfileRating(value: number) {
+    return value === 0 ? '0' : value.toFixed(1).replace(/\.0$/, '');
+  }
+
   function getAspectRatioValue(aspect: string): number {
     switch (aspect) {
       case 'portrait':
@@ -865,6 +893,8 @@ import React, { useState, useEffect, useRef } from 'react';
         email: resolveEmailAddress(currentUser, storedUserSnapshot) || initialEmail,
         location: 'Lagos, Nigeria',
         profileId: currentUser?.profile_id || initialProfileId,
+        rating: 0,
+        reviewCount: 0,
         avatarImage: getAvatarSrc(
           currentUser?.avatar_image ||
           currentUser?.avatar_url ||
@@ -973,6 +1003,8 @@ import React, { useState, useEffect, useRef } from 'react';
           ...prev,
           name: currentUser.username || currentUser.name || prev.name,
           profileId: currentUser.profile_id || prev.profileId,
+          rating: pickProfileRating(currentUser) ?? prev.rating,
+          reviewCount: pickProfileReviewCount(currentUser) ?? prev.reviewCount,
           avatarImage: getAvatarSrc(
             currentUser.avatar_image ||
             currentUser.avatar_url ||
@@ -1002,25 +1034,33 @@ import React, { useState, useEffect, useRef } from 'react';
             const userProfile = await API.getUserProfile(currentUser.id);
             const serverPhotos = Array.isArray(userProfile.profile_photos) ? userProfile.profile_photos : [];
             const nextServerReliabilityScore = pickServerReliabilityScore(userProfile);
-          setProfile(prev => ({
-            ...prev,
-            name: currentUser?.username || userProfile.username || userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
-            age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : null,
-            dob: userProfile.date_of_birth || prev.dob,
-            email: resolveEmailAddress(userProfile, currentUser, storedUserSnapshot) || prev.email || '',
-            bio: userProfile.bio || prev.bio,
-            interests: userProfile.interests || prev.interests,
-            genderIdentity: userProfile.gender || prev.genderIdentity,
-            avatarImage: getAvatarSrc(
-              userProfile.avatar_image ||
-                userProfile.avatar_url ||
-                userProfile.profile_photo ||
-                storedUserSnapshot.avatar_image ||
-                storedUserSnapshot.avatar_url ||
-                storedUserSnapshot.avatarImage ||
-                (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
-                serverPhotos[0] ||
-                prev.avatarImage
+            const nextProfileRating = pickProfileRating(userProfile) ?? pickProfileRating(currentUser) ?? pickProfileRating(storedUserSnapshot) ?? 0;
+            const nextProfileReviewCount =
+              pickProfileReviewCount(userProfile) ??
+              pickProfileReviewCount(currentUser) ??
+              pickProfileReviewCount(storedUserSnapshot) ??
+              0;
+            setProfile(prev => ({
+              ...prev,
+              name: currentUser?.username || userProfile.username || userProfile.display_name || userProfile.full_name || userProfile.name || prev.name,
+              age: userProfile.date_of_birth ? getAgeFromDob(userProfile.date_of_birth) : null,
+              dob: userProfile.date_of_birth || prev.dob,
+              email: resolveEmailAddress(userProfile, currentUser, storedUserSnapshot) || prev.email || '',
+              bio: userProfile.bio || prev.bio,
+              interests: userProfile.interests || prev.interests,
+              genderIdentity: userProfile.gender || prev.genderIdentity,
+              rating: nextProfileRating,
+              reviewCount: nextProfileReviewCount,
+              avatarImage: getAvatarSrc(
+                userProfile.avatar_image ||
+                  userProfile.avatar_url ||
+                  userProfile.profile_photo ||
+                  storedUserSnapshot.avatar_image ||
+                  storedUserSnapshot.avatar_url ||
+                  storedUserSnapshot.avatarImage ||
+                  (Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos[0] : '') ||
+                  serverPhotos[0] ||
+                  prev.avatarImage
               ),
               photos: serverPhotos.length > 0 ? normalizeGalleryPhotos(serverPhotos.slice(1)) : normalizeGalleryPhotos(Array.isArray(storedUserSnapshot.profile_photos) ? storedUserSnapshot.profile_photos.slice(1) : prev.photos),
               introVideo: userProfile.intro_video_url || currentUser?.intro_video_url || storedUserSnapshot.intro_video_url || prev.introVideo,
@@ -1047,8 +1087,8 @@ import React, { useState, useEffect, useRef } from 'react';
                 occupation: userProfile.occupation || prev.occupation,
               }),
             }));
-            setServerReliabilityScore(nextServerReliabilityScore);
-          }
+          setServerReliabilityScore(nextServerReliabilityScore);
+        }
         } catch (error) {
           console.error('Failed to fetch profile:', error);
         } finally {
@@ -1071,15 +1111,17 @@ import React, { useState, useEffect, useRef } from 'react';
         );
           setProfile(prev => ({
             ...prev,
-          name: selectedUser.name || prev.name,
-          age: selectedUser.age ?? null,
-          email: resolveEmailAddress(selectedUser) || prev.email || '',
-          bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
-          interests: selectedUser.interests || prev.interests,
-          location: selectedUser.location || 'Lagos, Nigeria',
-          avatarImage: selectedAvatar,
-          genderIdentity: selectedUser.gender || prev.genderIdentity,
-          reliabilityScore: selectedUser.reliabilityScore || calculateReliabilityScore({
+            name: selectedUser.name || prev.name,
+            age: selectedUser.age ?? null,
+            email: resolveEmailAddress(selectedUser) || prev.email || '',
+            bio: selectedUser.bio || `Hey! I'm ${selectedUser.name}. Let's connect!`,
+            interests: selectedUser.interests || prev.interests,
+            location: selectedUser.location || 'Lagos, Nigeria',
+            rating: pickProfileRating(selectedUser) ?? prev.rating,
+            reviewCount: pickProfileReviewCount(selectedUser) ?? prev.reviewCount,
+            avatarImage: selectedAvatar,
+            genderIdentity: selectedUser.gender || prev.genderIdentity,
+            reliabilityScore: selectedUser.reliabilityScore || calculateReliabilityScore({
             bio: selectedUser.bio || prev.bio,
             interests: selectedUser.interests || prev.interests,
             photos: Array.isArray(selectedUser.profile_photos)
@@ -1125,6 +1167,8 @@ import React, { useState, useEffect, useRef } from 'react';
             bio: publicProfile.bio || selectedUser.bio || prev.bio,
             interests: publicProfile.interests || selectedUser.interests || prev.interests,
             genderIdentity: publicProfile.gender || selectedUser.gender || prev.genderIdentity,
+            rating: pickProfileRating(publicProfile) ?? pickProfileRating(selectedUser) ?? prev.rating,
+            reviewCount: pickProfileReviewCount(publicProfile) ?? pickProfileReviewCount(selectedUser) ?? prev.reviewCount,
             avatarImage: getAvatarSrc(
               publicProfile.avatar_image ||
               publicProfile.avatar_url ||
@@ -1253,9 +1297,9 @@ import React, { useState, useEffect, useRef } from 'react';
     const stats = {
       outings: 24,
       hosted: hostedEventsCount ?? 0,
-      reviews: 18,
-      rating: 4.7,
     };
+    const displayRating = formatProfileRating(profile.rating ?? 0);
+    const displayReviewCount = profile.reviewCount ?? 0;
     const phoneVerified = Boolean(verificationState?.phone?.verified);
     const emailAddress = resolveEmailAddress(profile, currentUser, storedUserSnapshot);
     const emailVerified = true;
@@ -2128,7 +2172,7 @@ import React, { useState, useEffect, useRef } from 'react';
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
-                <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
+                <StatCard value={`★ ${displayRating}`} label={`${displayReviewCount} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
                 <StatCard value={`${displayReliabilityScore}%`} label="Reliability" icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
                 <StatCard value={profile.interests.length} label="Interests" icon={<User size={16} />} isLightMode={isLightMode} />
               </div>
@@ -2769,7 +2813,7 @@ import React, { useState, useEffect, useRef } from 'react';
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard value={stats.hosted} label="Events Hosted" icon={<Award size={16} />} isLightMode={isLightMode} />
-                <StatCard value={`★ ${stats.rating}`} label={`${stats.reviews} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
+                <StatCard value={`★ ${displayRating}`} label={`${displayReviewCount} reviews`} icon={<Star size={16} />} isLightMode={isLightMode} />
                 <StatCard value={`${displayReliabilityScore}%`} label={serverReliabilityScore !== null ? 'Server-backed reliability' : 'Estimated reliability'} icon={<ShieldCheck size={16} />} isLightMode={isLightMode} />
               </div>
 
